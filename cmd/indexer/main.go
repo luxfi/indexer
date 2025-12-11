@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Lux Partners Limited
+// SPDX-License-Identifier: MIT
+
 // Package main provides the CLI for running LUX chain indexers.
 package main
 

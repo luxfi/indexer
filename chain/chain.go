@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Lux Partners Limited
+// SPDX-License-Identifier: MIT
+
 // Package chain provides shared linear chain indexing for LUX chains (P, Z).
 // Based on luxfi/consensus/engine/chain/block - single parent per block.
 package chain

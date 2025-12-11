@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Lux Partners Limited
+// SPDX-License-Identifier: MIT
+
 // Package dag provides shared DAG indexing for LUX chains (X, A, B, Q, T).
 // Based on luxfi/consensus/engine/dag/vertex - multiple parents per vertex.
 package dag
