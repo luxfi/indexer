@@ -58,15 +58,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set defaults based on chain type
+	// Set defaults based on chain type, checking env vars first
 	if *rpcEndpoint == "" {
-		*rpcEndpoint = defaultRPC(*chainType)
+		if env := os.Getenv("RPC_ENDPOINT"); env != "" {
+			*rpcEndpoint = env
+		} else {
+			*rpcEndpoint = defaultRPC(*chainType)
+		}
 	}
 	if *databaseURL == "" {
-		*databaseURL = defaultDB(*chainType)
+		if env := os.Getenv("DATABASE_URL"); env != "" {
+			*databaseURL = env
+		} else {
+			*databaseURL = defaultDB(*chainType)
+		}
 	}
 	if *httpPort == 0 {
-		*httpPort = defaultPort(*chainType)
+		if env := os.Getenv("HTTP_PORT"); env != "" {
+			if p, err := fmt.Sscanf(env, "%d", httpPort); err == nil && p == 1 {
+				// port set from env
+			} else {
+				*httpPort = defaultPort(*chainType)
+			}
+		} else {
+			*httpPort = defaultPort(*chainType)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
