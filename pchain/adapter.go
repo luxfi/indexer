@@ -165,7 +165,7 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 	}
 
 	var currentHeight uint64
-	fmt.Sscanf(heightResp.Height, "%d", &currentHeight)
+	_, _ = fmt.Sscanf(heightResp.Height, "%d", &currentHeight)
 
 	blocks := make([]json.RawMessage, 0, limit)
 	for i := 0; i < limit && currentHeight >= uint64(i); i++ {
@@ -334,9 +334,9 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	// Get validator stats
 	var totalValidators, activeValidators int
 	var totalStake int64
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators").Scan(&totalValidators)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators WHERE end_time > NOW()").Scan(&activeValidators)
-	db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_validators WHERE end_time > NOW()").Scan(&totalStake)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators").Scan(&totalValidators)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators WHERE end_time > NOW()").Scan(&activeValidators)
+	_ = db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_validators WHERE end_time > NOW()").Scan(&totalStake)
 
 	stats["validators"] = map[string]interface{}{
 		"total":       totalValidators,
@@ -347,8 +347,8 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	// Get delegator stats
 	var totalDelegators int
 	var totalDelegated int64
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegators)
-	db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegated)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegators)
+	_ = db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegated)
 
 	stats["delegators"] = map[string]interface{}{
 		"active":          totalDelegators,
@@ -357,8 +357,8 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 
 	// Get subnet/network stats
 	var totalNets, totalChains int
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_nets").Scan(&totalNets)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_chains").Scan(&totalChains)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_nets").Scan(&totalNets)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_chains").Scan(&totalChains)
 
 	stats["networks"] = map[string]interface{}{
 		"total_nets":   totalNets,
@@ -366,7 +366,7 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	}
 
 	// Update extended stats
-	db.ExecContext(ctx, `
+	_, _ = db.ExecContext(ctx, `
 		UPDATE pchain_extended_stats SET
 			total_validators = $1,
 			active_validators = $2,

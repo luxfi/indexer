@@ -275,7 +275,7 @@ func TestBlockWithEmptyData(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
-	if decoded.Data != nil && len(decoded.Data) > 0 {
+	if len(decoded.Data) > 0 {
 		t.Errorf("expected empty Data field, got %s", string(decoded.Data))
 	}
 }

@@ -90,7 +90,6 @@ type Indexer struct {
 	subscriber *Subscriber
 	poller     *Poller
 	adapter    Adapter
-	mu         sync.RWMutex
 }
 
 // New creates a new chain indexer
@@ -186,10 +185,10 @@ func (idx *Indexer) UpdateStats(ctx context.Context) error {
 	var s Stats
 	s.ChainType = idx.config.ChainType
 
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks", idx.config.ChainType)).Scan(&s.TotalBlocks)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COALESCE(MAX(height), 0) FROM %s_blocks", idx.config.ChainType)).Scan(&s.LatestHeight)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingBlocks)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedBlocks)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks", idx.config.ChainType)).Scan(&s.TotalBlocks)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COALESCE(MAX(height), 0) FROM %s_blocks", idx.config.ChainType)).Scan(&s.LatestHeight)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingBlocks)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedBlocks)
 
 	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
 		UPDATE %s_stats SET total_blocks=$1, latest_height=$2, pending_blocks=$3, accepted_blocks=$4, updated_at=NOW() WHERE id=1
@@ -220,7 +219,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			idx.UpdateStats(ctx)
+			_ = idx.UpdateStats(ctx)
 		}
 	}
 }
@@ -236,7 +235,7 @@ func (idx *Indexer) startHTTP(ctx context.Context) {
 	api.HandleFunc("/blocks/subscribe", idx.subscriber.HandleWebSocket)
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "ok", "chain": idx.config.ChainName, "type": "linear",
 		})
 	})
@@ -246,11 +245,11 @@ func (idx *Indexer) startHTTP(ctx context.Context) {
 
 	go func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 	}()
 
 	log.Printf("[%s] API on port %d", idx.config.ChainType, idx.config.HTTPPort)
-	server.ListenAndServe()
+	_ = server.ListenAndServe()
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -270,7 +269,7 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 	s.ChainType = idx.config.ChainType
 	s.LastUpdated = time.Now()
 
-	idx.db.QueryRow(fmt.Sprintf("SELECT total_blocks, latest_height, pending_blocks, accepted_blocks FROM %s_stats WHERE id=1", idx.config.ChainType)).
+	_ = idx.db.QueryRow(fmt.Sprintf("SELECT total_blocks, latest_height, pending_blocks, accepted_blocks FROM %s_stats WHERE id=1", idx.config.ChainType)).
 		Scan(&s.TotalBlocks, &s.LatestHeight, &s.PendingBlocks, &s.AcceptedBlocks)
 
 	resp := map[string]interface{}{"chain_stats": s}
@@ -279,24 +278,28 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 			resp["extended_stats"] = cs
 		}
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (idx *Indexer) handleBlocks(w http.ResponseWriter, r *http.Request) {
-	rows, _ := idx.db.Query(fmt.Sprintf(`
+	rows, err := idx.db.Query(fmt.Sprintf(`
 		SELECT id, parent_id, height, timestamp, status, tx_count, data FROM %s_blocks ORDER BY height DESC LIMIT 50
 	`, idx.config.ChainType))
+	if err != nil {
+		http.Error(w, "database error", 500)
+		return
+	}
 	defer rows.Close()
 
 	var blocks []Block
 	for rows.Next() {
 		var b Block
 		var data []byte
-		rows.Scan(&b.ID, &b.ParentID, &b.Height, &b.Timestamp, &b.Status, &b.TxCount, &data)
+		_ = rows.Scan(&b.ID, &b.ParentID, &b.Height, &b.Timestamp, &b.Status, &b.TxCount, &data)
 		b.Data = data
 		blocks = append(blocks, b)
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"items": blocks})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": blocks})
 }
 
 func (idx *Indexer) handleBlock(w http.ResponseWriter, r *http.Request) {
@@ -311,7 +314,7 @@ func (idx *Indexer) handleBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.Data = data
-	json.NewEncoder(w).Encode(b)
+	_ = json.NewEncoder(w).Encode(b)
 }
 
 func (idx *Indexer) handleBlockByHeight(w http.ResponseWriter, r *http.Request) {
@@ -326,7 +329,7 @@ func (idx *Indexer) handleBlockByHeight(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	b.Data = data
-	json.NewEncoder(w).Encode(b)
+	_ = json.NewEncoder(w).Encode(b)
 }
 
 // Subscriber handles WebSocket for live block streaming
@@ -388,7 +391,7 @@ func (s *Subscriber) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.register <- conn
-	conn.WriteJSON(map[string]interface{}{"type": "connected", "chain": s.chainType})
+	_ = conn.WriteJSON(map[string]interface{}{"type": "connected", "chain": s.chainType})
 	go func() {
 		defer func() { s.unregister <- conn }()
 		for {
@@ -459,7 +462,7 @@ func (p *Poller) poll(ctx context.Context) {
 		if b.Height <= lastHeight {
 			continue
 		}
-		p.idx.StoreBlock(ctx, b)
+		_ = p.idx.StoreBlock(ctx, b)
 	}
 
 	if newLastHeight > 0 {

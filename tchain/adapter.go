@@ -456,16 +456,16 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	var totalKeyShares, activeKeyShares, totalKeyGens int64
 	var totalMessages, pendingMessages, deliveredMessages int64
 
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions").Scan(&totalSessions)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='active'").Scan(&activeSessions)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='completed'").Scan(&completedSessions)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='failed'").Scan(&failedSessions)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares").Scan(&totalKeyShares)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares WHERE status='active'").Scan(&activeKeyShares)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_generations").Scan(&totalKeyGens)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages").Scan(&totalMessages)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='pending'").Scan(&pendingMessages)
-	db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='delivered'").Scan(&deliveredMessages)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions").Scan(&totalSessions)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='active'").Scan(&activeSessions)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='completed'").Scan(&completedSessions)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='failed'").Scan(&failedSessions)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares").Scan(&totalKeyShares)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares WHERE status='active'").Scan(&activeKeyShares)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_generations").Scan(&totalKeyGens)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages").Scan(&totalMessages)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='pending'").Scan(&pendingMessages)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='delivered'").Scan(&deliveredMessages)
 
 	stats["mpc_stats"] = map[string]interface{}{
 		"total_sessions":     totalSessions,
@@ -493,7 +493,7 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 
 	// Get average threshold
 	var avgThreshold float64
-	db.QueryRowContext(ctx, "SELECT COALESCE(AVG(threshold), 0) FROM tchain_key_generations WHERE status='completed'").Scan(&avgThreshold)
+	_ = db.QueryRowContext(ctx, "SELECT COALESCE(AVG(threshold), 0) FROM tchain_key_generations WHERE status='completed'").Scan(&avgThreshold)
 	stats["avg_threshold"] = avgThreshold
 
 	return stats, nil
