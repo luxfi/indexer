@@ -45,28 +45,28 @@ const (
 type ProofType string
 
 const (
-	ProofGroth16  ProofType = "groth16"
-	ProofPlonk    ProofType = "plonk"
-	ProofSTARK    ProofType = "stark"
-	ProofBullet   ProofType = "bulletproof"
-	ProofHalo2    ProofType = "halo2"
-	ProofFRI      ProofType = "fri" // Fast Reed-Solomon IOP
+	ProofGroth16 ProofType = "groth16"
+	ProofPlonk   ProofType = "plonk"
+	ProofSTARK   ProofType = "stark"
+	ProofBullet  ProofType = "bulletproof"
+	ProofHalo2   ProofType = "halo2"
+	ProofFRI     ProofType = "fri" // Fast Reed-Solomon IOP
 )
 
 // ZKProof represents a zero-knowledge proof
 type ZKProof struct {
-	Type       ProofType `json:"type"`
-	Data       string    `json:"data"`       // Hex-encoded proof bytes
-	PublicInputs []string `json:"publicInputs,omitempty"`
-	VerifyingKey string  `json:"verifyingKey,omitempty"`
+	Type         ProofType `json:"type"`
+	Data         string    `json:"data"` // Hex-encoded proof bytes
+	PublicInputs []string  `json:"publicInputs,omitempty"`
+	VerifyingKey string    `json:"verifyingKey,omitempty"`
 }
 
 // Nullifier represents a spent note marker (prevents double-spending)
 type Nullifier struct {
-	Hash      string `json:"hash"`
-	TxID      string `json:"txId"`
-	Index     int    `json:"index"`
-	SpentAt   int64  `json:"spentAt,omitempty"` // Vertex height
+	Hash    string `json:"hash"`
+	TxID    string `json:"txId"`
+	Index   int    `json:"index"`
+	SpentAt int64  `json:"spentAt,omitempty"` // Vertex height
 }
 
 // Commitment represents a shielded note commitment

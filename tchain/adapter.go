@@ -42,76 +42,76 @@ const (
 type KeyShareStatus string
 
 const (
-	SharePending  KeyShareStatus = "pending"
-	ShareActive   KeyShareStatus = "active"
-	ShareRevoked  KeyShareStatus = "revoked"
-	ShareRotated  KeyShareStatus = "rotated"
+	SharePending KeyShareStatus = "pending"
+	ShareActive  KeyShareStatus = "active"
+	ShareRevoked KeyShareStatus = "revoked"
+	ShareRotated KeyShareStatus = "rotated"
 )
 
 // SigningSession represents an MPC threshold signing session
 type SigningSession struct {
-	ID            string        `json:"id"`
-	Threshold     uint32        `json:"threshold"`     // t of n threshold
-	TotalShares   uint32        `json:"totalShares"`   // total participants
-	MessageHash   string        `json:"messageHash"`   // hash being signed
-	Participants  []string      `json:"participants"`  // node IDs participating
-	Signatures    []string      `json:"signatures"`    // partial signatures collected
-	FinalSig      string        `json:"finalSig,omitempty"` // combined signature
-	Status        SessionStatus `json:"status"`
-	CreatedAt     time.Time     `json:"createdAt"`
-	CompletedAt   *time.Time    `json:"completedAt,omitempty"`
-	ExpiresAt     time.Time     `json:"expiresAt"`
-	SourceChain   string        `json:"sourceChain,omitempty"`
-	DestChain     string        `json:"destChain,omitempty"`
+	ID           string        `json:"id"`
+	Threshold    uint32        `json:"threshold"`          // t of n threshold
+	TotalShares  uint32        `json:"totalShares"`        // total participants
+	MessageHash  string        `json:"messageHash"`        // hash being signed
+	Participants []string      `json:"participants"`       // node IDs participating
+	Signatures   []string      `json:"signatures"`         // partial signatures collected
+	FinalSig     string        `json:"finalSig,omitempty"` // combined signature
+	Status       SessionStatus `json:"status"`
+	CreatedAt    time.Time     `json:"createdAt"`
+	CompletedAt  *time.Time    `json:"completedAt,omitempty"`
+	ExpiresAt    time.Time     `json:"expiresAt"`
+	SourceChain  string        `json:"sourceChain,omitempty"`
+	DestChain    string        `json:"destChain,omitempty"`
 }
 
 // KeyShare represents a distributed key share for MPC
 type KeyShare struct {
-	ID          string         `json:"id"`
-	PublicKey   string         `json:"publicKey"`
-	ShareIndex  uint32         `json:"shareIndex"`
-	NodeID      string         `json:"nodeId"`
-	KeyGenID    string         `json:"keyGenId"`    // key generation ceremony ID
-	Status      KeyShareStatus `json:"status"`
-	CreatedAt   time.Time      `json:"createdAt"`
-	RotatedAt   *time.Time     `json:"rotatedAt,omitempty"`
-	ExpiresAt   *time.Time     `json:"expiresAt,omitempty"`
+	ID         string         `json:"id"`
+	PublicKey  string         `json:"publicKey"`
+	ShareIndex uint32         `json:"shareIndex"`
+	NodeID     string         `json:"nodeId"`
+	KeyGenID   string         `json:"keyGenId"` // key generation ceremony ID
+	Status     KeyShareStatus `json:"status"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	RotatedAt  *time.Time     `json:"rotatedAt,omitempty"`
+	ExpiresAt  *time.Time     `json:"expiresAt,omitempty"`
 }
 
 // KeyGeneration represents a distributed key generation ceremony
 type KeyGeneration struct {
-	ID            string    `json:"id"`
-	Threshold     uint32    `json:"threshold"`
-	TotalShares   uint32    `json:"totalShares"`
-	PublicKey     string    `json:"publicKey"`     // combined public key
-	Participants  []string  `json:"participants"`
-	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"createdAt"`
-	CompletedAt   *time.Time `json:"completedAt,omitempty"`
+	ID           string     `json:"id"`
+	Threshold    uint32     `json:"threshold"`
+	TotalShares  uint32     `json:"totalShares"`
+	PublicKey    string     `json:"publicKey"` // combined public key
+	Participants []string   `json:"participants"`
+	Status       string     `json:"status"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	CompletedAt  *time.Time `json:"completedAt,omitempty"`
 }
 
 // TeleportMessage represents a cross-chain teleport message
 type TeleportMessage struct {
-	ID            string          `json:"id"`
-	SourceChain   string          `json:"sourceChain"`
-	DestChain     string          `json:"destChain"`
-	Sender        string          `json:"sender"`
-	Receiver      string          `json:"receiver"`
-	Payload       json.RawMessage `json:"payload"`
-	Nonce         uint64          `json:"nonce"`
-	SessionID     string          `json:"sessionId,omitempty"`
-	Status        string          `json:"status"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	SignedAt      *time.Time      `json:"signedAt,omitempty"`
-	DeliveredAt   *time.Time      `json:"deliveredAt,omitempty"`
+	ID          string          `json:"id"`
+	SourceChain string          `json:"sourceChain"`
+	DestChain   string          `json:"destChain"`
+	Sender      string          `json:"sender"`
+	Receiver    string          `json:"receiver"`
+	Payload     json.RawMessage `json:"payload"`
+	Nonce       uint64          `json:"nonce"`
+	SessionID   string          `json:"sessionId,omitempty"`
+	Status      string          `json:"status"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	SignedAt    *time.Time      `json:"signedAt,omitempty"`
+	DeliveredAt *time.Time      `json:"deliveredAt,omitempty"`
 }
 
 // VertexData contains T-Chain specific vertex data
 type VertexData struct {
-	Session     *SigningSession  `json:"session,omitempty"`
-	KeyShare    *KeyShare        `json:"keyShare,omitempty"`
-	KeyGen      *KeyGeneration   `json:"keyGen,omitempty"`
-	Message     *TeleportMessage `json:"message,omitempty"`
+	Session  *SigningSession  `json:"session,omitempty"`
+	KeyShare *KeyShare        `json:"keyShare,omitempty"`
+	KeyGen   *KeyGeneration   `json:"keyGen,omitempty"`
+	Message  *TeleportMessage `json:"message,omitempty"`
 }
 
 // Adapter implements dag.Adapter for T-Chain MPC operations

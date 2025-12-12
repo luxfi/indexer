@@ -85,12 +85,12 @@ const (
 
 // Stats for DAG chain
 type Stats struct {
-	TotalVertices   int64     `json:"total_vertices"`
-	PendingVertices int64     `json:"pending_vertices"`
-	AcceptedVertices int64    `json:"accepted_vertices"`
-	TotalEdges      int64     `json:"total_edges"`
-	ChainType       ChainType `json:"chain_type"`
-	LastUpdated     time.Time `json:"last_updated"`
+	TotalVertices    int64     `json:"total_vertices"`
+	PendingVertices  int64     `json:"pending_vertices"`
+	AcceptedVertices int64     `json:"accepted_vertices"`
+	TotalEdges       int64     `json:"total_edges"`
+	ChainType        ChainType `json:"chain_type"`
+	LastUpdated      time.Time `json:"last_updated"`
 }
 
 // Adapter interface for chain-specific logic
@@ -478,9 +478,9 @@ func (s *Subscriber) ClientCount() int {
 
 // Poller polls for new vertices
 type Poller struct {
-	idx *Indexer
-	sub *Subscriber
-	mu  sync.Mutex
+	idx    *Indexer
+	sub    *Subscriber
+	mu     sync.Mutex
 	lastID string
 }
 

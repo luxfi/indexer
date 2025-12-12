@@ -56,15 +56,15 @@ type Transfer struct {
 
 // Proof represents a bridge proof for cross-chain validation
 type Proof struct {
-	ID           string    `json:"id"`
-	TransferID   string    `json:"transferId"`
-	ProofType    string    `json:"proofType"` // merkle, signature, zk
-	ProofData    string    `json:"proofData"`
-	Validators   []string  `json:"validators,omitempty"`
-	Signatures   []string  `json:"signatures,omitempty"`
-	Verified     bool      `json:"verified"`
-	VerifiedAt   time.Time `json:"verifiedAt,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID         string    `json:"id"`
+	TransferID string    `json:"transferId"`
+	ProofType  string    `json:"proofType"` // merkle, signature, zk
+	ProofData  string    `json:"proofData"`
+	Validators []string  `json:"validators,omitempty"`
+	Signatures []string  `json:"signatures,omitempty"`
+	Verified   bool      `json:"verified"`
+	VerifiedAt time.Time `json:"verifiedAt,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // LockedAsset represents an asset locked in the bridge
@@ -79,15 +79,15 @@ type LockedAsset struct {
 
 // vertexData holds B-Chain specific vertex data
 type vertexData struct {
-	VertexID    string      `json:"vertexId"`
-	Type        string      `json:"type"`
-	ParentIDs   []string    `json:"parentIds"`
-	Height      uint64      `json:"height"`
-	Epoch       uint32      `json:"epoch"`
-	Timestamp   int64       `json:"timestamp"`
-	Status      string      `json:"status"`
-	Transfers   []Transfer  `json:"transfers,omitempty"`
-	Proofs      []Proof     `json:"proofs,omitempty"`
+	VertexID     string        `json:"vertexId"`
+	Type         string        `json:"type"`
+	ParentIDs    []string      `json:"parentIds"`
+	Height       uint64        `json:"height"`
+	Epoch        uint32        `json:"epoch"`
+	Timestamp    int64         `json:"timestamp"`
+	Status       string        `json:"status"`
+	Transfers    []Transfer    `json:"transfers,omitempty"`
+	Proofs       []Proof       `json:"proofs,omitempty"`
 	LockedAssets []LockedAsset `json:"lockedAssets,omitempty"`
 }
 
@@ -399,9 +399,9 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 			continue
 		}
 		chainStats[chainID] = map[string]interface{}{
-			"transfers_in":    in,
-			"transfers_out":   out,
-			"volume_locked":   volume,
+			"transfers_in":     in,
+			"transfers_out":    out,
+			"volume_locked":    volume,
 			"active_transfers": active,
 		}
 	}
