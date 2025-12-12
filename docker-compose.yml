@@ -1,0 +1,167 @@
+# LUX Indexer Docker Compose
+# Full stack for indexing all LUX chains (P, X, A, B, Q, T, Z)
+# C-Chain uses Blockscout separately
+
+version: '3.8'
+
+x-indexer-common: &indexer-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  networks:
+    - hanzo-network
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # PostgreSQL database for all indexers
+  postgres:
+    image: postgres:15-alpine
+    container_name: lux-indexer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: blockscout
+      POSTGRES_PASSWORD: blockscout
+      POSTGRES_DB: indexer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - hanzo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockscout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # P-Chain Indexer (Platform - Validators, Staking)
+  pchain-indexer:
+    <<: *indexer-common
+    container_name: lux-pchain-indexer
+    command: ["-chain", "pchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/P
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_pchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4100:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # X-Chain Indexer (Exchange - Assets, UTXOs)
+  xchain-indexer:
+    <<: *indexer-common
+    container_name: lux-xchain-indexer
+    command: ["-chain", "xchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/X
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_xchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4200:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # A-Chain Indexer (AI - Attestations, Models, Inference)
+  achain-indexer:
+    <<: *indexer-common
+    container_name: lux-achain-indexer
+    command: ["-chain", "achain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/A
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_achain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4500:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # B-Chain Indexer (Bridge - Cross-chain transfers)
+  bchain-indexer:
+    <<: *indexer-common
+    container_name: lux-bchain-indexer
+    command: ["-chain", "bchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/B
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_bchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4600:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Q-Chain Indexer (Quantum - Finality proofs)
+  qchain-indexer:
+    <<: *indexer-common
+    container_name: lux-qchain-indexer
+    command: ["-chain", "qchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Q
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_qchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4300:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # T-Chain Indexer (Teleport - MPC signatures)
+  tchain-indexer:
+    <<: *indexer-common
+    container_name: lux-tchain-indexer
+    command: ["-chain", "tchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/T
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_tchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4700:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Z-Chain Indexer (Privacy - ZK transactions)
+  zchain-indexer:
+    <<: *indexer-common
+    container_name: lux-zchain-indexer
+    command: ["-chain", "zchain", "-port", "4000"]
+    environment:
+      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Z
+      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_zchain?sslmode=disable
+      HTTP_PORT: 4000
+    ports:
+      - "4400:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  hanzo-network:
+    external: true
+
+volumes:
+  postgres_data:

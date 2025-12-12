@@ -16,8 +16,15 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/luxfi/indexer/achain"
+	"github.com/luxfi/indexer/bchain"
 	"github.com/luxfi/indexer/chain"
 	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/indexer/pchain"
+	"github.com/luxfi/indexer/qchain"
+	"github.com/luxfi/indexer/tchain"
+	"github.com/luxfi/indexer/xchain"
+	"github.com/luxfi/indexer/zchain"
 )
 
 var version = "dev"
@@ -27,9 +34,10 @@ func main() {
 		chainType    = flag.String("chain", "", "Chain to index: xchain, achain, bchain, qchain, tchain, zchain (DAG) or pchain (linear)")
 		rpcEndpoint  = flag.String("rpc", "", "RPC endpoint (e.g., http://localhost:9630/ext/bc/X)")
 		databaseURL  = flag.String("db", "", "PostgreSQL connection URL")
-		httpPort     = flag.Int("port", 0, "HTTP server port")
+		httpPort     = flag.Int("port", 0, "HTTP server port (default: chain-specific)")
 		pollInterval = flag.Duration("poll", 30*time.Second, "Poll interval for stats updates")
 		showVersion  = flag.Bool("version", false, "Show version and exit")
+		listChains   = flag.Bool("list", false, "List available chains and exit")
 	)
 	flag.Parse()
 
@@ -38,9 +46,27 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *chainType == "" || *rpcEndpoint == "" || *databaseURL == "" || *httpPort == 0 {
+	if *listChains {
+		printChainList()
+		os.Exit(0)
+	}
+
+	if *chainType == "" {
 		flag.Usage()
-		log.Fatal("Missing required flags: -chain, -rpc, -db, -port")
+		fmt.Println("\nAvailable chains:")
+		printChainList()
+		os.Exit(1)
+	}
+
+	// Set defaults based on chain type
+	if *rpcEndpoint == "" {
+		*rpcEndpoint = defaultRPC(*chainType)
+	}
+	if *databaseURL == "" {
+		*databaseURL = defaultDB(*chainType)
+	}
+	if *httpPort == 0 {
+		*httpPort = defaultPort(*chainType)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -57,87 +83,236 @@ func main() {
 
 	switch *chainType {
 	// DAG chains
-	case "xchain", "achain", "bchain", "qchain", "tchain", "zchain":
-		runDAGIndexer(ctx, *chainType, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "xchain":
+		runXChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "achain":
+		runAChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "bchain":
+		runBChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "qchain":
+		runQChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "tchain":
+		runTChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+	case "zchain":
+		runZChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
 	// Linear chains
 	case "pchain":
-		runChainIndexer(ctx, *chainType, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
+		runPChain(ctx, *rpcEndpoint, *databaseURL, *httpPort, *pollInterval)
 	default:
 		log.Fatalf("Unknown chain type: %s", *chainType)
 	}
 }
 
-func runDAGIndexer(ctx context.Context, chainType, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
-	ct := dag.ChainType(chainType)
+func runXChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := xchain.New(rpcEndpoint)
 	cfg := dag.Config{
-		ChainType:    ct,
-		ChainName:    chainName(chainType),
+		ChainType:    dag.ChainX,
+		ChainName:    "X-Chain (Exchange)",
 		RPCEndpoint:  rpcEndpoint,
-		RPCMethod:    rpcMethod(chainType),
+		RPCMethod:    "xvm",
 		DatabaseURL:  databaseURL,
 		HTTPPort:     httpPort,
 		PollInterval: pollInterval,
 	}
 
-	// Use base adapter (chain-specific adapters can be added later)
-	idx, err := dag.New(cfg, nil)
+	idx, err := dag.New(cfg, adapter)
 	if err != nil {
-		log.Fatalf("[%s] Failed to create indexer: %v", chainType, err)
+		log.Fatalf("[xchain] Failed to create indexer: %v", err)
 	}
 
-	log.Printf("[%s] Starting DAG indexer on port %d", chainType, httpPort)
+	log.Printf("[xchain] Starting DAG indexer on port %d", httpPort)
 	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
-		log.Fatalf("[%s] Indexer error: %v", chainType, err)
+		log.Fatalf("[xchain] Indexer error: %v", err)
 	}
-	log.Printf("[%s] Indexer stopped", chainType)
+	log.Println("[xchain] Indexer stopped")
 }
 
-func runChainIndexer(ctx context.Context, chainType, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
-	ct := chain.ChainType(chainType)
+func runAChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := achain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainA,
+		ChainName:    "A-Chain (AI)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "avm",
+		DatabaseURL:  databaseURL,
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, adapter)
+	if err != nil {
+		log.Fatalf("[achain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[achain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[achain] Indexer error: %v", err)
+	}
+	log.Println("[achain] Indexer stopped")
+}
+
+func runBChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := bchain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainB,
+		ChainName:    "B-Chain (Bridge)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "bvm",
+		DatabaseURL:  databaseURL,
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, adapter)
+	if err != nil {
+		log.Fatalf("[bchain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[bchain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[bchain] Indexer error: %v", err)
+	}
+	log.Println("[bchain] Indexer stopped")
+}
+
+func runQChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := qchain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainQ,
+		ChainName:    "Q-Chain (Quantum)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "qvm",
+		DatabaseURL:  databaseURL,
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, adapter)
+	if err != nil {
+		log.Fatalf("[qchain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[qchain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[qchain] Indexer error: %v", err)
+	}
+	log.Println("[qchain] Indexer stopped")
+}
+
+func runTChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := tchain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainT,
+		ChainName:    "T-Chain (Teleport)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "tvm",
+		DatabaseURL:  databaseURL,
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, adapter)
+	if err != nil {
+		log.Fatalf("[tchain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[tchain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[tchain] Indexer error: %v", err)
+	}
+	log.Println("[tchain] Indexer stopped")
+}
+
+func runZChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := zchain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainZ,
+		ChainName:    "Z-Chain (Privacy)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "zvm",
+		DatabaseURL:  databaseURL,
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, adapter)
+	if err != nil {
+		log.Fatalf("[zchain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[zchain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[zchain] Indexer error: %v", err)
+	}
+	log.Println("[zchain] Indexer stopped")
+}
+
+func runPChain(ctx context.Context, rpcEndpoint, databaseURL string, httpPort int, pollInterval time.Duration) {
+	adapter := pchain.New(rpcEndpoint)
 	cfg := chain.Config{
-		ChainType:    ct,
-		ChainName:    chainName(chainType),
+		ChainType:    chain.ChainP,
+		ChainName:    "P-Chain (Platform)",
 		RPCEndpoint:  rpcEndpoint,
-		RPCMethod:    rpcMethod(chainType),
+		RPCMethod:    "pvm",
 		DatabaseURL:  databaseURL,
 		HTTPPort:     httpPort,
 		PollInterval: pollInterval,
 	}
 
-	idx, err := chain.New(cfg, nil)
+	idx, err := chain.New(cfg, adapter)
 	if err != nil {
-		log.Fatalf("[%s] Failed to create indexer: %v", chainType, err)
+		log.Fatalf("[pchain] Failed to create indexer: %v", err)
 	}
 
-	log.Printf("[%s] Starting linear chain indexer on port %d", chainType, httpPort)
+	log.Printf("[pchain] Starting linear chain indexer on port %d", httpPort)
 	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
-		log.Fatalf("[%s] Indexer error: %v", chainType, err)
+		log.Fatalf("[pchain] Indexer error: %v", err)
 	}
-	log.Printf("[%s] Indexer stopped", chainType)
+	log.Println("[pchain] Indexer stopped")
 }
 
-func chainName(ct string) string {
-	names := map[string]string{
-		"xchain": "X-Chain (Exchange)",
-		"achain": "A-Chain (AI)",
-		"bchain": "B-Chain (Bridge)",
-		"qchain": "Q-Chain (Quantum)",
-		"tchain": "T-Chain (Teleport)",
-		"zchain": "Z-Chain (Privacy)",
-		"pchain": "P-Chain (Platform)",
-	}
-	return names[ct]
+func printChainList() {
+	fmt.Println("  DAG-based chains (fast consensus):")
+	fmt.Println("    xchain  - X-Chain (Exchange)  - Port 4200 - Asset exchange, UTXOs")
+	fmt.Println("    achain  - A-Chain (AI)        - Port 4500 - AI compute, attestations")
+	fmt.Println("    bchain  - B-Chain (Bridge)    - Port 4600 - Cross-chain bridge")
+	fmt.Println("    qchain  - Q-Chain (Quantum)   - Port 4300 - Quantum finality proofs")
+	fmt.Println("    tchain  - T-Chain (Teleport)  - Port 4700 - MPC threshold signatures")
+	fmt.Println("    zchain  - Z-Chain (Privacy)   - Port 4400 - ZK transactions")
+	fmt.Println()
+	fmt.Println("  Linear chains (strict ordering):")
+	fmt.Println("    pchain  - P-Chain (Platform)  - Port 4100 - Validators, staking")
+	fmt.Println()
+	fmt.Println("  EVM chain (use Blockscout):")
+	fmt.Println("    cchain  - C-Chain (Contract)  - Port 4000 - Smart contracts")
 }
 
-func rpcMethod(ct string) string {
-	methods := map[string]string{
-		"xchain": "xvm",
-		"achain": "avm",
-		"bchain": "bvm",
-		"qchain": "qvm",
-		"tchain": "tvm",
-		"zchain": "zvm",
-		"pchain": "pvm",
+func defaultPort(ct string) int {
+	ports := map[string]int{
+		"pchain": 4100,
+		"xchain": 4200,
+		"qchain": 4300,
+		"zchain": 4400,
+		"achain": 4500,
+		"bchain": 4600,
+		"tchain": 4700,
 	}
-	return methods[ct]
+	return ports[ct]
+}
+
+func defaultRPC(ct string) string {
+	endpoints := map[string]string{
+		"pchain": "http://localhost:9630/ext/bc/P",
+		"xchain": "http://localhost:9630/ext/bc/X",
+		"qchain": "http://localhost:9630/ext/bc/Q",
+		"zchain": "http://localhost:9630/ext/bc/Z",
+		"achain": "http://localhost:9630/ext/bc/A",
+		"bchain": "http://localhost:9630/ext/bc/B",
+		"tchain": "http://localhost:9630/ext/bc/T",
+	}
+	return endpoints[ct]
+}
+
+func defaultDB(ct string) string {
+	return fmt.Sprintf("postgres://blockscout:blockscout@localhost:5432/explorer_%s", ct)
 }
