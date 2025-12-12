@@ -110,7 +110,6 @@ type Indexer struct {
 	subscriber *Subscriber
 	poller     *Poller
 	adapter    Adapter
-	mu         sync.RWMutex
 }
 
 // New creates a new DAG indexer
@@ -210,7 +209,7 @@ func (idx *Indexer) StoreVertex(ctx context.Context, v *Vertex) error {
 	if err == nil {
 		// Store parent edges
 		for _, pid := range v.ParentIDs {
-			idx.StoreEdge(ctx, Edge{Source: pid, Target: v.ID, Type: EdgeParent})
+			_ = idx.StoreEdge(ctx, Edge{Source: pid, Target: v.ID, Type: EdgeParent})
 		}
 		idx.subscriber.BroadcastVertex(v)
 	}
@@ -235,10 +234,10 @@ func (idx *Indexer) UpdateStats(ctx context.Context) error {
 	var s Stats
 	s.ChainType = idx.config.ChainType
 
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices", idx.config.ChainType)).Scan(&s.TotalVertices)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingVertices)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedVertices)
-	idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_edges", idx.config.ChainType)).Scan(&s.TotalEdges)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices", idx.config.ChainType)).Scan(&s.TotalVertices)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingVertices)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedVertices)
+	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_edges", idx.config.ChainType)).Scan(&s.TotalEdges)
 
 	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
 		UPDATE %s_stats SET total_vertices=$1, pending_vertices=$2, accepted_vertices=$3, total_edges=$4, updated_at=NOW() WHERE id=1
@@ -269,7 +268,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			idx.UpdateStats(ctx)
+			_ = idx.UpdateStats(ctx)
 		}
 	}
 }
@@ -285,7 +284,7 @@ func (idx *Indexer) startHTTP(ctx context.Context) {
 	api.HandleFunc("/dag/subscribe", idx.subscriber.HandleWebSocket)
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "ok", "chain": idx.config.ChainName, "type": "dag",
 		})
 	})
@@ -295,11 +294,11 @@ func (idx *Indexer) startHTTP(ctx context.Context) {
 
 	go func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 	}()
 
 	log.Printf("[%s] API on port %d", idx.config.ChainType, idx.config.HTTPPort)
-	server.ListenAndServe()
+	_ = server.ListenAndServe()
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -319,7 +318,7 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 	s.ChainType = idx.config.ChainType
 	s.LastUpdated = time.Now()
 
-	idx.db.QueryRow(fmt.Sprintf("SELECT total_vertices, pending_vertices, accepted_vertices, total_edges FROM %s_stats WHERE id=1", idx.config.ChainType)).
+	_ = idx.db.QueryRow(fmt.Sprintf("SELECT total_vertices, pending_vertices, accepted_vertices, total_edges FROM %s_stats WHERE id=1", idx.config.ChainType)).
 		Scan(&s.TotalVertices, &s.PendingVertices, &s.AcceptedVertices, &s.TotalEdges)
 
 	resp := map[string]interface{}{"dag_stats": s}
@@ -328,25 +327,29 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 			resp["chain_stats"] = cs
 		}
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (idx *Indexer) handleVertices(w http.ResponseWriter, r *http.Request) {
-	rows, _ := idx.db.Query(fmt.Sprintf(`
+	rows, err := idx.db.Query(fmt.Sprintf(`
 		SELECT id, type, parent_ids, height, timestamp, status, data FROM %s_vertices ORDER BY timestamp DESC LIMIT 50
 	`, idx.config.ChainType))
+	if err != nil {
+		http.Error(w, "database error", 500)
+		return
+	}
 	defer rows.Close()
 
 	var vertices []Vertex
 	for rows.Next() {
 		var v Vertex
 		var pids, data []byte
-		rows.Scan(&v.ID, &v.Type, &pids, &v.Height, &v.Timestamp, &v.Status, &data)
-		json.Unmarshal(pids, &v.ParentIDs)
+		_ = rows.Scan(&v.ID, &v.Type, &pids, &v.Height, &v.Timestamp, &v.Status, &data)
+		_ = json.Unmarshal(pids, &v.ParentIDs)
 		v.Data = data
 		vertices = append(vertices, v)
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"items": vertices})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": vertices})
 }
 
 func (idx *Indexer) handleVertex(w http.ResponseWriter, r *http.Request) {
@@ -360,28 +363,33 @@ func (idx *Indexer) handleVertex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	json.Unmarshal(pids, &v.ParentIDs)
+	_ = json.Unmarshal(pids, &v.ParentIDs)
 	v.Data = data
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func (idx *Indexer) handleEdges(w http.ResponseWriter, r *http.Request) {
 	vid := r.URL.Query().Get("vertex")
 	var rows *sql.Rows
+	var err error
 	if vid != "" {
-		rows, _ = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges WHERE source=$1 OR target=$1", idx.config.ChainType), vid)
+		rows, err = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges WHERE source=$1 OR target=$1", idx.config.ChainType), vid)
 	} else {
-		rows, _ = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges ORDER BY created_at DESC LIMIT 100", idx.config.ChainType))
+		rows, err = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges ORDER BY created_at DESC LIMIT 100", idx.config.ChainType))
+	}
+	if err != nil {
+		http.Error(w, "database error", 500)
+		return
 	}
 	defer rows.Close()
 
 	var edges []Edge
 	for rows.Next() {
 		var e Edge
-		rows.Scan(&e.Source, &e.Target, &e.Type)
+		_ = rows.Scan(&e.Source, &e.Target, &e.Type)
 		edges = append(edges, e)
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"items": edges})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": edges})
 }
 
 // Subscriber handles WebSocket for live DAG streaming
@@ -443,7 +451,7 @@ func (s *Subscriber) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.register <- conn
-	conn.WriteJSON(map[string]interface{}{"type": "connected", "chain": s.chainType})
+	_ = conn.WriteJSON(map[string]interface{}{"type": "connected", "chain": s.chainType})
 	go func() {
 		defer func() { s.unregister <- conn }()
 		for {
@@ -518,7 +526,7 @@ func (p *Poller) poll(ctx context.Context) {
 		if v.ID == lastID {
 			break
 		}
-		p.idx.StoreVertex(ctx, v)
+		_ = p.idx.StoreVertex(ctx, v)
 	}
 
 	if newLastID != "" {
