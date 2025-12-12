@@ -1034,11 +1034,11 @@ func (t *DgraphTransaction) Rollback() error {
 }
 
 // All other methods delegate to the store
-func (t *DgraphTransaction) Init(ctx context.Context) error                                { return nil }
-func (t *DgraphTransaction) Close() error                                                  { return nil }
-func (t *DgraphTransaction) Ping(ctx context.Context) error                                { return t.store.Ping(ctx) }
-func (t *DgraphTransaction) InitSchema(ctx context.Context, schema Schema) error           { return nil }
-func (t *DgraphTransaction) MigrateSchema(ctx context.Context, schema Schema) error        { return nil }
+func (t *DgraphTransaction) Init(ctx context.Context) error                         { return nil }
+func (t *DgraphTransaction) Close() error                                           { return nil }
+func (t *DgraphTransaction) Ping(ctx context.Context) error                         { return t.store.Ping(ctx) }
+func (t *DgraphTransaction) InitSchema(ctx context.Context, schema Schema) error    { return nil }
+func (t *DgraphTransaction) MigrateSchema(ctx context.Context, schema Schema) error { return nil }
 func (t *DgraphTransaction) StoreBlock(ctx context.Context, table string, block *Block) error {
 	return t.store.StoreBlock(ctx, table, block)
 }

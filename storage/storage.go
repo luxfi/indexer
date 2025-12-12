@@ -23,10 +23,10 @@ const (
 
 // Config for storage backend
 type Config struct {
-	Backend  Backend
-	URL      string            // Connection URL (postgres://, badger://, dgraph://)
-	Options  map[string]string // Backend-specific options
-	DataDir  string            // For file-based backends (BadgerDB)
+	Backend Backend
+	URL     string            // Connection URL (postgres://, badger://, dgraph://)
+	Options map[string]string // Backend-specific options
+	DataDir string            // For file-based backends (BadgerDB)
 }
 
 // Store is the main storage interface for indexed data

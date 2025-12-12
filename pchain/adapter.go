@@ -90,10 +90,10 @@ func (a *Adapter) rpcRequest(ctx context.Context, method string, params interfac
 
 // PChainBlock represents a P-Chain block from RPC
 type PChainBlock struct {
-	ID        string    `json:"id"`
-	ParentID  string    `json:"parentID"`
-	Height    uint64    `json:"height"`
-	Timestamp int64     `json:"timestamp"` // Unix timestamp
+	ID        string     `json:"id"`
+	ParentID  string     `json:"parentID"`
+	Height    uint64     `json:"height"`
+	Timestamp int64      `json:"timestamp"` // Unix timestamp
 	Txs       []PChainTx `json:"txs"`
 }
 
@@ -428,15 +428,15 @@ func (a *Adapter) GetPendingValidators(ctx context.Context, netID string) ([]Val
 
 // Validator represents a P-Chain validator
 type Validator struct {
-	TxID            string  `json:"txID"`
-	NodeID          string  `json:"nodeID"`
-	StartTime       string  `json:"startTime"`
-	EndTime         string  `json:"endTime"`
-	StakeAmount     string  `json:"stakeAmount"`
-	PotentialReward string  `json:"potentialReward"`
-	DelegationFee   string  `json:"delegationFee"`
-	Uptime          string  `json:"uptime"`
-	Connected       bool    `json:"connected"`
+	TxID            string      `json:"txID"`
+	NodeID          string      `json:"nodeID"`
+	StartTime       string      `json:"startTime"`
+	EndTime         string      `json:"endTime"`
+	StakeAmount     string      `json:"stakeAmount"`
+	PotentialReward string      `json:"potentialReward"`
+	DelegationFee   string      `json:"delegationFee"`
+	Uptime          string      `json:"uptime"`
+	Connected       bool        `json:"connected"`
 	Delegators      []Delegator `json:"delegators,omitempty"`
 }
 
@@ -494,10 +494,10 @@ func (a *Adapter) GetBlockchains(ctx context.Context) ([]Blockchain, error) {
 
 // Blockchain represents a P-Chain blockchain
 type Blockchain struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	NetID   string `json:"netID"`
-	VMID    string `json:"vmID"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	NetID string `json:"netID"`
+	VMID  string `json:"vmID"`
 }
 
 // SyncValidators syncs validator data from RPC to database

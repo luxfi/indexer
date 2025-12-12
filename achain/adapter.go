@@ -51,40 +51,40 @@ type ComputeAttestation struct {
 
 // ModelRegistration represents a registered AI model
 type ModelRegistration struct {
-	ID          string          `json:"id"`
-	ModelHash   string          `json:"modelHash"`
-	Name        string          `json:"name"`
-	Version     string          `json:"version"`
-	Owner       string          `json:"owner"`
-	Framework   string          `json:"framework,omitempty"`
-	Parameters  uint64          `json:"parameters,omitempty"`
-	Timestamp   time.Time       `json:"timestamp"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	ID         string          `json:"id"`
+	ModelHash  string          `json:"modelHash"`
+	Name       string          `json:"name"`
+	Version    string          `json:"version"`
+	Owner      string          `json:"owner"`
+	Framework  string          `json:"framework,omitempty"`
+	Parameters uint64          `json:"parameters,omitempty"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 // InferenceResult represents an AI inference result
 type InferenceResult struct {
-	ID           string          `json:"id"`
-	ModelID      string          `json:"modelId"`
-	InputHash    string          `json:"inputHash"`
-	OutputHash   string          `json:"outputHash"`
-	Confidence   float64         `json:"confidence,omitempty"`
-	Latency      time.Duration   `json:"latency"`
-	Provider     string          `json:"provider"`
-	Timestamp    time.Time       `json:"timestamp"`
-	Metadata     json.RawMessage `json:"metadata,omitempty"`
+	ID         string          `json:"id"`
+	ModelID    string          `json:"modelId"`
+	InputHash  string          `json:"inputHash"`
+	OutputHash string          `json:"outputHash"`
+	Confidence float64         `json:"confidence,omitempty"`
+	Latency    time.Duration   `json:"latency"`
+	Provider   string          `json:"provider"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 // AIProvider represents an AI compute provider
 type AIProvider struct {
-	ID          string          `json:"id"`
-	Address     string          `json:"address"`
-	Name        string          `json:"name"`
-	Reputation  float64         `json:"reputation"`
-	Capacity    uint64          `json:"capacity"`
-	Active      bool            `json:"active"`
-	Timestamp   time.Time       `json:"timestamp"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	ID         string          `json:"id"`
+	Address    string          `json:"address"`
+	Name       string          `json:"name"`
+	Reputation float64         `json:"reputation"`
+	Capacity   uint64          `json:"capacity"`
+	Active     bool            `json:"active"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 // AIReceipt represents a payment receipt for AI compute services

@@ -69,14 +69,14 @@ type QuantumVertex struct {
 type QuantumStamp struct {
 	ID          string    `json:"id"`
 	VertexID    string    `json:"vertexId"`
-	ChainID     string    `json:"chainId"`       // Which chain this stamp is for
-	BlockHeight uint64    `json:"blockHeight"`   // Block height being stamped
-	BlockHash   []byte    `json:"blockHash"`     // Block hash being certified
-	Entropy     []byte    `json:"entropy"`       // Quantum random entropy
-	KeyID       string    `json:"keyId"`         // Ringtail key used for signing
-	Signature   []byte    `json:"signature"`     // Quantum-resistant signature
+	ChainID     string    `json:"chainId"`     // Which chain this stamp is for
+	BlockHeight uint64    `json:"blockHeight"` // Block height being stamped
+	BlockHash   []byte    `json:"blockHash"`   // Block hash being certified
+	Entropy     []byte    `json:"entropy"`     // Quantum random entropy
+	KeyID       string    `json:"keyId"`       // Ringtail key used for signing
+	Signature   []byte    `json:"signature"`   // Quantum-resistant signature
 	Timestamp   time.Time `json:"timestamp"`
-	Certified   bool      `json:"certified"`     // Whether stamp has been verified
+	Certified   bool      `json:"certified"` // Whether stamp has been verified
 }
 
 // RingtailKey represents a quantum-resistant signing key (Ringtail is LUX's post-quantum signature scheme)
