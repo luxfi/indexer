@@ -1,6 +1,6 @@
 module github.com/luxfi/indexer
 
-go 1.25.4
+go 1.25.5
 
 require (
 	github.com/dgraph-io/dgo/v230 v230.0.1
