@@ -35,3 +35,7 @@ Thumbs.db
 
 # Vendor (if not committing)
 # vendor/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QWEN.md
