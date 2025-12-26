@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 
 // TestConstants tests package constants
 func TestConstants(t *testing.T) {
-	if DefaultRPCEndpoint != "http://localhost:9630/ext/bc/P" {
+	if DefaultRPCEndpoint != "http://localhost:9650/ext/bc/P" {
 		t.Errorf("unexpected DefaultRPCEndpoint: %s", DefaultRPCEndpoint)
 	}
 	if DefaultHTTPPort != 4100 {

@@ -60,7 +60,7 @@ func TestConstants(t *testing.T) {
 		value interface{}
 		want  interface{}
 	}{
-		{"DefaultRPCEndpoint", DefaultRPCEndpoint, "http://localhost:9630/ext/bc/Z/rpc"},
+		{"DefaultRPCEndpoint", DefaultRPCEndpoint, "http://localhost:9650/ext/bc/Z/rpc"},
 		{"DefaultHTTPPort", DefaultHTTPPort, 4400},
 		{"DefaultDatabase", DefaultDatabase, "explorer_zchain"},
 		{"RPCMethod", RPCMethod, "zvm"},
