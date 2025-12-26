@@ -1,13 +1,12 @@
 // Copyright (c) 2025 Lux Partners Limited
 // SPDX-License-Identifier: MIT
 
-// Package chain provides shared linear chain indexing for LUX chains (P, Z).
+// Package chain provides shared linear chain indexing for LUX chains (P).
 // Based on luxfi/consensus/engine/chain/block - single parent per block.
 package chain
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,6 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+
+	"github.com/luxfi/indexer/storage"
 )
 
 // ChainType identifies the linear chain
@@ -32,10 +33,10 @@ type Config struct {
 	ChainType    ChainType
 	ChainName    string
 	RPCEndpoint  string
-	RPCMethod    string // pvm, zvm
-	DatabaseURL  string
+	RPCMethod    string // pvm
 	HTTPPort     int
 	PollInterval time.Duration
+	DataDir      string // For default storage
 }
 
 // Block represents a linear chain block (from luxfi/consensus)
@@ -78,35 +79,33 @@ type Adapter interface {
 	GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMessage, error)
 	GetBlockByID(ctx context.Context, id string) (json.RawMessage, error)
 	GetBlockByHeight(ctx context.Context, height uint64) (json.RawMessage, error)
-	InitSchema(db *sql.DB) error
-	GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error)
+	InitSchema(ctx context.Context, store storage.Store) error
+	GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error)
 }
 
 // Indexer for linear chains
 type Indexer struct {
 	config     Config
-	db         *sql.DB
+	store      storage.Store
 	httpClient *http.Client
 	subscriber *Subscriber
 	poller     *Poller
 	adapter    Adapter
+	tableName  string
 }
 
-// New creates a new chain indexer
-func New(cfg Config, adapter Adapter) (*Indexer, error) {
-	db, err := sql.Open("postgres", cfg.DatabaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("db connect: %w", err)
-	}
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("db ping: %w", err)
+// New creates a new chain indexer with the given storage
+func New(cfg Config, store storage.Store, adapter Adapter) (*Indexer, error) {
+	if store == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
 	}
 
 	idx := &Indexer{
 		config:     cfg,
-		db:         db,
+		store:      store,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		adapter:    adapter,
+		tableName:  string(cfg.ChainType),
 	}
 
 	idx.subscriber = NewSubscriber(cfg.ChainType)
@@ -116,68 +115,67 @@ func New(cfg Config, adapter Adapter) (*Indexer, error) {
 }
 
 // Init creates database schema
-func (idx *Indexer) Init() error {
-	schema := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s_blocks (
-			id TEXT PRIMARY KEY,
-			parent_id TEXT,
-			height BIGINT NOT NULL,
-			timestamp TIMESTAMPTZ NOT NULL,
-			status TEXT DEFAULT 'pending',
-			tx_count INT DEFAULT 0,
-			tx_ids JSONB DEFAULT '[]',
-			data JSONB,
-			metadata JSONB,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		CREATE INDEX IF NOT EXISTS idx_%s_blocks_height ON %s_blocks(height DESC);
-		CREATE INDEX IF NOT EXISTS idx_%s_blocks_status ON %s_blocks(status);
-		CREATE INDEX IF NOT EXISTS idx_%s_blocks_timestamp ON %s_blocks(timestamp DESC);
-		CREATE INDEX IF NOT EXISTS idx_%s_blocks_parent ON %s_blocks(parent_id);
+func (idx *Indexer) Init(ctx context.Context) error {
+	schema := storage.Schema{
+		Name: idx.tableName,
+		Tables: []storage.Table{
+			{
+				Name: idx.tableName + "_blocks",
+				Columns: []storage.Column{
+					{Name: "id", Type: storage.TypeText, Primary: true},
+					{Name: "parent_id", Type: storage.TypeText},
+					{Name: "height", Type: storage.TypeBigInt, Nullable: false},
+					{Name: "timestamp", Type: storage.TypeTimestamp, Nullable: false},
+					{Name: "status", Type: storage.TypeText, Default: "'pending'"},
+					{Name: "tx_count", Type: storage.TypeInt, Default: "0"},
+					{Name: "tx_ids", Type: storage.TypeJSON, Default: "'[]'"},
+					{Name: "data", Type: storage.TypeJSON},
+					{Name: "metadata", Type: storage.TypeJSON},
+					{Name: "created_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
+				},
+			},
+		},
+		Indexes: []storage.Index{
+			{Name: "idx_" + idx.tableName + "_blocks_height", Table: idx.tableName + "_blocks", Columns: []string{"height"}},
+			{Name: "idx_" + idx.tableName + "_blocks_status", Table: idx.tableName + "_blocks", Columns: []string{"status"}},
+			{Name: "idx_" + idx.tableName + "_blocks_timestamp", Table: idx.tableName + "_blocks", Columns: []string{"timestamp"}},
+			{Name: "idx_" + idx.tableName + "_blocks_parent", Table: idx.tableName + "_blocks", Columns: []string{"parent_id"}},
+		},
+	}
 
-		CREATE TABLE IF NOT EXISTS %s_stats (
-			id INT PRIMARY KEY DEFAULT 1,
-			total_blocks BIGINT DEFAULT 0,
-			latest_height BIGINT DEFAULT 0,
-			pending_blocks BIGINT DEFAULT 0,
-			accepted_blocks BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		INSERT INTO %s_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
-	`,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType,
-	)
-
-	if _, err := idx.db.Exec(schema); err != nil {
+	if err := idx.store.InitSchema(ctx, schema); err != nil {
 		return fmt.Errorf("schema: %w", err)
 	}
 
 	if idx.adapter != nil {
-		return idx.adapter.InitSchema(idx.db)
+		return idx.adapter.InitSchema(ctx, idx.store)
 	}
 	return nil
 }
 
 // StoreBlock stores a block and broadcasts to subscribers
 func (idx *Indexer) StoreBlock(ctx context.Context, b *Block) error {
-	txJSON, _ := json.Marshal(b.TxIDs)
 	metaJSON, _ := json.Marshal(b.Metadata)
 
-	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO %s_blocks (id, parent_id, height, timestamp, status, tx_count, tx_ids, data, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, metadata = EXCLUDED.metadata
-	`, idx.config.ChainType),
-		b.ID, b.ParentID, b.Height, b.Timestamp, b.Status, b.TxCount, txJSON, b.Data, metaJSON,
-	)
-
-	if err == nil {
-		idx.subscriber.BroadcastBlock(b)
+	sb := &storage.Block{
+		ID:        b.ID,
+		ParentID:  b.ParentID,
+		Height:    b.Height,
+		Timestamp: b.Timestamp,
+		Status:    string(b.Status),
+		TxCount:   b.TxCount,
+		TxIDs:     b.TxIDs,
+		Data:      b.Data,
+		Metadata:  metaJSON,
+		CreatedAt: time.Now(),
 	}
-	return err
+
+	if err := idx.store.StoreBlock(ctx, idx.tableName+"_blocks", sb); err != nil {
+		return err
+	}
+
+	idx.subscriber.BroadcastBlock(b)
+	return nil
 }
 
 // UpdateStats updates statistics
@@ -185,21 +183,44 @@ func (idx *Indexer) UpdateStats(ctx context.Context) error {
 	var s Stats
 	s.ChainType = idx.config.ChainType
 
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks", idx.config.ChainType)).Scan(&s.TotalBlocks)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COALESCE(MAX(height), 0) FROM %s_blocks", idx.config.ChainType)).Scan(&s.LatestHeight)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingBlocks)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_blocks WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedBlocks)
+	total, _ := idx.store.Count(ctx, idx.tableName+"_blocks", "1=1")
+	pending, _ := idx.store.Count(ctx, idx.tableName+"_blocks", "status='pending'")
+	accepted, _ := idx.store.Count(ctx, idx.tableName+"_blocks", "status='accepted'")
 
-	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
-		UPDATE %s_stats SET total_blocks=$1, latest_height=$2, pending_blocks=$3, accepted_blocks=$4, updated_at=NOW() WHERE id=1
-	`, idx.config.ChainType), s.TotalBlocks, s.LatestHeight, s.PendingBlocks, s.AcceptedBlocks)
+	// Get latest height
+	rows, _ := idx.store.Query(ctx,
+		fmt.Sprintf("SELECT COALESCE(MAX(height), 0) as max_height FROM %s_blocks", idx.tableName))
+	var latestHeight uint64
+	if len(rows) > 0 {
+		if v, ok := rows[0]["max_height"]; ok {
+			switch h := v.(type) {
+			case int64:
+				latestHeight = uint64(h)
+			case float64:
+				latestHeight = uint64(h)
+			}
+		}
+	}
 
-	return err
+	s.TotalBlocks = total
+	s.PendingBlocks = pending
+	s.AcceptedBlocks = accepted
+	s.LatestHeight = latestHeight
+	s.LastUpdated = time.Now()
+
+	statsMap := map[string]interface{}{
+		"total_blocks":    s.TotalBlocks,
+		"pending_blocks":  s.PendingBlocks,
+		"accepted_blocks": s.AcceptedBlocks,
+		"latest_height":   s.LatestHeight,
+		"last_updated":    s.LastUpdated,
+	}
+	return idx.store.UpdateStats(ctx, idx.tableName, statsMap)
 }
 
 // Run starts the indexer
 func (idx *Indexer) Run(ctx context.Context) error {
-	if err := idx.Init(); err != nil {
+	if err := idx.Init(ctx); err != nil {
 		return err
 	}
 
@@ -265,16 +286,15 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
-	var s Stats
-	s.ChainType = idx.config.ChainType
-	s.LastUpdated = time.Now()
+	stats, _ := idx.store.GetStats(r.Context(), idx.tableName)
+	if stats == nil {
+		stats = make(map[string]interface{})
+	}
+	stats["chain_type"] = idx.config.ChainType
 
-	_ = idx.db.QueryRow(fmt.Sprintf("SELECT total_blocks, latest_height, pending_blocks, accepted_blocks FROM %s_stats WHERE id=1", idx.config.ChainType)).
-		Scan(&s.TotalBlocks, &s.LatestHeight, &s.PendingBlocks, &s.AcceptedBlocks)
-
-	resp := map[string]interface{}{"chain_stats": s}
+	resp := map[string]interface{}{"chain_stats": stats}
 	if idx.adapter != nil {
-		if cs, _ := idx.adapter.GetStats(r.Context(), idx.db); cs != nil {
+		if cs, _ := idx.adapter.GetStats(r.Context(), idx.store); cs != nil {
 			resp["extended_stats"] = cs
 		}
 	}
@@ -282,21 +302,24 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (idx *Indexer) handleBlocks(w http.ResponseWriter, r *http.Request) {
-	rows, err := idx.db.Query(fmt.Sprintf(`
-		SELECT id, parent_id, height, timestamp, status, tx_count, data FROM %s_blocks ORDER BY height DESC LIMIT 50
-	`, idx.config.ChainType))
+	sbs, err := idx.store.GetRecentBlocks(r.Context(), idx.tableName+"_blocks", 50)
 	if err != nil {
 		http.Error(w, "database error", 500)
 		return
 	}
-	defer rows.Close()
 
 	var blocks []Block
-	for rows.Next() {
-		var b Block
-		var data []byte
-		_ = rows.Scan(&b.ID, &b.ParentID, &b.Height, &b.Timestamp, &b.Status, &b.TxCount, &data)
-		b.Data = data
+	for _, sb := range sbs {
+		b := Block{
+			ID:        sb.ID,
+			ParentID:  sb.ParentID,
+			Height:    sb.Height,
+			Timestamp: sb.Timestamp,
+			Status:    Status(sb.Status),
+			TxCount:   sb.TxCount,
+			TxIDs:     sb.TxIDs,
+			Data:      sb.Data,
+		}
 		blocks = append(blocks, b)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": blocks})
@@ -304,32 +327,55 @@ func (idx *Indexer) handleBlocks(w http.ResponseWriter, r *http.Request) {
 
 func (idx *Indexer) handleBlock(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	var b Block
-	var data []byte
-	err := idx.db.QueryRow(fmt.Sprintf(`
-		SELECT id, parent_id, height, timestamp, status, tx_count, data FROM %s_blocks WHERE id=$1
-	`, idx.config.ChainType), id).Scan(&b.ID, &b.ParentID, &b.Height, &b.Timestamp, &b.Status, &b.TxCount, &data)
+	sb, err := idx.store.GetBlock(r.Context(), idx.tableName+"_blocks", id)
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
-	b.Data = data
+
+	b := Block{
+		ID:        sb.ID,
+		ParentID:  sb.ParentID,
+		Height:    sb.Height,
+		Timestamp: sb.Timestamp,
+		Status:    Status(sb.Status),
+		TxCount:   sb.TxCount,
+		TxIDs:     sb.TxIDs,
+		Data:      sb.Data,
+	}
 	_ = json.NewEncoder(w).Encode(b)
 }
 
 func (idx *Indexer) handleBlockByHeight(w http.ResponseWriter, r *http.Request) {
-	height := mux.Vars(r)["height"]
-	var b Block
-	var data []byte
-	err := idx.db.QueryRow(fmt.Sprintf(`
-		SELECT id, parent_id, height, timestamp, status, tx_count, data FROM %s_blocks WHERE height=$1
-	`, idx.config.ChainType), height).Scan(&b.ID, &b.ParentID, &b.Height, &b.Timestamp, &b.Status, &b.TxCount, &data)
+	heightStr := mux.Vars(r)["height"]
+	var height uint64
+	if _, err := fmt.Sscanf(heightStr, "%d", &height); err != nil {
+		http.Error(w, "invalid height", 400)
+		return
+	}
+
+	sb, err := idx.store.GetBlockByHeight(r.Context(), idx.tableName+"_blocks", height)
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
-	b.Data = data
+
+	b := Block{
+		ID:        sb.ID,
+		ParentID:  sb.ParentID,
+		Height:    sb.Height,
+		Timestamp: sb.Timestamp,
+		Status:    Status(sb.Status),
+		TxCount:   sb.TxCount,
+		TxIDs:     sb.TxIDs,
+		Data:      sb.Data,
+	}
 	_ = json.NewEncoder(w).Encode(b)
+}
+
+// Store returns the underlying storage for adapters
+func (idx *Indexer) Store() storage.Store {
+	return idx.store
 }
 
 // Subscriber handles WebSocket for live block streaming

@@ -1,0 +1,325 @@
+---
+title: DeFi Indexing
+description: Native DeFi protocol indexing for AMMs, perpetuals, staking, and more
+---
+
+# DeFi Indexing
+
+The Lux Indexer provides native support for indexing DeFi protocols including AMMs, perpetuals, synthetics, staking, and cross-chain bridges.
+
+## Supported Protocols
+
+| Protocol Type | Examples | Status |
+|---------------|----------|--------|
+| AMM V2/V3 | Uniswap, SushiSwap | ✅ Full |
+| NFT AMM (LSSVM) | Sudoswap | ✅ Full |
+| Perpetuals | GMX, Gains | ✅ Full |
+| Synthetics | Alchemix | ✅ Full |
+| Staking | Native staking | ✅ Full |
+| Bridge | Cross-chain | ✅ Full |
+| Order Book | LX DEX CLOB | ✅ Full |
+
+## AMM Indexing
+
+### Uniswap V2/V3 Style
+
+```go
+import "github.com/luxfi/indexer/evm/defi"
+
+// Create AMM indexer
+ammIndexer := defi.NewAMMIndexer(store, rpcClient)
+
+// Index pool creation
+pool, err := ammIndexer.IndexPoolCreated(ctx, log)
+
+// Index swap
+swap, err := ammIndexer.IndexSwap(ctx, log)
+
+// Get pool stats
+stats, err := ammIndexer.GetPoolStats(ctx, poolAddress)
+```
+
+### Indexed Events
+
+| Event | Description |
+|-------|-------------|
+| `PairCreated` | V2 pool creation |
+| `PoolCreated` | V3 pool creation |
+| `Swap` | Token swap |
+| `Mint` | Liquidity added |
+| `Burn` | Liquidity removed |
+| `Sync` | Reserve updates |
+
+### Pool Data Structure
+
+```go
+type Pool struct {
+    Address     common.Address
+    Token0      common.Address
+    Token1      common.Address
+    Fee         uint24         // V3 only
+    TickSpacing int24          // V3 only
+    Reserve0    *big.Int
+    Reserve1    *big.Int
+    TVL         *big.Int
+    Volume24H   *big.Int
+    CreatedAt   time.Time
+}
+```
+
+## NFT AMM (LSSVM)
+
+Sudoswap-style NFT AMM indexing:
+
+```go
+lssvmIndexer := defi.NewLSSVMIndexer(store, rpcClient)
+
+// Index NFT pool
+pool, err := lssvmIndexer.IndexPoolCreated(ctx, log)
+
+// Index NFT swap
+swap, err := lssvmIndexer.IndexNFTSwap(ctx, log)
+```
+
+### Bonding Curves
+
+| Curve | Description |
+|-------|-------------|
+| Linear | Fixed price delta |
+| Exponential | Percentage delta |
+| XYK | Constant product |
+
+## Perpetuals
+
+GMX-style perpetuals indexing:
+
+```go
+perpsIndexer := defi.NewPerpsIndexer(store, rpcClient)
+
+// Index position change
+position, err := perpsIndexer.IndexPositionChange(ctx, log)
+
+// Index liquidation
+liq, err := perpsIndexer.IndexLiquidation(ctx, log)
+```
+
+### Position Data
+
+```go
+type Position struct {
+    ID              string
+    Account         common.Address
+    Market          common.Address
+    CollateralToken common.Address
+    IsLong          bool
+    Size            *big.Int
+    Collateral      *big.Int
+    EntryPrice      *big.Int
+    LiquidationPrice *big.Int
+    Leverage        uint8
+    OpenedAt        time.Time
+}
+```
+
+## Synthetics
+
+Alchemix-style synthetic asset indexing:
+
+```go
+synthsIndexer := defi.NewSynthsIndexer(store, rpcClient)
+
+// Index deposit
+deposit, err := synthsIndexer.IndexDeposit(ctx, log)
+
+// Index synthetic mint
+mint, err := synthsIndexer.IndexMint(ctx, log)
+
+// Index harvest
+harvest, err := synthsIndexer.IndexHarvest(ctx, log)
+```
+
+## Staking
+
+Native staking with cooldowns and delegation:
+
+```go
+stakingIndexer := defi.NewStakingIndexer(store, rpcClient)
+
+// Index stake
+stake, err := stakingIndexer.IndexStake(ctx, log)
+
+// Index unstake initiation
+unstake, err := stakingIndexer.IndexUnstakeInitiated(ctx, log)
+
+// Index claim
+claim, err := stakingIndexer.IndexClaim(ctx, log)
+```
+
+### Staking Data
+
+```go
+type StakePosition struct {
+    ID           string
+    Staker       common.Address
+    Amount       *big.Int
+    Shares       *big.Int
+    Delegate     common.Address
+    CooldownEnd  time.Time
+    UnstakeEnd   time.Time
+    ClaimedRewards *big.Int
+}
+```
+
+## Bridge Indexing
+
+Cross-chain bridge transfer indexing:
+
+```go
+bridgeIndexer := defi.NewBridgeIndexer(store, rpcClient)
+
+// Index bridge initiation
+transfer, err := bridgeIndexer.IndexBridgeInitiated(ctx, log)
+
+// Index bridge completion
+completion, err := bridgeIndexer.IndexBridgeCompleted(ctx, log)
+```
+
+### Bridge Transfer Data
+
+```go
+type BridgeTransfer struct {
+    ID              string
+    SourceChain     uint64
+    DestChain       uint64
+    Token           common.Address
+    Amount          *big.Int
+    Sender          common.Address
+    Recipient       common.Address
+    Status          BridgeStatus
+    SourceTxHash    common.Hash
+    DestTxHash      common.Hash
+    InitiatedAt     time.Time
+    CompletedAt     time.Time
+}
+```
+
+## Order Book (CLOB)
+
+LX DEX central limit order book indexing:
+
+```go
+orderbookIndexer := defi.NewOrderbookIndexer(store, rpcClient)
+
+// Index order placement
+order, err := orderbookIndexer.IndexOrderPlaced(ctx, log)
+
+// Index order fill
+fill, err := orderbookIndexer.IndexOrderFilled(ctx, log)
+
+// Index order cancellation
+cancel, err := orderbookIndexer.IndexOrderCancelled(ctx, log)
+```
+
+### Order Data
+
+```go
+type Order struct {
+    ID          string
+    Market      common.Address
+    Trader      common.Address
+    Price       *big.Int
+    Size        *big.Int
+    FilledSize  *big.Int
+    IsBuy       bool
+    OrderType   OrderType // Limit, Market, StopLimit
+    Status      OrderStatus
+    CreatedAt   time.Time
+    ExpiresAt   time.Time
+}
+```
+
+## Market History
+
+OHLCV candle data for all trading pairs:
+
+```go
+marketIndexer := defi.NewMarketIndexer(store, rpcClient)
+
+// Get candles
+candles, err := marketIndexer.GetCandles(ctx, pair, "1h", start, end)
+
+// Get 24h stats
+stats, err := marketIndexer.Get24HStats(ctx, pair)
+```
+
+### Candle Data
+
+```go
+type Candle struct {
+    Pair       string
+    Interval   string    // 1m, 5m, 15m, 1h, 4h, 1d
+    OpenTime   time.Time
+    CloseTime  time.Time
+    Open       *big.Int
+    High       *big.Int
+    Low        *big.Int
+    Close      *big.Int
+    Volume     *big.Int
+    QuoteVolume *big.Int
+    TradeCount uint64
+}
+```
+
+## Unified DeFi Indexer
+
+Use the unified indexer for automatic protocol detection:
+
+```go
+defiIndexer := defi.NewUnifiedIndexer(store, rpcClient, defi.Config{
+    EnableAMM:       true,
+    EnableLSSVM:     true,
+    EnablePerps:     true,
+    EnableSynths:    true,
+    EnableStaking:   true,
+    EnableBridge:    true,
+    EnableOrderbook: true,
+})
+
+// Index all DeFi events from a block
+events, err := defiIndexer.IndexBlock(ctx, block)
+
+// Query DeFi positions for an address
+positions, err := defiIndexer.GetPositions(ctx, address)
+```
+
+## API Endpoints
+
+### REST API
+
+```
+GET /api/v2/defi/pools
+GET /api/v2/defi/pools/{address}
+GET /api/v2/defi/pools/{address}/swaps
+GET /api/v2/defi/positions/{address}
+GET /api/v2/defi/market/{pair}/candles
+GET /api/v2/defi/stats
+```
+
+### GraphQL
+
+```graphql
+query {
+  defiPool(address: "0x...") {
+    address
+    token0 { symbol }
+    token1 { symbol }
+    tvl
+    volume24h
+    recentSwaps(limit: 10) {
+      amountIn
+      amountOut
+      timestamp
+    }
+  }
+}
+```

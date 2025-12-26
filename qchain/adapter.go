@@ -8,22 +8,20 @@ package qchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/indexer/storage"
 )
 
 const (
 	// DefaultRPCEndpoint is the default Q-Chain RPC endpoint
-	DefaultRPCEndpoint = "http://localhost:9630/ext/bc/Q/rpc"
+	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/Q/rpc"
 	// DefaultHTTPPort is the default API port for Q-Chain indexer
 	DefaultHTTPPort = 4300
-	// DefaultDatabaseURL is the default PostgreSQL connection
-	DefaultDatabaseURL = "postgres://blockscout:blockscout@localhost:5432/explorer_qchain?sslmode=disable"
 )
 
 // FinalityProof represents a quantum-resistant finality proof
@@ -247,139 +245,195 @@ func (a *Adapter) GetVertexByID(ctx context.Context, id string) (json.RawMessage
 }
 
 // InitSchema creates Q-Chain specific database tables
-func (a *Adapter) InitSchema(db *sql.DB) error {
-	schema := `
-		-- Finality proofs table
+func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
+	// Create finality proofs table
+	err := store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_finality_proofs (
 			id TEXT PRIMARY KEY,
-			vertex_id TEXT NOT NULL REFERENCES qchain_vertices(id),
+			vertex_id TEXT NOT NULL,
 			proof_type TEXT NOT NULL,
-			lattice_dimension INT,
-			lattice_modulus BIGINT,
-			lattice_error_bound INT,
-			security_level INT,
+			lattice_dimension INTEGER,
+			lattice_modulus INTEGER,
+			lattice_error_bound INTEGER,
+			security_level INTEGER,
 			algorithm TEXT,
-			signature BYTEA,
-			public_key BYTEA,
-			verified BOOLEAN DEFAULT FALSE,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		CREATE INDEX IF NOT EXISTS idx_qchain_proofs_vertex ON qchain_finality_proofs(vertex_id);
-		CREATE INDEX IF NOT EXISTS idx_qchain_proofs_type ON qchain_finality_proofs(proof_type);
-		CREATE INDEX IF NOT EXISTS idx_qchain_proofs_verified ON qchain_finality_proofs(verified);
+			signature BLOB,
+			public_key BLOB,
+			verified INTEGER DEFAULT 0,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create finality proofs table: %w", err)
+	}
 
-		-- Lattice parameters table (for reusable lattice configs)
+	// Create indexes
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_proofs_vertex ON qchain_finality_proofs(vertex_id)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_proofs_type ON qchain_finality_proofs(proof_type)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_proofs_verified ON qchain_finality_proofs(verified)`)
+
+	// Create lattice parameters table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_lattice_params (
-			id SERIAL PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT UNIQUE NOT NULL,
-			dimension INT NOT NULL,
-			modulus BIGINT NOT NULL,
-			error_bound INT NOT NULL,
-			security_level INT NOT NULL,
+			dimension INTEGER NOT NULL,
+			modulus INTEGER NOT NULL,
+			error_bound INTEGER NOT NULL,
+			security_level INTEGER NOT NULL,
 			algorithm TEXT NOT NULL,
 			description TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create lattice params table: %w", err)
+	}
 
-		-- Insert default lattice configurations
-		INSERT INTO qchain_lattice_params (name, dimension, modulus, error_bound, security_level, algorithm, description)
-		VALUES 
-			('dilithium2', 256, 8380417, 2, 2, 'dilithium', 'NIST Level 2 Dilithium'),
-			('dilithium3', 256, 8380417, 4, 3, 'dilithium', 'NIST Level 3 Dilithium'),
-			('dilithium5', 256, 8380417, 8, 5, 'dilithium', 'NIST Level 5 Dilithium'),
-			('kyber512', 256, 3329, 2, 1, 'kyber', 'Kyber-512'),
-			('kyber768', 256, 3329, 2, 3, 'kyber', 'Kyber-768'),
-			('kyber1024', 256, 3329, 2, 5, 'kyber', 'Kyber-1024'),
-			('falcon512', 512, 12289, 1, 1, 'falcon', 'Falcon-512'),
-			('falcon1024', 1024, 12289, 1, 5, 'falcon', 'Falcon-1024')
-		ON CONFLICT (name) DO NOTHING;
+	// Insert default lattice configurations
+	defaults := []struct {
+		name, algorithm, description string
+		dimension, errorBound, secLvl int
+		modulus                        int64
+	}{
+		{"dilithium2", "dilithium", "NIST Level 2 Dilithium", 256, 2, 2, 8380417},
+		{"dilithium3", "dilithium", "NIST Level 3 Dilithium", 256, 4, 3, 8380417},
+		{"dilithium5", "dilithium", "NIST Level 5 Dilithium", 256, 8, 5, 8380417},
+		{"kyber512", "kyber", "Kyber-512", 256, 2, 1, 3329},
+		{"kyber768", "kyber", "Kyber-768", 256, 2, 3, 3329},
+		{"kyber1024", "kyber", "Kyber-1024", 256, 2, 5, 3329},
+		{"falcon512", "falcon", "Falcon-512", 512, 1, 1, 12289},
+		{"falcon1024", "falcon", "Falcon-1024", 1024, 1, 5, 12289},
+	}
+	for _, d := range defaults {
+		_ = store.Exec(ctx, `
+			INSERT OR IGNORE INTO qchain_lattice_params (name, dimension, modulus, error_bound, security_level, algorithm, description)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, d.name, d.dimension, d.modulus, d.errorBound, d.secLvl, d.algorithm, d.description)
+	}
 
-		-- Quantum stamps for cross-chain finality
+	// Create quantum stamps table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_stamps (
 			id TEXT PRIMARY KEY,
 			vertex_id TEXT,
 			chain_id TEXT NOT NULL,
-			block_height BIGINT NOT NULL,
-			block_hash BYTEA NOT NULL,
-			entropy BYTEA,
+			block_height INTEGER NOT NULL,
+			block_hash BLOB NOT NULL,
+			entropy BLOB,
 			key_id TEXT,
-			signature BYTEA,
-			timestamp TIMESTAMPTZ NOT NULL,
-			certified BOOLEAN DEFAULT FALSE,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		CREATE INDEX IF NOT EXISTS idx_qchain_stamps_chain ON qchain_stamps(chain_id);
-		CREATE INDEX IF NOT EXISTS idx_qchain_stamps_height ON qchain_stamps(chain_id, block_height);
-		CREATE INDEX IF NOT EXISTS idx_qchain_stamps_key ON qchain_stamps(key_id);
-		CREATE INDEX IF NOT EXISTS idx_qchain_stamps_certified ON qchain_stamps(certified);
+			signature BLOB,
+			timestamp TIMESTAMP NOT NULL,
+			certified INTEGER DEFAULT 0,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create stamps table: %w", err)
+	}
 
-		-- Ringtail quantum-resistant keys
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_chain ON qchain_stamps(chain_id)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_height ON qchain_stamps(chain_id, block_height)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_key ON qchain_stamps(key_id)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_certified ON qchain_stamps(certified)`)
+
+	// Create Ringtail keys table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_ringtail_keys (
 			id TEXT PRIMARY KEY,
-			public_key BYTEA NOT NULL,
+			public_key BLOB NOT NULL,
 			key_type TEXT NOT NULL,
 			algorithm TEXT NOT NULL,
-			security_level INT NOT NULL,
+			security_level INTEGER NOT NULL,
 			owner TEXT NOT NULL,
-			valid_from TIMESTAMPTZ NOT NULL,
-			valid_until TIMESTAMPTZ NOT NULL,
-			revoked BOOLEAN DEFAULT FALSE,
+			valid_from TIMESTAMP NOT NULL,
+			valid_until TIMESTAMP NOT NULL,
+			revoked INTEGER DEFAULT 0,
 			vertex_id TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		CREATE INDEX IF NOT EXISTS idx_qchain_keys_owner ON qchain_ringtail_keys(owner);
-		CREATE INDEX IF NOT EXISTS idx_qchain_keys_type ON qchain_ringtail_keys(key_type);
-		CREATE INDEX IF NOT EXISTS idx_qchain_keys_active ON qchain_ringtail_keys(revoked, valid_until);
-
-		-- Q-Chain extended stats
-		CREATE TABLE IF NOT EXISTS qchain_extended_stats (
-			id INT PRIMARY KEY DEFAULT 1,
-			total_proofs BIGINT DEFAULT 0,
-			verified_proofs BIGINT DEFAULT 0,
-			finalized_vertices BIGINT DEFAULT 0,
-			total_stamps BIGINT DEFAULT 0,
-			certified_stamps BIGINT DEFAULT 0,
-			total_keys BIGINT DEFAULT 0,
-			active_keys BIGINT DEFAULT 0,
-			dilithium_proofs BIGINT DEFAULT 0,
-			kyber_proofs BIGINT DEFAULT 0,
-			falcon_proofs BIGINT DEFAULT 0,
-			sphincs_proofs BIGINT DEFAULT 0,
-			avg_security_level FLOAT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		INSERT INTO qchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
-	`
-
-	if _, err := db.Exec(schema); err != nil {
-		return fmt.Errorf("init qchain schema: %w", err)
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create ringtail keys table: %w", err)
 	}
+
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_owner ON qchain_ringtail_keys(owner)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_type ON qchain_ringtail_keys(key_type)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_active ON qchain_ringtail_keys(revoked, valid_until)`)
+
+	// Create extended stats table
+	err = store.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS qchain_extended_stats (
+			id INTEGER PRIMARY KEY DEFAULT 1,
+			total_proofs INTEGER DEFAULT 0,
+			verified_proofs INTEGER DEFAULT 0,
+			finalized_vertices INTEGER DEFAULT 0,
+			total_stamps INTEGER DEFAULT 0,
+			certified_stamps INTEGER DEFAULT 0,
+			total_keys INTEGER DEFAULT 0,
+			active_keys INTEGER DEFAULT 0,
+			dilithium_proofs INTEGER DEFAULT 0,
+			kyber_proofs INTEGER DEFAULT 0,
+			falcon_proofs INTEGER DEFAULT 0,
+			sphincs_proofs INTEGER DEFAULT 0,
+			avg_security_level REAL DEFAULT 0,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create extended stats table: %w", err)
+	}
+
+	_ = store.Exec(ctx, `INSERT OR IGNORE INTO qchain_extended_stats (id) VALUES (1)`)
 
 	return nil
 }
 
 // GetStats returns Q-Chain specific statistics
-func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error) {
+func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Query extended stats
-	var totalProofs, verifiedProofs, finalizedVertices int64
-	var dilithiumProofs, kyberProofs, falconProofs, sphincsProofs int64
-	var avgSecurityLevel float64
-
-	row := db.QueryRowContext(ctx, `
+	rows, err := store.Query(ctx, `
 		SELECT total_proofs, verified_proofs, finalized_vertices,
 		       dilithium_proofs, kyber_proofs, falcon_proofs, sphincs_proofs,
 		       avg_security_level
 		FROM qchain_extended_stats WHERE id = 1
 	`)
-
-	if err := row.Scan(
-		&totalProofs, &verifiedProofs, &finalizedVertices,
-		&dilithiumProofs, &kyberProofs, &falconProofs, &sphincsProofs,
-		&avgSecurityLevel,
-	); err != nil && err != sql.ErrNoRows {
+	if err != nil {
 		return nil, fmt.Errorf("query extended stats: %w", err)
+	}
+
+	var totalProofs, verifiedProofs, finalizedVertices int64
+	var dilithiumProofs, kyberProofs, falconProofs, sphincsProofs int64
+	var avgSecurityLevel float64
+
+	if len(rows) > 0 {
+		row := rows[0]
+		if v, ok := row["total_proofs"].(int64); ok {
+			totalProofs = v
+		}
+		if v, ok := row["verified_proofs"].(int64); ok {
+			verifiedProofs = v
+		}
+		if v, ok := row["finalized_vertices"].(int64); ok {
+			finalizedVertices = v
+		}
+		if v, ok := row["dilithium_proofs"].(int64); ok {
+			dilithiumProofs = v
+		}
+		if v, ok := row["kyber_proofs"].(int64); ok {
+			kyberProofs = v
+		}
+		if v, ok := row["falcon_proofs"].(int64); ok {
+			falconProofs = v
+		}
+		if v, ok := row["sphincs_proofs"].(int64); ok {
+			sphincsProofs = v
+		}
+		if v, ok := row["avg_security_level"].(float64); ok {
+			avgSecurityLevel = v
+		}
 	}
 
 	stats["total_proofs"] = totalProofs
@@ -404,20 +458,22 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 }
 
 // StoreProof stores a finality proof in the database
-func (a *Adapter) StoreProof(ctx context.Context, db *sql.DB, proof *FinalityProof) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO qchain_finality_proofs 
-			(id, vertex_id, proof_type, lattice_dimension, lattice_modulus, 
+func (a *Adapter) StoreProof(ctx context.Context, store storage.Store, proof *FinalityProof) error {
+	verified := 0
+	if proof.Verified {
+		verified = 1
+	}
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO qchain_finality_proofs
+			(id, vertex_id, proof_type, lattice_dimension, lattice_modulus,
 			 lattice_error_bound, security_level, algorithm, signature, public_key, verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		ON CONFLICT (id) DO UPDATE SET verified = EXCLUDED.verified
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		proof.ID, proof.VertexID, proof.ProofType,
 		proof.LatticeParams.Dimension, proof.LatticeParams.Modulus,
 		proof.LatticeParams.ErrorBound, proof.LatticeParams.SecurityLvl,
-		proof.LatticeParams.Algorithm, proof.Signature, proof.PublicKey, proof.Verified,
+		proof.LatticeParams.Algorithm, proof.Signature, proof.PublicKey, verified,
 	)
-	return err
 }
 
 // VerifyProof performs quantum-resistant proof verification
@@ -447,21 +503,20 @@ func (a *Adapter) VerifyProof(ctx context.Context, proof *FinalityProof) (bool, 
 }
 
 // UpdateExtendedStats updates Q-Chain specific statistics
-func (a *Adapter) UpdateExtendedStats(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `
+func (a *Adapter) UpdateExtendedStats(ctx context.Context, store storage.Store) error {
+	return store.Exec(ctx, `
 		UPDATE qchain_extended_stats SET
 			total_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs),
-			verified_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE verified = TRUE),
+			verified_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE verified = 1),
 			finalized_vertices = (SELECT COUNT(*) FROM qchain_vertices WHERE status = 'accepted'),
 			dilithium_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'dilithium'),
 			kyber_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'kyber'),
 			falcon_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'falcon'),
 			sphincs_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'sphincs+'),
 			avg_security_level = COALESCE((SELECT AVG(security_level) FROM qchain_finality_proofs), 0),
-			updated_at = NOW()
+			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`)
-	return err
 }
 
 // NewConfig creates a default Q-Chain indexer configuration
@@ -471,56 +526,84 @@ func NewConfig() dag.Config {
 		ChainName:    "Q-Chain (Quantum)",
 		RPCEndpoint:  DefaultRPCEndpoint,
 		RPCMethod:    "qvm",
-		DatabaseURL:  DefaultDatabaseURL,
 		HTTPPort:     DefaultHTTPPort,
 		PollInterval: 5 * time.Second,
 	}
 }
 
 // StoreStamp stores a quantum stamp for cross-chain finality
-func (a *Adapter) StoreStamp(ctx context.Context, db *sql.DB, stamp *QuantumStamp) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO qchain_stamps
+func (a *Adapter) StoreStamp(ctx context.Context, store storage.Store, stamp *QuantumStamp) error {
+	certified := 0
+	if stamp.Certified {
+		certified = 1
+	}
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO qchain_stamps
 			(id, vertex_id, chain_id, block_height, block_hash, entropy, key_id, signature, timestamp, certified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT (id) DO UPDATE SET certified = EXCLUDED.certified
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, stamp.ID, stamp.VertexID, stamp.ChainID, stamp.BlockHeight, stamp.BlockHash,
-		stamp.Entropy, stamp.KeyID, stamp.Signature, stamp.Timestamp, stamp.Certified)
-	return err
+		stamp.Entropy, stamp.KeyID, stamp.Signature, stamp.Timestamp, certified)
 }
 
 // StoreRingtailKey stores a quantum-resistant signing key
-func (a *Adapter) StoreRingtailKey(ctx context.Context, db *sql.DB, key *RingtailKey, vertexID string) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO qchain_ringtail_keys
+func (a *Adapter) StoreRingtailKey(ctx context.Context, store storage.Store, key *RingtailKey, vertexID string) error {
+	revoked := 0
+	if key.Revoked {
+		revoked = 1
+	}
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO qchain_ringtail_keys
 			(id, public_key, key_type, algorithm, security_level, owner, valid_from, valid_until, revoked, vertex_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT (id) DO UPDATE SET revoked = EXCLUDED.revoked
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, key.ID, key.PublicKey, key.KeyType, key.Algorithm, key.SecurityLvl,
-		key.Owner, key.ValidFrom, key.ValidUntil, key.Revoked, vertexID)
-	return err
+		key.Owner, key.ValidFrom, key.ValidUntil, revoked, vertexID)
 }
 
 // GetStampsByChain retrieves quantum stamps for a specific chain
-func (a *Adapter) GetStampsByChain(ctx context.Context, db *sql.DB, chainID string, limit int) ([]QuantumStamp, error) {
-	rows, err := db.QueryContext(ctx, `
+func (a *Adapter) GetStampsByChain(ctx context.Context, store storage.Store, chainID string, limit int) ([]QuantumStamp, error) {
+	rows, err := store.Query(ctx, `
 		SELECT id, vertex_id, chain_id, block_height, block_hash, entropy, key_id, signature, timestamp, certified
 		FROM qchain_stamps
-		WHERE chain_id = $1
+		WHERE chain_id = ?
 		ORDER BY block_height DESC
-		LIMIT $2
+		LIMIT ?
 	`, chainID, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var stamps []QuantumStamp
-	for rows.Next() {
-		var s QuantumStamp
-		if err := rows.Scan(&s.ID, &s.VertexID, &s.ChainID, &s.BlockHeight, &s.BlockHash,
-			&s.Entropy, &s.KeyID, &s.Signature, &s.Timestamp, &s.Certified); err != nil {
-			continue
+	for _, row := range rows {
+		s := QuantumStamp{}
+		if v, ok := row["id"].(string); ok {
+			s.ID = v
+		}
+		if v, ok := row["vertex_id"].(string); ok {
+			s.VertexID = v
+		}
+		if v, ok := row["chain_id"].(string); ok {
+			s.ChainID = v
+		}
+		if v, ok := row["block_height"].(int64); ok {
+			s.BlockHeight = uint64(v)
+		}
+		if v, ok := row["block_hash"].([]byte); ok {
+			s.BlockHash = v
+		}
+		if v, ok := row["entropy"].([]byte); ok {
+			s.Entropy = v
+		}
+		if v, ok := row["key_id"].(string); ok {
+			s.KeyID = v
+		}
+		if v, ok := row["signature"].([]byte); ok {
+			s.Signature = v
+		}
+		if v, ok := row["timestamp"].(time.Time); ok {
+			s.Timestamp = v
+		}
+		if v, ok := row["certified"].(int64); ok {
+			s.Certified = v == 1
 		}
 		stamps = append(stamps, s)
 	}
@@ -528,24 +611,49 @@ func (a *Adapter) GetStampsByChain(ctx context.Context, db *sql.DB, chainID stri
 }
 
 // GetActiveKeys retrieves active Ringtail keys for an owner
-func (a *Adapter) GetActiveKeys(ctx context.Context, db *sql.DB, owner string) ([]RingtailKey, error) {
-	rows, err := db.QueryContext(ctx, `
+func (a *Adapter) GetActiveKeys(ctx context.Context, store storage.Store, owner string) ([]RingtailKey, error) {
+	rows, err := store.Query(ctx, `
 		SELECT id, public_key, key_type, algorithm, security_level, owner, valid_from, valid_until, revoked, created_at
 		FROM qchain_ringtail_keys
-		WHERE owner = $1 AND revoked = FALSE AND valid_until > NOW()
+		WHERE owner = ? AND revoked = 0 AND valid_until > CURRENT_TIMESTAMP
 		ORDER BY created_at DESC
 	`, owner)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var keys []RingtailKey
-	for rows.Next() {
-		var k RingtailKey
-		if err := rows.Scan(&k.ID, &k.PublicKey, &k.KeyType, &k.Algorithm, &k.SecurityLvl,
-			&k.Owner, &k.ValidFrom, &k.ValidUntil, &k.Revoked, &k.CreatedAt); err != nil {
-			continue
+	for _, row := range rows {
+		k := RingtailKey{}
+		if v, ok := row["id"].(string); ok {
+			k.ID = v
+		}
+		if v, ok := row["public_key"].([]byte); ok {
+			k.PublicKey = v
+		}
+		if v, ok := row["key_type"].(string); ok {
+			k.KeyType = ProofType(v)
+		}
+		if v, ok := row["algorithm"].(string); ok {
+			k.Algorithm = v
+		}
+		if v, ok := row["security_level"].(int64); ok {
+			k.SecurityLvl = int(v)
+		}
+		if v, ok := row["owner"].(string); ok {
+			k.Owner = v
+		}
+		if v, ok := row["valid_from"].(time.Time); ok {
+			k.ValidFrom = v
+		}
+		if v, ok := row["valid_until"].(time.Time); ok {
+			k.ValidUntil = v
+		}
+		if v, ok := row["revoked"].(int64); ok {
+			k.Revoked = v == 1
+		}
+		if v, ok := row["created_at"].(time.Time); ok {
+			k.CreatedAt = v
 		}
 		keys = append(keys, k)
 	}

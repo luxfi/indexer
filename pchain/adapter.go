@@ -8,7 +8,6 @@ package pchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,12 +15,12 @@ import (
 	"time"
 
 	"github.com/luxfi/indexer/chain"
+	"github.com/luxfi/indexer/storage"
 )
 
 const (
-	DefaultRPCEndpoint = "http://localhost:9630/ext/bc/P"
+	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/P"
 	DefaultHTTPPort    = 4100
-	DefaultDatabaseURL = "postgres://postgres:postgres@localhost:5432/explorer_pchain?sslmode=disable"
 )
 
 // Adapter implements chain.Adapter for P-Chain
@@ -152,7 +151,7 @@ func extractTxTypes(txs []PChainTx) map[string]int {
 // GetRecentBlocks implements chain.Adapter
 func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMessage, error) {
 	// Get current height first
-	heightResult, err := a.rpcRequest(ctx, "pvm.getHeight", map[string]interface{}{})
+	heightResult, err := a.rpcRequest(ctx, "platform.getHeight", map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("get height: %w", err)
 	}
@@ -182,7 +181,7 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 
 // GetBlockByID implements chain.Adapter
 func (a *Adapter) GetBlockByID(ctx context.Context, id string) (json.RawMessage, error) {
-	result, err := a.rpcRequest(ctx, "pvm.getBlock", map[string]interface{}{
+	result, err := a.rpcRequest(ctx, "platform.getBlock", map[string]interface{}{
 		"blockID":  id,
 		"encoding": "json",
 	})
@@ -202,7 +201,7 @@ func (a *Adapter) GetBlockByID(ctx context.Context, id string) (json.RawMessage,
 
 // GetBlockByHeight implements chain.Adapter
 func (a *Adapter) GetBlockByHeight(ctx context.Context, height uint64) (json.RawMessage, error) {
-	result, err := a.rpcRequest(ctx, "pvm.getBlockByHeight", map[string]interface{}{
+	result, err := a.rpcRequest(ctx, "platform.getBlockByHeight", map[string]interface{}{
 		"height":   fmt.Sprintf("%d", height),
 		"encoding": "json",
 	})
@@ -221,38 +220,37 @@ func (a *Adapter) GetBlockByHeight(ctx context.Context, height uint64) (json.Raw
 }
 
 // InitSchema implements chain.Adapter - creates P-Chain specific tables
-func (a *Adapter) InitSchema(db *sql.DB) error {
+func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	schema := `
 		-- Validators table
 		CREATE TABLE IF NOT EXISTS pchain_validators (
 			node_id TEXT PRIMARY KEY,
-			start_time TIMESTAMPTZ NOT NULL,
-			end_time TIMESTAMPTZ NOT NULL,
+			start_time TIMESTAMP NOT NULL,
+			end_time TIMESTAMP NOT NULL,
 			stake_amount BIGINT NOT NULL,
 			potential_reward BIGINT DEFAULT 0,
-			delegation_fee NUMERIC(5,2) DEFAULT 0,
-			uptime NUMERIC(5,2) DEFAULT 0,
+			delegation_fee REAL DEFAULT 0,
+			uptime REAL DEFAULT 0,
 			connected BOOLEAN DEFAULT false,
 			net_id TEXT DEFAULT 'primary',
 			tx_id TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_pchain_validators_net ON pchain_validators(net_id);
 		CREATE INDEX IF NOT EXISTS idx_pchain_validators_end_time ON pchain_validators(end_time);
-		CREATE INDEX IF NOT EXISTS idx_pchain_validators_stake ON pchain_validators(stake_amount DESC);
 
 		-- Delegators table
 		CREATE TABLE IF NOT EXISTS pchain_delegators (
 			tx_id TEXT PRIMARY KEY,
-			node_id TEXT NOT NULL REFERENCES pchain_validators(node_id),
-			start_time TIMESTAMPTZ NOT NULL,
-			end_time TIMESTAMPTZ NOT NULL,
+			node_id TEXT NOT NULL,
+			start_time TIMESTAMP NOT NULL,
+			end_time TIMESTAMP NOT NULL,
 			stake_amount BIGINT NOT NULL,
 			potential_reward BIGINT DEFAULT 0,
 			reward_owner TEXT,
 			net_id TEXT DEFAULT 'primary',
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_pchain_delegators_node ON pchain_delegators(node_id);
 		CREATE INDEX IF NOT EXISTS idx_pchain_delegators_end ON pchain_delegators(end_time);
@@ -260,48 +258,47 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 		-- Subnets (Networks) table
 		CREATE TABLE IF NOT EXISTS pchain_nets (
 			net_id TEXT PRIMARY KEY,
-			owner_addresses JSONB DEFAULT '[]',
+			owner_addresses TEXT DEFAULT '[]',
 			threshold INT DEFAULT 1,
-			control_keys JSONB DEFAULT '[]',
+			control_keys TEXT DEFAULT '[]',
 			tx_id TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 
 		-- Blockchains table
 		CREATE TABLE IF NOT EXISTS pchain_chains (
 			chain_id TEXT PRIMARY KEY,
-			net_id TEXT REFERENCES pchain_nets(net_id),
+			net_id TEXT,
 			name TEXT NOT NULL,
 			vm_id TEXT NOT NULL,
 			genesis_data TEXT,
 			tx_id TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_pchain_chains_net ON pchain_chains(net_id);
 
 		-- Staking rewards table
 		CREATE TABLE IF NOT EXISTS pchain_rewards (
-			id SERIAL PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			tx_id TEXT NOT NULL,
 			node_id TEXT,
 			delegator_tx_id TEXT,
 			amount BIGINT NOT NULL,
 			reward_type TEXT NOT NULL,
-			claimed_at TIMESTAMPTZ DEFAULT NOW()
+			claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_pchain_rewards_node ON pchain_rewards(node_id);
-		CREATE INDEX IF NOT EXISTS idx_pchain_rewards_time ON pchain_rewards(claimed_at DESC);
 
 		-- P-Chain transactions table (extended)
 		CREATE TABLE IF NOT EXISTS pchain_txs (
 			tx_id TEXT PRIMARY KEY,
 			block_id TEXT,
 			tx_type TEXT NOT NULL,
-			inputs JSONB DEFAULT '[]',
-			outputs JSONB DEFAULT '[]',
+			inputs TEXT DEFAULT '[]',
+			outputs TEXT DEFAULT '[]',
 			memo TEXT,
 			fee BIGINT DEFAULT 0,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_pchain_txs_type ON pchain_txs(tx_type);
 		CREATE INDEX IF NOT EXISTS idx_pchain_txs_block ON pchain_txs(block_id);
@@ -316,27 +313,43 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			total_delegated BIGINT DEFAULT 0,
 			total_nets INT DEFAULT 0,
 			total_chains INT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT INTO pchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
+		INSERT OR IGNORE INTO pchain_extended_stats (id) VALUES (1);
 	`
 
-	if _, err := db.Exec(schema); err != nil {
+	if err := store.Exec(ctx, schema); err != nil {
 		return fmt.Errorf("pchain schema: %w", err)
 	}
 	return nil
 }
 
 // GetStats implements chain.Adapter - returns P-Chain specific statistics
-func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error) {
+func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Get validator stats
-	var totalValidators, activeValidators int
+	validatorRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_validators")
+	activeRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_validators WHERE end_time > datetime('now')")
+	stakeRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_validators WHERE end_time > datetime('now')")
+
+	var totalValidators, activeValidators int64
 	var totalStake int64
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators").Scan(&totalValidators)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_validators WHERE end_time > NOW()").Scan(&activeValidators)
-	_ = db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_validators WHERE end_time > NOW()").Scan(&totalStake)
+	if len(validatorRows) > 0 {
+		if v, ok := validatorRows[0]["cnt"].(int64); ok {
+			totalValidators = v
+		}
+	}
+	if len(activeRows) > 0 {
+		if v, ok := activeRows[0]["cnt"].(int64); ok {
+			activeValidators = v
+		}
+	}
+	if len(stakeRows) > 0 {
+		if v, ok := stakeRows[0]["total"].(int64); ok {
+			totalStake = v
+		}
+	}
 
 	stats["validators"] = map[string]interface{}{
 		"total":       totalValidators,
@@ -345,10 +358,21 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	}
 
 	// Get delegator stats
-	var totalDelegators int
+	delegatorRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_delegators WHERE end_time > datetime('now')")
+	delegatedRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_delegators WHERE end_time > datetime('now')")
+
+	var totalDelegators int64
 	var totalDelegated int64
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegators)
-	_ = db.QueryRowContext(ctx, "SELECT COALESCE(SUM(stake_amount), 0) FROM pchain_delegators WHERE end_time > NOW()").Scan(&totalDelegated)
+	if len(delegatorRows) > 0 {
+		if v, ok := delegatorRows[0]["cnt"].(int64); ok {
+			totalDelegators = v
+		}
+	}
+	if len(delegatedRows) > 0 {
+		if v, ok := delegatedRows[0]["total"].(int64); ok {
+			totalDelegated = v
+		}
+	}
 
 	stats["delegators"] = map[string]interface{}{
 		"active":          totalDelegators,
@@ -356,28 +380,25 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	}
 
 	// Get subnet/network stats
-	var totalNets, totalChains int
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_nets").Scan(&totalNets)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pchain_chains").Scan(&totalChains)
+	netRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_nets")
+	chainRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_chains")
+
+	var totalNets, totalChains int64
+	if len(netRows) > 0 {
+		if v, ok := netRows[0]["cnt"].(int64); ok {
+			totalNets = v
+		}
+	}
+	if len(chainRows) > 0 {
+		if v, ok := chainRows[0]["cnt"].(int64); ok {
+			totalChains = v
+		}
+	}
 
 	stats["networks"] = map[string]interface{}{
 		"total_nets":   totalNets,
 		"total_chains": totalChains,
 	}
-
-	// Update extended stats
-	_, _ = db.ExecContext(ctx, `
-		UPDATE pchain_extended_stats SET
-			total_validators = $1,
-			active_validators = $2,
-			total_delegators = $3,
-			total_stake = $4,
-			total_delegated = $5,
-			total_nets = $6,
-			total_chains = $7,
-			updated_at = NOW()
-		WHERE id = 1
-	`, totalValidators, activeValidators, totalDelegators, totalStake, totalDelegated, totalNets, totalChains)
 
 	return stats, nil
 }
@@ -389,7 +410,7 @@ func (a *Adapter) GetCurrentValidators(ctx context.Context, netID string) ([]Val
 		params["netID"] = netID
 	}
 
-	result, err := a.rpcRequest(ctx, "pvm.getCurrentValidators", params)
+	result, err := a.rpcRequest(ctx, "platform.getCurrentValidators", params)
 	if err != nil {
 		return nil, fmt.Errorf("get current validators: %w", err)
 	}
@@ -411,7 +432,7 @@ func (a *Adapter) GetPendingValidators(ctx context.Context, netID string) ([]Val
 		params["netID"] = netID
 	}
 
-	result, err := a.rpcRequest(ctx, "pvm.getPendingValidators", params)
+	result, err := a.rpcRequest(ctx, "platform.getPendingValidators", params)
 	if err != nil {
 		return nil, fmt.Errorf("get pending validators: %w", err)
 	}
@@ -432,7 +453,8 @@ type Validator struct {
 	NodeID          string      `json:"nodeID"`
 	StartTime       string      `json:"startTime"`
 	EndTime         string      `json:"endTime"`
-	StakeAmount     string      `json:"stakeAmount"`
+	Weight          string      `json:"weight"`
+	StakeAmount     string      `json:"stakeAmount,omitempty"` // Deprecated, use Weight
 	PotentialReward string      `json:"potentialReward"`
 	DelegationFee   string      `json:"delegationFee"`
 	Uptime          string      `json:"uptime"`
@@ -451,24 +473,24 @@ type Delegator struct {
 	RewardOwner     string `json:"rewardOwner,omitempty"`
 }
 
-// GetNets fetches all subnets/networks from RPC
+// GetNets fetches all chains from RPC (kept for backward compatibility)
 func (a *Adapter) GetNets(ctx context.Context) ([]Net, error) {
-	result, err := a.rpcRequest(ctx, "pvm.getNets", map[string]interface{}{})
+	result, err := a.rpcRequest(ctx, "platform.getBlockchains", map[string]interface{}{})
 	if err != nil {
-		return nil, fmt.Errorf("get nets: %w", err)
+		return nil, fmt.Errorf("get chains: %w", err)
 	}
 
 	var resp struct {
-		Nets []Net `json:"nets"`
+		Blockchains []Net `json:"blockchains"`
 	}
 	if err := json.Unmarshal(result, &resp); err != nil {
-		return nil, fmt.Errorf("parse nets: %w", err)
+		return nil, fmt.Errorf("parse chains: %w", err)
 	}
 
-	return resp.Nets, nil
+	return resp.Blockchains, nil
 }
 
-// Net represents a P-Chain subnet/network
+// Net represents a P-Chain network/chain
 type Net struct {
 	ID          string   `json:"id"`
 	ControlKeys []string `json:"controlKeys"`
@@ -477,7 +499,7 @@ type Net struct {
 
 // GetBlockchains fetches all blockchains from RPC
 func (a *Adapter) GetBlockchains(ctx context.Context) ([]Blockchain, error) {
-	result, err := a.rpcRequest(ctx, "pvm.getBlockchains", map[string]interface{}{})
+	result, err := a.rpcRequest(ctx, "platform.getBlockchains", map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("get blockchains: %w", err)
 	}
@@ -501,23 +523,23 @@ type Blockchain struct {
 }
 
 // SyncValidators syncs validator data from RPC to database
-func (a *Adapter) SyncValidators(ctx context.Context, db *sql.DB) error {
+func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error {
 	validators, err := a.GetCurrentValidators(ctx, "")
 	if err != nil {
 		return err
 	}
 
 	for _, v := range validators {
-		_, err := db.ExecContext(ctx, `
+		err := store.Exec(ctx, `
 			INSERT INTO pchain_validators (node_id, start_time, end_time, stake_amount, potential_reward, delegation_fee, uptime, connected, tx_id, updated_at)
-			VALUES ($1, to_timestamp($2::bigint), to_timestamp($3::bigint), $4, $5, $6, $7, $8, $9, NOW())
+			VALUES (?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'), ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT (node_id) DO UPDATE SET
 				end_time = EXCLUDED.end_time,
 				stake_amount = EXCLUDED.stake_amount,
 				potential_reward = EXCLUDED.potential_reward,
 				uptime = EXCLUDED.uptime,
 				connected = EXCLUDED.connected,
-				updated_at = NOW()
+				updated_at = CURRENT_TIMESTAMP
 		`, v.NodeID, v.StartTime, v.EndTime, v.StakeAmount, v.PotentialReward, v.DelegationFee, v.Uptime, v.Connected, v.TxID)
 		if err != nil {
 			return fmt.Errorf("upsert validator %s: %w", v.NodeID, err)
@@ -525,9 +547,9 @@ func (a *Adapter) SyncValidators(ctx context.Context, db *sql.DB) error {
 
 		// Sync delegators for this validator
 		for _, d := range v.Delegators {
-			_, err := db.ExecContext(ctx, `
+			err := store.Exec(ctx, `
 				INSERT INTO pchain_delegators (tx_id, node_id, start_time, end_time, stake_amount, potential_reward, reward_owner)
-				VALUES ($1, $2, to_timestamp($3::bigint), to_timestamp($4::bigint), $5, $6, $7)
+				VALUES (?, ?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'), ?, ?, ?)
 				ON CONFLICT (tx_id) DO UPDATE SET
 					end_time = EXCLUDED.end_time,
 					potential_reward = EXCLUDED.potential_reward
@@ -548,7 +570,6 @@ func NewConfig() chain.Config {
 		ChainName:    "P-Chain (Platform)",
 		RPCEndpoint:  DefaultRPCEndpoint,
 		RPCMethod:    "pvm",
-		DatabaseURL:  DefaultDatabaseURL,
 		HTTPPort:     DefaultHTTPPort,
 		PollInterval: 5 * time.Second,
 	}
