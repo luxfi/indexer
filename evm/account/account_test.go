@@ -130,23 +130,23 @@ func TestRateLimiter_SetKeyLimit(t *testing.T) {
 
 	apiKey := "custom-limit-key"
 	customLimit := &Limit{
-		RequestsPerSecond: 100,
+		RequestsPerSecond: 1, // Very slow refill to avoid race conditions
 		RequestsPerDay:    1000000,
-		BurstSize:         200,
+		BurstSize:         20,
 	}
 
 	rl.SetKeyLimit(apiKey, customLimit)
 
 	// Should allow up to burst size
-	for i := 0; i < 200; i++ {
+	for i := 0; i < 20; i++ {
 		if !rl.Allow(apiKey) {
 			t.Errorf("Request %d should be allowed with custom limit", i)
 		}
 	}
 
-	// Next should be limited
+	// Next should be limited (no time for refill with 1 req/s)
 	if rl.Allow(apiKey) {
-		t.Error("Request 201 should be rate limited")
+		t.Error("Request 21 should be rate limited")
 	}
 }
 
