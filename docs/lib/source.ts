@@ -1,5 +1,5 @@
 import { docs } from "@/.source"
-import { loader } from "@hanzo/ui"
+import { loader } from "fumadocs-core/source"
 
 // Create a single source instance that is reused
 // This prevents circular references and stack overflow issues
