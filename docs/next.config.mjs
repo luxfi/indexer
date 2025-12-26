@@ -1,4 +1,4 @@
-import { createMDX } from "@hanzo/docs/mdx/next"
+import { createMDX } from "fumadocs-mdx/next"
 
 /** @type {import('next').NextConfig} */
 const config = {
@@ -6,9 +6,6 @@ const config = {
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: true,
-  },
-  experimental: {
-    webpackBuildWorker: true,
   },
   images: {
     unoptimized: true,
