@@ -1,5 +1,5 @@
 import "./global.css"
-import { RootProvider } from "@hanzo/ui"
+import { RootProvider } from "fumadocs-ui/provider"
 import { Inter } from "next/font/google"
 import type { ReactNode } from "react"
 
@@ -31,15 +31,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body className="min-h-svh bg-background font-sans antialiased">
-        <RootProvider
-          search={{
-            enabled: true,
-          }}
-          theme={{
-            enabled: true,
-            defaultTheme: "dark",
-          }}
-        >
+        <RootProvider>
           <div className="relative flex min-h-svh flex-col bg-background">
             {children}
           </div>
