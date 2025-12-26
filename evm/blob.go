@@ -246,7 +246,7 @@ func (b *BlobIndexer) calculateBlobGasPrice(excessBlobGas uint64) string {
 	// Simplified: we use the excess blob gas directly for now
 	// Real calculation would use big integer exponential
 
-	minBlobBaseFee := uint64(1) // 1 wei minimum
+	minBlobBaseFee := uint64(1)       // 1 wei minimum
 	updateFraction := uint64(3338477) // BLOB_BASE_FEE_UPDATE_FRACTION
 
 	if excessBlobGas == 0 {
@@ -494,12 +494,12 @@ func (b *BlobIndexer) GetBlockBlobGas(ctx context.Context, blockNumber uint64) (
 	}
 
 	result := map[string]interface{}{
-		"block_number":       blockNumber,
-		"blob_gas_used":      blobGasUsed,
-		"excess_blob_gas":    excessBlobGas,
-		"blob_count":         blobCount,
-		"blob_tx_count":      blobTxCount,
-		"timestamp":          timestamp,
+		"block_number":    blockNumber,
+		"blob_gas_used":   blobGasUsed,
+		"excess_blob_gas": excessBlobGas,
+		"blob_count":      blobCount,
+		"blob_tx_count":   blobTxCount,
+		"timestamp":       timestamp,
 	}
 
 	if blockHash.Valid {

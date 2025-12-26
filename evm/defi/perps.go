@@ -13,55 +13,55 @@ import (
 
 // PerpsIndexer indexes perpetual futures trading events (GMX-style + LX DEX)
 type PerpsIndexer struct {
-	positions      map[string]*PerpPosition
-	trades         []*PerpTrade
-	liquidations   []*PerpLiquidation
-	fundingUpdates []*FundingUpdate
-	vaultDeposits  []*VaultDeposit
+	positions        map[string]*PerpPosition
+	trades           []*PerpTrade
+	liquidations     []*PerpLiquidation
+	fundingUpdates   []*FundingUpdate
+	vaultDeposits    []*VaultDeposit
 	vaultWithdrawals []*VaultWithdrawal
-	markets        map[string]*PerpMarket
-	onTrade        func(*PerpTrade)
-	onLiquidation  func(*PerpLiquidation)
-	onPosition     func(*PerpPosition)
+	markets          map[string]*PerpMarket
+	onTrade          func(*PerpTrade)
+	onLiquidation    func(*PerpLiquidation)
+	onPosition       func(*PerpPosition)
 }
 
 // PerpMarket represents a perpetual market
 type PerpMarket struct {
-	Address        string     `json:"address"`
-	IndexToken     string     `json:"indexToken"`
-	IndexSymbol    string     `json:"indexSymbol,omitempty"`
-	LongToken      string     `json:"longToken"`
-	ShortToken     string     `json:"shortToken"`
-	MaxLeverage    float64    `json:"maxLeverage"`
-	FundingRate    *big.Int   `json:"fundingRate"`
-	OpenInterestLong  *big.Int `json:"openInterestLong"`
-	OpenInterestShort *big.Int `json:"openInterestShort"`
-	ReservedAmount *big.Int   `json:"reservedAmount"`
-	PoolAmount     *big.Int   `json:"poolAmount"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
+	Address           string    `json:"address"`
+	IndexToken        string    `json:"indexToken"`
+	IndexSymbol       string    `json:"indexSymbol,omitempty"`
+	LongToken         string    `json:"longToken"`
+	ShortToken        string    `json:"shortToken"`
+	MaxLeverage       float64   `json:"maxLeverage"`
+	FundingRate       *big.Int  `json:"fundingRate"`
+	OpenInterestLong  *big.Int  `json:"openInterestLong"`
+	OpenInterestShort *big.Int  `json:"openInterestShort"`
+	ReservedAmount    *big.Int  `json:"reservedAmount"`
+	PoolAmount        *big.Int  `json:"poolAmount"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // PerpPosition represents a perpetual position
 type PerpPosition struct {
-	ID               string     `json:"id"` // account:collateralToken:indexToken:isLong
-	Account          string     `json:"account"`
-	CollateralToken  string     `json:"collateralToken"`
-	IndexToken       string     `json:"indexToken"`
-	IsLong           bool       `json:"isLong"`
-	Size             *big.Int   `json:"size"`        // Position size in USD
-	Collateral       *big.Int   `json:"collateral"`  // Collateral amount
-	AveragePrice     *big.Int   `json:"averagePrice"`
-	EntryFundingRate *big.Int   `json:"entryFundingRate"`
-	ReserveAmount    *big.Int   `json:"reserveAmount"`
-	RealisedPnL      *big.Int   `json:"realisedPnl"`
-	LastIncreasedTime time.Time `json:"lastIncreasedTime"`
-	IsOpen           bool       `json:"isOpen"`
-	Leverage         float64    `json:"leverage"`
-	LiquidationPrice *big.Float `json:"liquidationPrice,omitempty"`
-	UnrealisedPnL    *big.Int   `json:"unrealisedPnl,omitempty"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	UpdatedAt        time.Time  `json:"updatedAt"`
+	ID                string     `json:"id"` // account:collateralToken:indexToken:isLong
+	Account           string     `json:"account"`
+	CollateralToken   string     `json:"collateralToken"`
+	IndexToken        string     `json:"indexToken"`
+	IsLong            bool       `json:"isLong"`
+	Size              *big.Int   `json:"size"`       // Position size in USD
+	Collateral        *big.Int   `json:"collateral"` // Collateral amount
+	AveragePrice      *big.Int   `json:"averagePrice"`
+	EntryFundingRate  *big.Int   `json:"entryFundingRate"`
+	ReserveAmount     *big.Int   `json:"reserveAmount"`
+	RealisedPnL       *big.Int   `json:"realisedPnl"`
+	LastIncreasedTime time.Time  `json:"lastIncreasedTime"`
+	IsOpen            bool       `json:"isOpen"`
+	Leverage          float64    `json:"leverage"`
+	LiquidationPrice  *big.Float `json:"liquidationPrice,omitempty"`
+	UnrealisedPnL     *big.Int   `json:"unrealisedPnl,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
 // PerpTrade represents a perpetual trade (increase/decrease position)
@@ -163,9 +163,9 @@ func (p *PerpsIndexer) IndexLog(log *LogEntry) error {
 	if len(log.Topics) == 0 {
 		return nil
 	}
-	
+
 	topic0 := log.Topics[0]
-	
+
 	switch topic0 {
 	case PerpsIncreasePositionSig:
 		return p.indexIncreasePosition(log)
@@ -178,7 +178,7 @@ func (p *PerpsIndexer) IndexLog(log *LogEntry) error {
 	case PerpsSwapSig:
 		return p.indexSwap(log)
 	}
-	
+
 	return nil
 }
 
@@ -188,14 +188,14 @@ func (p *PerpsIndexer) indexIncreasePosition(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 256 {
 		return fmt.Errorf("invalid increase position data")
 	}
-	
+
 	// IncreasePosition(bytes32 key, address account, address collateralToken, address indexToken,
 	//                  uint256 collateralDelta, uint256 sizeDelta, bool isLong, uint256 price, uint256 fee)
-	
+
 	account := "0x" + hex.EncodeToString(data[12:32])
 	collateralToken := "0x" + hex.EncodeToString(data[44:64])
 	indexToken := "0x" + hex.EncodeToString(data[76:96])
@@ -204,11 +204,11 @@ func (p *PerpsIndexer) indexIncreasePosition(log *LogEntry) error {
 	isLong := data[191] == 1
 	price := new(big.Int).SetBytes(data[192:224])
 	fee := new(big.Int).SetBytes(data[224:256])
-	
+
 	// Create or update position
 	positionID := p.getPositionID(account, collateralToken, indexToken, isLong)
 	position, exists := p.positions[positionID]
-	
+
 	if !exists {
 		position = &PerpPosition{
 			ID:              positionID,
@@ -225,21 +225,21 @@ func (p *PerpsIndexer) indexIncreasePosition(log *LogEntry) error {
 		}
 		p.positions[positionID] = position
 	}
-	
+
 	// Update position
 	position.Size = new(big.Int).Add(position.Size, sizeDelta)
 	position.Collateral = new(big.Int).Add(position.Collateral, collateralDelta)
 	position.AveragePrice = calculateAveragePrice(position.AveragePrice, position.Size, sizeDelta, price)
 	position.LastIncreasedTime = log.Timestamp
 	position.UpdatedAt = log.Timestamp
-	
+
 	if position.Collateral.Sign() > 0 {
 		sizeFloat := new(big.Float).SetInt(position.Size)
 		collateralFloat := new(big.Float).SetInt(position.Collateral)
 		leverage, _ := new(big.Float).Quo(sizeFloat, collateralFloat).Float64()
 		position.Leverage = leverage
 	}
-	
+
 	// Record trade
 	trade := &PerpTrade{
 		ID:              fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
@@ -257,17 +257,17 @@ func (p *PerpsIndexer) indexIncreasePosition(log *LogEntry) error {
 		Fee:             fee,
 		Timestamp:       log.Timestamp,
 	}
-	
+
 	p.trades = append(p.trades, trade)
-	
+
 	if p.onTrade != nil {
 		p.onTrade(trade)
 	}
-	
+
 	if p.onPosition != nil {
 		p.onPosition(position)
 	}
-	
+
 	return nil
 }
 
@@ -277,11 +277,11 @@ func (p *PerpsIndexer) indexDecreasePosition(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 288 {
 		return fmt.Errorf("invalid decrease position data")
 	}
-	
+
 	account := "0x" + hex.EncodeToString(data[12:32])
 	collateralToken := "0x" + hex.EncodeToString(data[44:64])
 	indexToken := "0x" + hex.EncodeToString(data[76:96])
@@ -291,26 +291,26 @@ func (p *PerpsIndexer) indexDecreasePosition(log *LogEntry) error {
 	price := new(big.Int).SetBytes(data[192:224])
 	fee := new(big.Int).SetBytes(data[224:256])
 	realisedPnL := new(big.Int).SetBytes(data[256:288])
-	
+
 	// Update position
 	positionID := p.getPositionID(account, collateralToken, indexToken, isLong)
 	position, exists := p.positions[positionID]
-	
+
 	if exists {
 		position.Size = new(big.Int).Sub(position.Size, sizeDelta)
 		position.Collateral = new(big.Int).Sub(position.Collateral, collateralDelta)
 		position.RealisedPnL = new(big.Int).Add(position.RealisedPnL, realisedPnL)
 		position.UpdatedAt = log.Timestamp
-		
+
 		if position.Size.Sign() <= 0 {
 			position.IsOpen = false
 		}
-		
+
 		if p.onPosition != nil {
 			p.onPosition(position)
 		}
 	}
-	
+
 	// Record trade
 	trade := &PerpTrade{
 		ID:              fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
@@ -329,13 +329,13 @@ func (p *PerpsIndexer) indexDecreasePosition(log *LogEntry) error {
 		RealisedPnL:     realisedPnL,
 		Timestamp:       log.Timestamp,
 	}
-	
+
 	p.trades = append(p.trades, trade)
-	
+
 	if p.onTrade != nil {
 		p.onTrade(trade)
 	}
-	
+
 	return nil
 }
 
@@ -345,11 +345,11 @@ func (p *PerpsIndexer) indexLiquidatePosition(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 256 {
 		return fmt.Errorf("invalid liquidation data")
 	}
-	
+
 	account := "0x" + hex.EncodeToString(data[12:32])
 	collateralToken := "0x" + hex.EncodeToString(data[44:64])
 	indexToken := "0x" + hex.EncodeToString(data[76:96])
@@ -358,7 +358,7 @@ func (p *PerpsIndexer) indexLiquidatePosition(log *LogEntry) error {
 	collateral := new(big.Int).SetBytes(data[160:192])
 	markPrice := new(big.Int).SetBytes(data[192:224])
 	loss := new(big.Int).SetBytes(data[224:256])
-	
+
 	// Close position
 	positionID := p.getPositionID(account, collateralToken, indexToken, isLong)
 	if position, exists := p.positions[positionID]; exists {
@@ -366,12 +366,12 @@ func (p *PerpsIndexer) indexLiquidatePosition(log *LogEntry) error {
 		position.Size = big.NewInt(0)
 		position.Collateral = big.NewInt(0)
 		position.UpdatedAt = log.Timestamp
-		
+
 		if p.onPosition != nil {
 			p.onPosition(position)
 		}
 	}
-	
+
 	liquidation := &PerpLiquidation{
 		ID:              fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:          log.TxHash,
@@ -387,13 +387,13 @@ func (p *PerpsIndexer) indexLiquidatePosition(log *LogEntry) error {
 		Loss:            loss,
 		Timestamp:       log.Timestamp,
 	}
-	
+
 	p.liquidations = append(p.liquidations, liquidation)
-	
+
 	if p.onLiquidation != nil {
 		p.onLiquidation(liquidation)
 	}
-	
+
 	return nil
 }
 
@@ -409,18 +409,18 @@ func (p *PerpsIndexer) indexSwap(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 192 {
 		return fmt.Errorf("invalid swap data")
 	}
-	
+
 	account := "0x" + hex.EncodeToString(data[12:32])
 	tokenIn := "0x" + hex.EncodeToString(data[44:64])
 	tokenOut := "0x" + hex.EncodeToString(data[76:96])
 	amountIn := new(big.Int).SetBytes(data[96:128])
 	amountOut := new(big.Int).SetBytes(data[128:160])
 	fee := new(big.Int).SetBytes(data[160:192])
-	
+
 	trade := &PerpTrade{
 		ID:              fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:          log.TxHash,
@@ -435,13 +435,13 @@ func (p *PerpsIndexer) indexSwap(log *LogEntry) error {
 		Fee:             fee,
 		Timestamp:       log.Timestamp,
 	}
-	
+
 	p.trades = append(p.trades, trade)
-	
+
 	if p.onTrade != nil {
 		p.onTrade(trade)
 	}
-	
+
 	return nil
 }
 
@@ -464,17 +464,17 @@ func calculateAveragePrice(prevAvgPrice, prevSize, sizeDelta, newPrice *big.Int)
 	if prevSize.Sign() == 0 {
 		return new(big.Int).Set(newPrice)
 	}
-	
+
 	// avgPrice = (prevSize * prevAvgPrice + sizeDelta * newPrice) / (prevSize + sizeDelta)
 	prev := new(big.Int).Mul(prevSize, prevAvgPrice)
 	added := new(big.Int).Mul(sizeDelta, newPrice)
 	total := new(big.Int).Add(prev, added)
 	newSize := new(big.Int).Add(prevSize, sizeDelta)
-	
+
 	if newSize.Sign() == 0 {
 		return big.NewInt(0)
 	}
-	
+
 	return new(big.Int).Div(total, newSize)
 }
 
@@ -514,7 +514,7 @@ func (p *PerpsIndexer) GetTrades(account string, limit int) []*PerpTrade {
 		}
 		return p.trades
 	}
-	
+
 	var filtered []*PerpTrade
 	acc := strings.ToLower(account)
 	for _, t := range p.trades {
@@ -522,7 +522,7 @@ func (p *PerpsIndexer) GetTrades(account string, limit int) []*PerpTrade {
 			filtered = append(filtered, t)
 		}
 	}
-	
+
 	if limit > 0 && limit < len(filtered) {
 		return filtered[len(filtered)-limit:]
 	}
@@ -539,13 +539,13 @@ func (p *PerpsIndexer) GetLiquidations(limit int) []*PerpLiquidation {
 
 // PerpsStats represents perpetuals indexer statistics
 type PerpsStats struct {
-	TotalPositions    uint64   `json:"totalPositions"`
-	OpenPositions     uint64   `json:"openPositions"`
-	TotalTrades       uint64   `json:"totalTrades"`
-	TotalLiquidations uint64   `json:"totalLiquidations"`
-	OpenInterestLong  *big.Int `json:"openInterestLong"`
-	OpenInterestShort *big.Int `json:"openInterestShort"`
-	TotalVolume       *big.Int `json:"totalVolume"`
+	TotalPositions    uint64    `json:"totalPositions"`
+	OpenPositions     uint64    `json:"openPositions"`
+	TotalTrades       uint64    `json:"totalTrades"`
+	TotalLiquidations uint64    `json:"totalLiquidations"`
+	OpenInterestLong  *big.Int  `json:"openInterestLong"`
+	OpenInterestShort *big.Int  `json:"openInterestShort"`
+	TotalVolume       *big.Int  `json:"totalVolume"`
 	LastUpdated       time.Time `json:"lastUpdated"`
 }
 
@@ -561,7 +561,7 @@ func (p *PerpsIndexer) GetStats() *PerpsStats {
 		TotalVolume:       big.NewInt(0),
 		LastUpdated:       time.Now(),
 	}
-	
+
 	for _, pos := range p.positions {
 		if pos.IsOpen {
 			if pos.IsLong {
@@ -571,10 +571,10 @@ func (p *PerpsIndexer) GetStats() *PerpsStats {
 			}
 		}
 	}
-	
+
 	for _, trade := range p.trades {
 		stats.TotalVolume.Add(stats.TotalVolume, trade.SizeDelta)
 	}
-	
+
 	return stats
 }

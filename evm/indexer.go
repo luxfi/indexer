@@ -71,8 +71,6 @@ func NewIndexer(cfg Config, store storage.Store) (*Indexer, error) {
 	return idx, nil
 }
 
-
-
 // Init initializes the EVM indexer schema
 func (idx *Indexer) Init(ctx context.Context) error {
 	schema := storage.Schema{

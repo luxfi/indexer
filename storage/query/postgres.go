@@ -454,15 +454,15 @@ type postgresTx struct {
 	parent *Postgres
 }
 
-func (t *postgresTx) Backend() Backend                                                   { return BackendPostgres }
-func (t *postgresTx) Init(ctx context.Context) error                                     { return nil }
-func (t *postgresTx) Close() error                                                       { return t.Rollback() }
-func (t *postgresTx) Ping(ctx context.Context) error                                     { return nil }
-func (t *postgresTx) InitSchema(ctx context.Context, schema Schema) error                { return ErrNotSupported }
-func (t *postgresTx) Migrate(ctx context.Context, schema Schema) error                   { return ErrNotSupported }
-func (t *postgresTx) Begin(ctx context.Context) (Tx, error)                              { return nil, ErrNotSupported }
-func (t *postgresTx) Commit() error                                                      { return t.tx.Commit() }
-func (t *postgresTx) Rollback() error                                                    { return t.tx.Rollback() }
+func (t *postgresTx) Backend() Backend                                    { return BackendPostgres }
+func (t *postgresTx) Init(ctx context.Context) error                      { return nil }
+func (t *postgresTx) Close() error                                        { return t.Rollback() }
+func (t *postgresTx) Ping(ctx context.Context) error                      { return nil }
+func (t *postgresTx) InitSchema(ctx context.Context, schema Schema) error { return ErrNotSupported }
+func (t *postgresTx) Migrate(ctx context.Context, schema Schema) error    { return ErrNotSupported }
+func (t *postgresTx) Begin(ctx context.Context) (Tx, error)               { return nil, ErrNotSupported }
+func (t *postgresTx) Commit() error                                       { return t.tx.Commit() }
+func (t *postgresTx) Rollback() error                                     { return t.tx.Rollback() }
 
 func (t *postgresTx) InsertBlock(ctx context.Context, table string, block *Block) error {
 	txIDsJSON, _ := json.Marshal(block.TxIDs)

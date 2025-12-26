@@ -13,19 +13,19 @@ import (
 
 // SynthsIndexer indexes synthetic asset events (Alchemix-style)
 type SynthsIndexer struct {
-	vaults         map[string]*SynthVault
-	deposits       []*SynthDeposit
-	withdrawals    []*SynthWithdrawal
-	mints          []*SynthMint
-	burns          []*SynthBurn
-	transmutes     []*SynthTransmute
-	positions      map[string]*SynthPosition // account:vault -> position
-	synthTokens    map[string]*SynthToken
-	onDeposit      func(*SynthDeposit)
-	onWithdrawal   func(*SynthWithdrawal)
-	onMint         func(*SynthMint)
-	onBurn         func(*SynthBurn)
-	onTransmute    func(*SynthTransmute)
+	vaults       map[string]*SynthVault
+	deposits     []*SynthDeposit
+	withdrawals  []*SynthWithdrawal
+	mints        []*SynthMint
+	burns        []*SynthBurn
+	transmutes   []*SynthTransmute
+	positions    map[string]*SynthPosition // account:vault -> position
+	synthTokens  map[string]*SynthToken
+	onDeposit    func(*SynthDeposit)
+	onWithdrawal func(*SynthWithdrawal)
+	onMint       func(*SynthMint)
+	onBurn       func(*SynthBurn)
+	onTransmute  func(*SynthTransmute)
 }
 
 // SynthVault represents an Alchemist vault
@@ -134,17 +134,17 @@ type SynthBurn struct {
 
 // SynthTransmute represents transmuting synths to underlying
 type SynthTransmute struct {
-	ID              string    `json:"id"`
-	TxHash          string    `json:"txHash"`
-	BlockNumber     uint64    `json:"blockNumber"`
-	LogIndex        uint64    `json:"logIndex"`
-	TransmuterAddr  string    `json:"transmuterAddress"`
-	Account         string    `json:"account"`
-	SynthToken      string    `json:"synthToken"`
-	SynthAmount     *big.Int  `json:"synthAmount"`
-	UnderlyingToken string    `json:"underlyingToken"`
-	UnderlyingAmount *big.Int `json:"underlyingAmount"`
-	Timestamp       time.Time `json:"timestamp"`
+	ID               string    `json:"id"`
+	TxHash           string    `json:"txHash"`
+	BlockNumber      uint64    `json:"blockNumber"`
+	LogIndex         uint64    `json:"logIndex"`
+	TransmuterAddr   string    `json:"transmuterAddress"`
+	Account          string    `json:"account"`
+	SynthToken       string    `json:"synthToken"`
+	SynthAmount      *big.Int  `json:"synthAmount"`
+	UnderlyingToken  string    `json:"underlyingToken"`
+	UnderlyingAmount *big.Int  `json:"underlyingAmount"`
+	Timestamp        time.Time `json:"timestamp"`
 }
 
 // NewSynthsIndexer creates a new synthetics indexer
@@ -186,9 +186,9 @@ func (s *SynthsIndexer) IndexLog(log *LogEntry) error {
 	if len(log.Topics) == 0 {
 		return nil
 	}
-	
+
 	topic0 := log.Topics[0]
-	
+
 	switch topic0 {
 	case SynthsDepositSig:
 		return s.indexDeposit(log)
@@ -201,7 +201,7 @@ func (s *SynthsIndexer) IndexLog(log *LogEntry) error {
 	case SynthsTransmuteSig:
 		return s.indexTransmute(log)
 	}
-	
+
 	return nil
 }
 
@@ -210,21 +210,21 @@ func (s *SynthsIndexer) indexDeposit(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid deposit event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 96 {
 		return fmt.Errorf("invalid deposit data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	token := "0x" + hex.EncodeToString(data[12:32])
 	amount := new(big.Int).SetBytes(data[32:64])
 	shares := new(big.Int).SetBytes(data[64:96])
-	
+
 	deposit := &SynthDeposit{
 		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:       log.TxHash,
@@ -237,21 +237,21 @@ func (s *SynthsIndexer) indexDeposit(log *LogEntry) error {
 		Shares:       shares,
 		Timestamp:    log.Timestamp,
 	}
-	
+
 	s.deposits = append(s.deposits, deposit)
-	
+
 	// Update position
 	s.updatePositionDeposit(log.Address, account, amount)
-	
+
 	// Update vault
 	vault := s.getOrCreateVault(log.Address)
 	vault.TotalDeposited = new(big.Int).Add(vault.TotalDeposited, amount)
 	vault.UpdatedAt = log.Timestamp
-	
+
 	if s.onDeposit != nil {
 		s.onDeposit(deposit)
 	}
-	
+
 	return nil
 }
 
@@ -260,21 +260,21 @@ func (s *SynthsIndexer) indexWithdrawal(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid withdrawal event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 96 {
 		return fmt.Errorf("invalid withdrawal data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	token := "0x" + hex.EncodeToString(data[12:32])
 	amount := new(big.Int).SetBytes(data[32:64])
 	shares := new(big.Int).SetBytes(data[64:96])
-	
+
 	withdrawal := &SynthWithdrawal{
 		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:       log.TxHash,
@@ -287,21 +287,21 @@ func (s *SynthsIndexer) indexWithdrawal(log *LogEntry) error {
 		Shares:       shares,
 		Timestamp:    log.Timestamp,
 	}
-	
+
 	s.withdrawals = append(s.withdrawals, withdrawal)
-	
+
 	// Update position
 	s.updatePositionWithdrawal(log.Address, account, amount)
-	
+
 	// Update vault
 	vault := s.getOrCreateVault(log.Address)
 	vault.TotalDeposited = new(big.Int).Sub(vault.TotalDeposited, amount)
 	vault.UpdatedAt = log.Timestamp
-	
+
 	if s.onWithdrawal != nil {
 		s.onWithdrawal(withdrawal)
 	}
-	
+
 	return nil
 }
 
@@ -310,22 +310,22 @@ func (s *SynthsIndexer) indexMint(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid mint event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid mint data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	amount := new(big.Int).SetBytes(data[0:32])
 	recipient := "0x" + hex.EncodeToString(data[44:64])
-	
+
 	vault := s.getOrCreateVault(log.Address)
-	
+
 	mint := &SynthMint{
 		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:       log.TxHash,
@@ -338,20 +338,20 @@ func (s *SynthsIndexer) indexMint(log *LogEntry) error {
 		Recipient:    recipient,
 		Timestamp:    log.Timestamp,
 	}
-	
+
 	s.mints = append(s.mints, mint)
-	
+
 	// Update position
 	s.updatePositionMint(log.Address, account, amount)
-	
+
 	// Update vault
 	vault.TotalBorrowed = new(big.Int).Add(vault.TotalBorrowed, amount)
 	vault.UpdatedAt = log.Timestamp
-	
+
 	if s.onMint != nil {
 		s.onMint(mint)
 	}
-	
+
 	return nil
 }
 
@@ -360,21 +360,21 @@ func (s *SynthsIndexer) indexBurn(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid burn event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 32 {
 		return fmt.Errorf("invalid burn data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	amount := new(big.Int).SetBytes(data[0:32])
-	
+
 	vault := s.getOrCreateVault(log.Address)
-	
+
 	burn := &SynthBurn{
 		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:       log.TxHash,
@@ -386,20 +386,20 @@ func (s *SynthsIndexer) indexBurn(log *LogEntry) error {
 		Amount:       amount,
 		Timestamp:    log.Timestamp,
 	}
-	
+
 	s.burns = append(s.burns, burn)
-	
+
 	// Update position
 	s.updatePositionBurn(log.Address, account, amount)
-	
+
 	// Update vault
 	vault.TotalBorrowed = new(big.Int).Sub(vault.TotalBorrowed, amount)
 	vault.UpdatedAt = log.Timestamp
-	
+
 	if s.onBurn != nil {
 		s.onBurn(burn)
 	}
-	
+
 	return nil
 }
 
@@ -408,22 +408,22 @@ func (s *SynthsIndexer) indexTransmute(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid transmute event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 128 {
 		return fmt.Errorf("invalid transmute data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	synthToken := "0x" + hex.EncodeToString(data[12:32])
 	synthAmount := new(big.Int).SetBytes(data[32:64])
 	underlyingToken := "0x" + hex.EncodeToString(data[76:96])
 	underlyingAmount := new(big.Int).SetBytes(data[96:128])
-	
+
 	transmute := &SynthTransmute{
 		ID:               fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:           log.TxHash,
@@ -437,13 +437,13 @@ func (s *SynthsIndexer) indexTransmute(log *LogEntry) error {
 		UnderlyingAmount: underlyingAmount,
 		Timestamp:        log.Timestamp,
 	}
-	
+
 	s.transmutes = append(s.transmutes, transmute)
-	
+
 	if s.onTransmute != nil {
 		s.onTransmute(transmute)
 	}
-	
+
 	return nil
 }
 
@@ -457,7 +457,7 @@ func (s *SynthsIndexer) getOrCreatePosition(vault, account string) *SynthPositio
 	if pos, exists := s.positions[id]; exists {
 		return pos
 	}
-	
+
 	pos := &SynthPosition{
 		ID:           id,
 		Account:      account,
@@ -500,7 +500,7 @@ func (s *SynthsIndexer) updatePositionBurn(vault, account string, amount *big.In
 	pos.Borrowed = new(big.Int).Sub(pos.Borrowed, amount)
 	pos.UpdatedAt = time.Now()
 	s.updatePositionLTV(pos)
-	
+
 	if pos.Borrowed.Sign() <= 0 && pos.Deposited.Sign() <= 0 {
 		pos.IsActive = false
 	}
@@ -512,13 +512,13 @@ func (s *SynthsIndexer) updatePositionLTV(pos *SynthPosition) {
 		pos.HealthFactor = 0
 		return
 	}
-	
+
 	borrowedFloat := new(big.Float).SetInt(pos.Borrowed)
 	depositedFloat := new(big.Float).SetInt(pos.Deposited)
-	
+
 	ltv, _ := new(big.Float).Quo(borrowedFloat, depositedFloat).Float64()
 	pos.LTV = ltv
-	
+
 	// Health factor = 1/LTV (higher is healthier)
 	if ltv > 0 {
 		pos.HealthFactor = 1.0 / ltv
@@ -533,7 +533,7 @@ func (s *SynthsIndexer) getOrCreateVault(address string) *SynthVault {
 	if vault, exists := s.vaults[addr]; exists {
 		return vault
 	}
-	
+
 	vault := &SynthVault{
 		Address:        addr,
 		TotalDeposited: big.NewInt(0),
@@ -613,11 +613,11 @@ func (s *SynthsIndexer) GetStats() *SynthsStats {
 		TotalTransmutes:  uint64(len(s.transmutes)),
 		LastUpdated:      time.Now(),
 	}
-	
+
 	for _, vault := range s.vaults {
 		stats.TotalDeposited.Add(stats.TotalDeposited, vault.TotalDeposited)
 		stats.TotalBorrowed.Add(stats.TotalBorrowed, vault.TotalBorrowed)
 	}
-	
+
 	return stats
 }

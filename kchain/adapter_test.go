@@ -859,10 +859,10 @@ func TestThresholdKeyConfiguration(t *testing.T) {
 		totalShares int
 		valid       bool
 	}{
-		{1, 1, true},  // 1-of-1
-		{2, 3, true},  // 2-of-3
-		{3, 5, true},  // 3-of-5
-		{5, 7, true},  // 5-of-7
+		{1, 1, true},   // 1-of-1
+		{2, 3, true},   // 2-of-3
+		{3, 5, true},   // 3-of-5
+		{5, 7, true},   // 5-of-7
 		{10, 15, true}, // 10-of-15
 	}
 

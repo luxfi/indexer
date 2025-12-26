@@ -14,29 +14,29 @@ import (
 
 // PendingTransaction represents a transaction in the mempool
 type PendingTransaction struct {
-	Hash             string    `json:"hash"`
-	From             string    `json:"from"`
-	To               string    `json:"to"`
-	Value            string    `json:"value"`
-	Gas              uint64    `json:"gas"`
-	GasPrice         string    `json:"gasPrice,omitempty"`
-	MaxFeePerGas     string    `json:"maxFeePerGas,omitempty"`
-	MaxPriorityFee   string    `json:"maxPriorityFeePerGas,omitempty"`
-	Nonce            uint64    `json:"nonce"`
-	Input            string    `json:"input"`
-	Type             uint8     `json:"type"`
-	V                string    `json:"v,omitempty"`
-	R                string    `json:"r,omitempty"`
-	S                string    `json:"s,omitempty"`
-	FirstSeenAt      time.Time `json:"firstSeenAt"`
-	LastSeenAt       time.Time `json:"lastSeenAt"`
-	FirstSeen        time.Time `json:"firstSeen"`        // Alias for enhanced compatibility
-	LastSeen         time.Time `json:"lastSeen"`         // Alias for enhanced compatibility
-	SeenCount        int       `json:"seenCount"`        // Times seen in mempool
-	Status           string    `json:"status"`           // pending, replaced, dropped, confirmed
-	ReplacedBy       string    `json:"replacedBy,omitempty"` // Hash of replacing tx
-	GasEstimate      uint64    `json:"gasEstimate,omitempty"`
-	DecodedInput     *DecodedInput `json:"decodedInput,omitempty"`
+	Hash           string        `json:"hash"`
+	From           string        `json:"from"`
+	To             string        `json:"to"`
+	Value          string        `json:"value"`
+	Gas            uint64        `json:"gas"`
+	GasPrice       string        `json:"gasPrice,omitempty"`
+	MaxFeePerGas   string        `json:"maxFeePerGas,omitempty"`
+	MaxPriorityFee string        `json:"maxPriorityFeePerGas,omitempty"`
+	Nonce          uint64        `json:"nonce"`
+	Input          string        `json:"input"`
+	Type           uint8         `json:"type"`
+	V              string        `json:"v,omitempty"`
+	R              string        `json:"r,omitempty"`
+	S              string        `json:"s,omitempty"`
+	FirstSeenAt    time.Time     `json:"firstSeenAt"`
+	LastSeenAt     time.Time     `json:"lastSeenAt"`
+	FirstSeen      time.Time     `json:"firstSeen"`            // Alias for enhanced compatibility
+	LastSeen       time.Time     `json:"lastSeen"`             // Alias for enhanced compatibility
+	SeenCount      int           `json:"seenCount"`            // Times seen in mempool
+	Status         string        `json:"status"`               // pending, replaced, dropped, confirmed
+	ReplacedBy     string        `json:"replacedBy,omitempty"` // Hash of replacing tx
+	GasEstimate    uint64        `json:"gasEstimate,omitempty"`
+	DecodedInput   *DecodedInput `json:"decodedInput,omitempty"`
 }
 
 // DecodedInput represents decoded transaction input data
@@ -48,22 +48,22 @@ type DecodedInput struct {
 
 // PendingPoolStats represents mempool statistics
 type PendingPoolStats struct {
-	TotalCount       int       `json:"totalCount"`
-	PendingCount     int       `json:"pendingCount"`
-	QueuedCount      int       `json:"queuedCount"`
-	TotalGasPrice    *big.Int  `json:"totalGasPrice"`
-	AverageGasPrice  *big.Int  `json:"averageGasPrice"`
-	MinGasPrice      *big.Int  `json:"minGasPrice"`
-	MaxGasPrice      *big.Int  `json:"maxGasPrice"`
-	OldestTxTime     time.Time `json:"oldestTxTime"`
-	NewestTxTime     time.Time `json:"newestTxTime"`
-	TotalValue       *big.Int  `json:"totalValue"`
-	UniqueFromAddrs  int       `json:"uniqueFromAddresses"`
-	UniqueToAddrs    int       `json:"uniqueToAddresses"`
-	ContractCalls    int       `json:"contractCalls"`
-	SimpleTransfers  int       `json:"simpleTransfers"`
-	TokenTransfers   int       `json:"tokenTransfers"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	TotalCount      int       `json:"totalCount"`
+	PendingCount    int       `json:"pendingCount"`
+	QueuedCount     int       `json:"queuedCount"`
+	TotalGasPrice   *big.Int  `json:"totalGasPrice"`
+	AverageGasPrice *big.Int  `json:"averageGasPrice"`
+	MinGasPrice     *big.Int  `json:"minGasPrice"`
+	MaxGasPrice     *big.Int  `json:"maxGasPrice"`
+	OldestTxTime    time.Time `json:"oldestTxTime"`
+	NewestTxTime    time.Time `json:"newestTxTime"`
+	TotalValue      *big.Int  `json:"totalValue"`
+	UniqueFromAddrs int       `json:"uniqueFromAddresses"`
+	UniqueToAddrs   int       `json:"uniqueToAddresses"`
+	ContractCalls   int       `json:"contractCalls"`
+	SimpleTransfers int       `json:"simpleTransfers"`
+	TokenTransfers  int       `json:"tokenTransfers"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // PendingPoolMonitor monitors the pending transaction pool (mempool)
@@ -103,7 +103,7 @@ func NewPendingPoolMonitor(config PendingPoolConfig) *PendingPoolMonitor {
 	if config.MaxPendingAge == 0 {
 		config.MaxPendingAge = 30 * time.Minute
 	}
-	
+
 	return &PendingPoolMonitor{
 		rpcURL:        config.RPCURL,
 		httpClient:    &httpClient{endpoint: config.RPCURL},
@@ -121,7 +121,7 @@ func NewPendingPoolMonitor(config PendingPoolConfig) *PendingPoolMonitor {
 func (m *PendingPoolMonitor) Start(ctx context.Context) error {
 	ticker := time.NewTicker(m.pollInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -150,10 +150,10 @@ func (m *PendingPoolMonitor) poll(ctx context.Context) error {
 		// Fall back to eth_pendingTransactions if txpool_content not available
 		return m.pollWithPendingTransactions(ctx)
 	}
-	
+
 	now := time.Now()
 	seenHashes := make(map[string]bool)
-	
+
 	// Process pending transactions
 	for _, txsByNonce := range content.Pending {
 		for _, tx := range txsByNonce {
@@ -161,7 +161,7 @@ func (m *PendingPoolMonitor) poll(ctx context.Context) error {
 			m.processPendingTx(tx, now)
 		}
 	}
-	
+
 	// Process queued transactions
 	for _, txsByNonce := range content.Queued {
 		for _, tx := range txsByNonce {
@@ -169,13 +169,13 @@ func (m *PendingPoolMonitor) poll(ctx context.Context) error {
 			m.processPendingTx(tx, now)
 		}
 	}
-	
+
 	// Remove transactions that are no longer pending
 	m.cleanupRemovedTxs(seenHashes, now)
-	
+
 	// Update stats
 	m.updateStats(len(content.Pending), len(content.Queued))
-	
+
 	return nil
 }
 
@@ -185,18 +185,18 @@ func (m *PendingPoolMonitor) pollWithPendingTransactions(ctx context.Context) er
 	if err != nil {
 		return err
 	}
-	
+
 	now := time.Now()
 	seenHashes := make(map[string]bool)
-	
+
 	for _, tx := range txs {
 		seenHashes[tx.Hash] = true
 		m.processPendingTx(tx, now)
 	}
-	
+
 	m.cleanupRemovedTxs(seenHashes, now)
 	m.updateStats(len(txs), 0)
-	
+
 	return nil
 }
 
@@ -204,7 +204,7 @@ func (m *PendingPoolMonitor) pollWithPendingTransactions(ctx context.Context) er
 func (m *PendingPoolMonitor) processPendingTx(tx *PendingTransaction, now time.Time) {
 	m.pendingMu.Lock()
 	defer m.pendingMu.Unlock()
-	
+
 	existing, exists := m.pending[tx.Hash]
 	if exists {
 		existing.LastSeenAt = now
@@ -212,12 +212,12 @@ func (m *PendingPoolMonitor) processPendingTx(tx *PendingTransaction, now time.T
 		tx.FirstSeenAt = now
 		tx.LastSeenAt = now
 		m.pending[tx.Hash] = tx
-		
+
 		// Decode input if possible
 		if len(tx.Input) > 10 {
 			tx.DecodedInput = decodeTransactionInput(tx.Input)
 		}
-		
+
 		// Notify callback
 		if m.onNewPending != nil {
 			go m.onNewPending(tx)
@@ -229,7 +229,7 @@ func (m *PendingPoolMonitor) processPendingTx(tx *PendingTransaction, now time.T
 func (m *PendingPoolMonitor) cleanupRemovedTxs(seenHashes map[string]bool, now time.Time) {
 	m.pendingMu.Lock()
 	defer m.pendingMu.Unlock()
-	
+
 	for hash, tx := range m.pending {
 		if !seenHashes[hash] || now.Sub(tx.FirstSeenAt) > m.maxPendingAge {
 			delete(m.pending, hash)
@@ -244,7 +244,7 @@ func (m *PendingPoolMonitor) cleanupRemovedTxs(seenHashes map[string]bool, now t
 func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 	m.pendingMu.RLock()
 	defer m.pendingMu.RUnlock()
-	
+
 	stats := &PendingPoolStats{
 		TotalCount:    len(m.pending),
 		PendingCount:  pendingCount,
@@ -253,10 +253,10 @@ func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 		TotalValue:    big.NewInt(0),
 		UpdatedAt:     time.Now(),
 	}
-	
+
 	fromAddrs := make(map[string]bool)
 	toAddrs := make(map[string]bool)
-	
+
 	for _, tx := range m.pending {
 		// Track gas prices
 		gasPrice, _ := new(big.Int).SetString(tx.GasPrice, 10)
@@ -269,19 +269,19 @@ func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 				stats.MaxGasPrice = new(big.Int).Set(gasPrice)
 			}
 		}
-		
+
 		// Track value
 		value, _ := new(big.Int).SetString(tx.Value, 10)
 		if value != nil {
 			stats.TotalValue.Add(stats.TotalValue, value)
 		}
-		
+
 		// Track addresses
 		fromAddrs[tx.From] = true
 		if tx.To != "" {
 			toAddrs[tx.To] = true
 		}
-		
+
 		// Track transaction types
 		if len(tx.Input) <= 2 || tx.Input == "0x" {
 			stats.SimpleTransfers++
@@ -290,7 +290,7 @@ func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 		} else {
 			stats.ContractCalls++
 		}
-		
+
 		// Track timestamps
 		if stats.OldestTxTime.IsZero() || tx.FirstSeenAt.Before(stats.OldestTxTime) {
 			stats.OldestTxTime = tx.FirstSeenAt
@@ -299,14 +299,14 @@ func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 			stats.NewestTxTime = tx.FirstSeenAt
 		}
 	}
-	
+
 	stats.UniqueFromAddrs = len(fromAddrs)
 	stats.UniqueToAddrs = len(toAddrs)
-	
+
 	if stats.TotalCount > 0 {
 		stats.AverageGasPrice = new(big.Int).Div(stats.TotalGasPrice, big.NewInt(int64(stats.TotalCount)))
 	}
-	
+
 	m.statsMu.Lock()
 	m.stats = stats
 	m.statsMu.Unlock()
@@ -316,7 +316,7 @@ func (m *PendingPoolMonitor) updateStats(pendingCount, queuedCount int) {
 func (m *PendingPoolMonitor) GetPendingTransactions() []*PendingTransaction {
 	m.pendingMu.RLock()
 	defer m.pendingMu.RUnlock()
-	
+
 	result := make([]*PendingTransaction, 0, len(m.pending))
 	for _, tx := range m.pending {
 		result = append(result, tx)
@@ -342,7 +342,7 @@ func (m *PendingPoolMonitor) GetStats() *PendingPoolStats {
 func (m *PendingPoolMonitor) GetPendingByAddress(address string) []*PendingTransaction {
 	m.pendingMu.RLock()
 	defer m.pendingMu.RUnlock()
-	
+
 	var result []*PendingTransaction
 	for _, tx := range m.pending {
 		if tx.From == address || tx.To == address {
@@ -364,12 +364,12 @@ func (m *PendingPoolMonitor) getTxPoolContent(ctx context.Context) (*TxPoolConte
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var content TxPoolContent
 	if err := json.Unmarshal(result, &content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal txpool_content: %w", err)
 	}
-	
+
 	return &content, nil
 }
 
@@ -379,12 +379,12 @@ func (m *PendingPoolMonitor) getPendingTransactions(ctx context.Context) ([]*Pen
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var txs []*PendingTransaction
 	if err := json.Unmarshal(result, &txs); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal pending transactions: %w", err)
 	}
-	
+
 	return txs, nil
 }
 
@@ -396,23 +396,23 @@ func (m *PendingPoolMonitor) rpcCall(ctx context.Context, method string, params 
 		"params":  params,
 		"id":      1,
 	}
-	
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req, err := newHTTPRequest(ctx, "POST", m.rpcURL, body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	resp, err := doHTTPRequest(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	var rpcResp struct {
 		Result json.RawMessage `json:"result"`
 		Error  *struct {
@@ -420,15 +420,15 @@ func (m *PendingPoolMonitor) rpcCall(ctx context.Context, method string, params 
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	
+
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
 		return nil, err
 	}
-	
+
 	if rpcResp.Error != nil {
 		return nil, fmt.Errorf("RPC error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
 	}
-	
+
 	return rpcResp.Result, nil
 }
 
@@ -437,12 +437,12 @@ func decodeTransactionInput(input string) *DecodedInput {
 	if len(input) < 10 {
 		return nil
 	}
-	
+
 	methodID := input[:10]
 	decoded := &DecodedInput{
 		MethodID: methodID,
 	}
-	
+
 	// Common method signatures
 	methodNames := map[string]string{
 		"0xa9059cbb": "transfer",
@@ -470,11 +470,11 @@ func decodeTransactionInput(input string) *DecodedInput {
 		"0x1a686502": "collect",
 		"0x3c8a7d8d": "mint", // V3
 	}
-	
+
 	if name, ok := methodNames[methodID]; ok {
 		decoded.Method = name
 	}
-	
+
 	return decoded
 }
 

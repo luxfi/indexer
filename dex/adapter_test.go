@@ -122,11 +122,11 @@ func TestParseVertex(t *testing.T) {
 	adapter := New("http://localhost:9650")
 
 	tests := []struct {
-		name       string
-		input      json.RawMessage
-		wantID     string
-		wantType   string
-		wantErr    bool
+		name     string
+		input    json.RawMessage
+		wantID   string
+		wantType string
+		wantErr  bool
 	}{
 		{
 			name: "valid orders vertex",

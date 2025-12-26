@@ -74,17 +74,17 @@ type Address struct {
 
 // TokenTransfer represents an ERC20/721/1155 transfer
 type TokenTransfer struct {
-	ID              string    `json:"id"`
-	TxHash          string    `json:"txHash"`
-	LogIndex        uint64    `json:"logIndex"`
-	BlockNumber     uint64    `json:"blockNumber"`
-	TokenAddress    string    `json:"tokenAddress"`
-	TokenType       string    `json:"tokenType"` // ERC20, ERC721, ERC1155
-	From            string    `json:"from"`
-	To              string    `json:"to"`
-	Value           string    `json:"value"`   // amount for ERC20, tokenId for NFT
-	TokenID         string    `json:"tokenId"` // for ERC721/1155
-	Timestamp       time.Time `json:"timestamp"`
+	ID           string    `json:"id"`
+	TxHash       string    `json:"txHash"`
+	LogIndex     uint64    `json:"logIndex"`
+	BlockNumber  uint64    `json:"blockNumber"`
+	TokenAddress string    `json:"tokenAddress"`
+	TokenType    string    `json:"tokenType"` // ERC20, ERC721, ERC1155
+	From         string    `json:"from"`
+	To           string    `json:"to"`
+	Value        string    `json:"value"`   // amount for ERC20, tokenId for NFT
+	TokenID      string    `json:"tokenId"` // for ERC721/1155
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // Token represents an ERC20/721/1155 token contract
@@ -888,17 +888,17 @@ func (a *Adapter) traceTransactionParity(ctx context.Context, txHash string, blo
 		TransactionHash string `json:"transactionHash"`
 		Trace           []struct {
 			Action struct {
-				CallType         string `json:"callType,omitempty"`
-				From             string `json:"from"`
-				To               string `json:"to,omitempty"`
-				Value            string `json:"value,omitempty"`
-				Gas              string `json:"gas"`
-				Input            string `json:"input,omitempty"`
-				Init             string `json:"init,omitempty"`
-				Address          string `json:"address,omitempty"`          // selfdestruct
-				RefundAddress    string `json:"refundAddress,omitempty"`    // selfdestruct
-				Balance          string `json:"balance,omitempty"`          // selfdestruct
-				CreationMethod   string `json:"creationMethod,omitempty"`   // create, create2
+				CallType       string `json:"callType,omitempty"`
+				From           string `json:"from"`
+				To             string `json:"to,omitempty"`
+				Value          string `json:"value,omitempty"`
+				Gas            string `json:"gas"`
+				Input          string `json:"input,omitempty"`
+				Init           string `json:"init,omitempty"`
+				Address        string `json:"address,omitempty"`        // selfdestruct
+				RefundAddress  string `json:"refundAddress,omitempty"`  // selfdestruct
+				Balance        string `json:"balance,omitempty"`        // selfdestruct
+				CreationMethod string `json:"creationMethod,omitempty"` // create, create2
 			} `json:"action"`
 			Result struct {
 				GasUsed string `json:"gasUsed"`

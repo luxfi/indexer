@@ -36,10 +36,10 @@ func TestNewERC4337Indexer(t *testing.T) {
 // TestDecodeCallData tests callData decoding
 func TestDecodeCallData(t *testing.T) {
 	tests := []struct {
-		name           string
-		callData       string
-		wantSelector   string
-		wantFunction   string
+		name         string
+		callData     string
+		wantSelector string
+		wantFunction string
 	}{
 		{
 			name:         "execute function",
@@ -132,10 +132,10 @@ func TestDecodeInitCode(t *testing.T) {
 // TestDecodePaymasterAndData tests paymasterAndData decoding
 func TestDecodePaymasterAndData(t *testing.T) {
 	tests := []struct {
-		name            string
-		paymasterData   string
-		wantPaymaster   string
-		wantData        string
+		name          string
+		paymasterData string
+		wantPaymaster string
+		wantData      string
 	}{
 		{
 			name:          "valid paymasterAndData",

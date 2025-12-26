@@ -648,16 +648,16 @@ func TestComputeThreshold(t *testing.T) {
 		totalShares   uint32
 		wantThreshold uint32
 	}{
-		{1, 1},              // Min case
-		{2, 2},              // 2 * 2/3 + 1 = 2
-		{3, 3},              // 3 * 2/3 + 1 = 3
-		{4, 3},              // 4 * 2/3 + 1 = 3
-		{5, 4},              // 5 * 2/3 + 1 = 4
-		{6, 5},              // 6 * 2/3 + 1 = 5
-		{7, 5},              // 7 * 2/3 + 1 = 5
-		{9, 7},              // 9 * 2/3 + 1 = 7
-		{10, 7},             // 10 * 2/3 + 1 = 7
-		{100, 67},           // 100 * 2/3 + 1 = 67
+		{1, 1},    // Min case
+		{2, 2},    // 2 * 2/3 + 1 = 2
+		{3, 3},    // 3 * 2/3 + 1 = 3
+		{4, 3},    // 4 * 2/3 + 1 = 3
+		{5, 4},    // 5 * 2/3 + 1 = 4
+		{6, 5},    // 6 * 2/3 + 1 = 5
+		{7, 5},    // 7 * 2/3 + 1 = 5
+		{9, 7},    // 9 * 2/3 + 1 = 7
+		{10, 7},   // 10 * 2/3 + 1 = 7
+		{100, 67}, // 100 * 2/3 + 1 = 67
 	}
 
 	for _, tt := range tests {
@@ -673,9 +673,9 @@ func TestComputeThreshold(t *testing.T) {
 // TestValidateSignature tests signature validation
 func TestValidateSignature(t *testing.T) {
 	// Create valid hex-encoded test data
-	publicKey := hex.EncodeToString(make([]byte, 33))  // 33 bytes -> 66 hex chars
+	publicKey := hex.EncodeToString(make([]byte, 33)) // 33 bytes -> 66 hex chars
 	message := hex.EncodeToString([]byte("test message"))
-	signature := hex.EncodeToString(make([]byte, 65))  // 65 bytes -> 130 hex chars
+	signature := hex.EncodeToString(make([]byte, 65)) // 65 bytes -> 130 hex chars
 
 	valid, err := ValidateSignature(publicKey, message, signature)
 	if err != nil {
@@ -711,9 +711,9 @@ func TestValidateSignatureInvalidHex(t *testing.T) {
 
 // TestValidateSignatureTooShort tests signature validation with short keys
 func TestValidateSignatureTooShort(t *testing.T) {
-	shortKey := hex.EncodeToString(make([]byte, 10))     // Too short
+	shortKey := hex.EncodeToString(make([]byte, 10)) // Too short
 	message := hex.EncodeToString([]byte("test"))
-	shortSig := hex.EncodeToString(make([]byte, 32))     // Too short
+	shortSig := hex.EncodeToString(make([]byte, 32)) // Too short
 
 	_, err := ValidateSignature(shortKey, message, shortSig)
 	if err == nil {

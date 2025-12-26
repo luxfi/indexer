@@ -16,14 +16,14 @@ var (
 	WarpMessageReceivedSig = "0x1f5f0f8c6e4e2e6a5c3f4d5e6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b"
 
 	// Token Bridge (wrapped assets)
-	TokenBridgeDepositSig    = "0x5548c837ab068cf56a2c2479df0882a4922fd203edb7517321831d95078c5f62"
-	TokenBridgeWithdrawSig   = "0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb"
-	TokenBridgeMintSig       = "0x0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885"
-	TokenBridgeBurnSig       = "0xcc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca5"
+	TokenBridgeDepositSig  = "0x5548c837ab068cf56a2c2479df0882a4922fd203edb7517321831d95078c5f62"
+	TokenBridgeWithdrawSig = "0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb"
+	TokenBridgeMintSig     = "0x0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885"
+	TokenBridgeBurnSig     = "0xcc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca5"
 
 	// Native Bridge (LUX/ZOO cross-chain)
-	NativeBridgeLockSig   = "0x9f1ec8c880f76798e7b793325d625e9b60e4082a553c98f42b6cda368dd60008"
-	NativeBridgeUnlockSig = "0x6381d9813cabeb57471b5a7e05078e64845ccdb563146a6911d536f24ce960f1"
+	NativeBridgeLockSig    = "0x9f1ec8c880f76798e7b793325d625e9b60e4082a553c98f42b6cda368dd60008"
+	NativeBridgeUnlockSig  = "0x6381d9813cabeb57471b5a7e05078e64845ccdb563146a6911d536f24ce960f1"
 	NativeBridgeReleaseSig = "0x2317b3c7d6ae2b8cc9d3e8b2c8d4f6e8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0"
 
 	// Cross-Chain Router
@@ -40,15 +40,15 @@ var (
 type ChainID string
 
 const (
-	ChainCMainnet  ChainID = "C-96369"   // Lux C-Chain Mainnet
-	ChainCTestnet  ChainID = "C-96368"   // Lux C-Chain Testnet
-	ChainZoo       ChainID = "Z-200200"  // Zoo Network Mainnet
-	ChainZooTest   ChainID = "Z-200201"  // Zoo Network Testnet
-	ChainHanzo     ChainID = "H-36963"   // Hanzo AI Chain
-	ChainPChain    ChainID = "P"         // Platform Chain (validators)
-	ChainXChain    ChainID = "X"         // Exchange Chain (assets)
-	ChainBChain    ChainID = "B"         // Bridge Chain
-	ChainTChain    ChainID = "T"         // Teleporter Chain
+	ChainCMainnet ChainID = "C-96369"  // Lux C-Chain Mainnet
+	ChainCTestnet ChainID = "C-96368"  // Lux C-Chain Testnet
+	ChainZoo      ChainID = "Z-200200" // Zoo Network Mainnet
+	ChainZooTest  ChainID = "Z-200201" // Zoo Network Testnet
+	ChainHanzo    ChainID = "H-36963"  // Hanzo AI Chain
+	ChainPChain   ChainID = "P"        // Platform Chain (validators)
+	ChainXChain   ChainID = "X"        // Exchange Chain (assets)
+	ChainBChain   ChainID = "B"        // Bridge Chain
+	ChainTChain   ChainID = "T"        // Teleporter Chain
 )
 
 // BridgeType represents different bridge mechanisms
@@ -75,24 +75,24 @@ const (
 
 // BridgeTransfer represents a cross-chain asset transfer
 type BridgeTransfer struct {
-	ID              string               `json:"id"`
-	BridgeType      BridgeType           `json:"bridgeType"`
-	SourceChain     ChainID              `json:"sourceChain"`
-	DestChain       ChainID              `json:"destChain"`
-	SourceTxHash    string               `json:"sourceTxHash"`
-	DestTxHash      string               `json:"destTxHash,omitempty"`
-	Sender          string               `json:"sender"`
-	Recipient       string               `json:"recipient"`
-	Token           string               `json:"token"`           // Token address (0x0 for native)
-	Amount          *big.Int             `json:"amount"`
-	Fee             *big.Int             `json:"fee"`
-	Status          BridgeTransferStatus `json:"status"`
-	InitiatedAt     time.Time            `json:"initiatedAt"`
-	CompletedAt     *time.Time           `json:"completedAt,omitempty"`
-	WarpMessageID   string               `json:"warpMessageId,omitempty"`
-	Confirmations   uint64               `json:"confirmations"`
-	BlockNumber     uint64               `json:"blockNumber"`
-	LogIndex        uint64               `json:"logIndex"`
+	ID            string               `json:"id"`
+	BridgeType    BridgeType           `json:"bridgeType"`
+	SourceChain   ChainID              `json:"sourceChain"`
+	DestChain     ChainID              `json:"destChain"`
+	SourceTxHash  string               `json:"sourceTxHash"`
+	DestTxHash    string               `json:"destTxHash,omitempty"`
+	Sender        string               `json:"sender"`
+	Recipient     string               `json:"recipient"`
+	Token         string               `json:"token"` // Token address (0x0 for native)
+	Amount        *big.Int             `json:"amount"`
+	Fee           *big.Int             `json:"fee"`
+	Status        BridgeTransferStatus `json:"status"`
+	InitiatedAt   time.Time            `json:"initiatedAt"`
+	CompletedAt   *time.Time           `json:"completedAt,omitempty"`
+	WarpMessageID string               `json:"warpMessageId,omitempty"`
+	Confirmations uint64               `json:"confirmations"`
+	BlockNumber   uint64               `json:"blockNumber"`
+	LogIndex      uint64               `json:"logIndex"`
 }
 
 // WarpMessage represents a Lux Warp Messenger message
@@ -111,24 +111,24 @@ type WarpMessage struct {
 
 // CrossChainSwap represents a cross-chain swap operation
 type CrossChainSwap struct {
-	ID            string                 `json:"id"`
-	SourceChain   ChainID                `json:"sourceChain"`
-	DestChain     ChainID                `json:"destChain"`
-	Initiator     string                 `json:"initiator"`
-	Recipient     string                 `json:"recipient"`
-	TokenIn       string                 `json:"tokenIn"`
-	TokenOut      string                 `json:"tokenOut"`
-	AmountIn      *big.Int               `json:"amountIn"`
-	AmountOut     *big.Int               `json:"amountOut"`
-	MinAmountOut  *big.Int               `json:"minAmountOut"`
-	Deadline      time.Time              `json:"deadline"`
-	Status        BridgeTransferStatus   `json:"status"`
-	Route         []string               `json:"route"`
-	Fees          map[string]*big.Int    `json:"fees"`
-	InitiatedAt   time.Time              `json:"initiatedAt"`
-	CompletedAt   *time.Time             `json:"completedAt,omitempty"`
-	SourceTxHash  string                 `json:"sourceTxHash"`
-	DestTxHash    string                 `json:"destTxHash,omitempty"`
+	ID           string               `json:"id"`
+	SourceChain  ChainID              `json:"sourceChain"`
+	DestChain    ChainID              `json:"destChain"`
+	Initiator    string               `json:"initiator"`
+	Recipient    string               `json:"recipient"`
+	TokenIn      string               `json:"tokenIn"`
+	TokenOut     string               `json:"tokenOut"`
+	AmountIn     *big.Int             `json:"amountIn"`
+	AmountOut    *big.Int             `json:"amountOut"`
+	MinAmountOut *big.Int             `json:"minAmountOut"`
+	Deadline     time.Time            `json:"deadline"`
+	Status       BridgeTransferStatus `json:"status"`
+	Route        []string             `json:"route"`
+	Fees         map[string]*big.Int  `json:"fees"`
+	InitiatedAt  time.Time            `json:"initiatedAt"`
+	CompletedAt  *time.Time           `json:"completedAt,omitempty"`
+	SourceTxHash string               `json:"sourceTxHash"`
+	DestTxHash   string               `json:"destTxHash,omitempty"`
 }
 
 // TeleporterTransfer represents a fast-finality bridge transfer
@@ -152,45 +152,45 @@ type TeleporterTransfer struct {
 
 // AssetMovement represents any tracked asset movement
 type AssetMovement struct {
-	ID           string       `json:"id"`
-	Type         MovementType `json:"type"`
-	Chain        ChainID      `json:"chain"`
-	TxHash       string       `json:"txHash"`
-	BlockNumber  uint64       `json:"blockNumber"`
-	From         string       `json:"from"`
-	To           string       `json:"to"`
-	Token        string       `json:"token"`
-	Amount       *big.Int     `json:"amount"`
-	IsNative     bool         `json:"isNative"`
-	Timestamp    time.Time    `json:"timestamp"`
-	RelatedBridgeID string    `json:"relatedBridgeId,omitempty"`
+	ID              string       `json:"id"`
+	Type            MovementType `json:"type"`
+	Chain           ChainID      `json:"chain"`
+	TxHash          string       `json:"txHash"`
+	BlockNumber     uint64       `json:"blockNumber"`
+	From            string       `json:"from"`
+	To              string       `json:"to"`
+	Token           string       `json:"token"`
+	Amount          *big.Int     `json:"amount"`
+	IsNative        bool         `json:"isNative"`
+	Timestamp       time.Time    `json:"timestamp"`
+	RelatedBridgeID string       `json:"relatedBridgeId,omitempty"`
 }
 
 // MovementType categorizes asset movements
 type MovementType string
 
 const (
-	MovementTypeTransfer    MovementType = "transfer"
-	MovementTypeBridgeLock  MovementType = "bridge_lock"
-	MovementTypeBridgeMint  MovementType = "bridge_mint"
-	MovementTypeBridgeBurn  MovementType = "bridge_burn"
+	MovementTypeTransfer     MovementType = "transfer"
+	MovementTypeBridgeLock   MovementType = "bridge_lock"
+	MovementTypeBridgeMint   MovementType = "bridge_mint"
+	MovementTypeBridgeBurn   MovementType = "bridge_burn"
 	MovementTypeBridgeUnlock MovementType = "bridge_unlock"
-	MovementTypeStake       MovementType = "stake"
-	MovementTypeUnstake     MovementType = "unstake"
-	MovementTypeReward      MovementType = "reward"
+	MovementTypeStake        MovementType = "stake"
+	MovementTypeUnstake      MovementType = "unstake"
+	MovementTypeReward       MovementType = "reward"
 )
 
 // BridgeStats tracks bridge statistics
 type BridgeStats struct {
-	TotalTransfers      uint64              `json:"totalTransfers"`
-	TotalVolume         map[string]*big.Int `json:"totalVolume"` // token -> volume
-	PendingTransfers    uint64              `json:"pendingTransfers"`
-	CompletedTransfers  uint64              `json:"completedTransfers"`
-	FailedTransfers     uint64              `json:"failedTransfers"`
-	AverageTime         time.Duration       `json:"averageTime"`
-	ChainVolumes        map[ChainID]*big.Int `json:"chainVolumes"`
-	Last24HVolume       *big.Int            `json:"last24hVolume"`
-	Last24HTransfers    uint64              `json:"last24hTransfers"`
+	TotalTransfers     uint64               `json:"totalTransfers"`
+	TotalVolume        map[string]*big.Int  `json:"totalVolume"` // token -> volume
+	PendingTransfers   uint64               `json:"pendingTransfers"`
+	CompletedTransfers uint64               `json:"completedTransfers"`
+	FailedTransfers    uint64               `json:"failedTransfers"`
+	AverageTime        time.Duration        `json:"averageTime"`
+	ChainVolumes       map[ChainID]*big.Int `json:"chainVolumes"`
+	Last24HVolume      *big.Int             `json:"last24hVolume"`
+	Last24HTransfers   uint64               `json:"last24hTransfers"`
 }
 
 // BridgeIndexer indexes bridge and cross-chain transfers

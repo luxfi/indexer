@@ -29,11 +29,11 @@ const (
 type KeyStatus string
 
 const (
-	KeyStatusActive    KeyStatus = "active"
-	KeyStatusInactive  KeyStatus = "inactive"
-	KeyStatusRotating  KeyStatus = "rotating"
-	KeyStatusRevoked   KeyStatus = "revoked"
-	KeyStatusPending   KeyStatus = "pending"
+	KeyStatusActive   KeyStatus = "active"
+	KeyStatusInactive KeyStatus = "inactive"
+	KeyStatusRotating KeyStatus = "rotating"
+	KeyStatusRevoked  KeyStatus = "revoked"
+	KeyStatusPending  KeyStatus = "pending"
 )
 
 // AlgorithmType represents cryptographic algorithm categories
@@ -62,24 +62,24 @@ type Key struct {
 
 // KeyOperation represents a key lifecycle operation
 type KeyOperation struct {
-	ID          string    `json:"id"`
-	KeyID       string    `json:"keyId"`
-	Operation   string    `json:"operation"` // create, rotate, revoke, delete
-	Initiator   string    `json:"initiator"`
-	Participants []string `json:"participants"`
-	Success     bool      `json:"success"`
-	Error       string    `json:"error,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
+	ID           string    `json:"id"`
+	KeyID        string    `json:"keyId"`
+	Operation    string    `json:"operation"` // create, rotate, revoke, delete
+	Initiator    string    `json:"initiator"`
+	Participants []string  `json:"participants"`
+	Success      bool      `json:"success"`
+	Error        string    `json:"error,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // EncryptionRequest represents an encryption operation
 type EncryptionRequest struct {
-	ID          string    `json:"id"`
-	KeyID       string    `json:"keyId"`
-	Requester   string    `json:"requester"`
-	DataSize    int64     `json:"dataSize"`
-	Success     bool      `json:"success"`
-	Timestamp   time.Time `json:"timestamp"`
+	ID        string    `json:"id"`
+	KeyID     string    `json:"keyId"`
+	Requester string    `json:"requester"`
+	DataSize  int64     `json:"dataSize"`
+	Success   bool      `json:"success"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // SignatureRequest represents a signing operation

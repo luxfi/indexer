@@ -197,24 +197,24 @@ func (e *EnhancedIndexer) ProcessEnhancedBlock(ctx context.Context, blockNumber 
 	}
 
 	var block struct {
-		Hash                  string `json:"hash"`
-		ParentHash            string `json:"parentHash"`
-		Miner                 string `json:"miner"`
-		Difficulty            string `json:"difficulty"`
-		TotalDifficulty       string `json:"totalDifficulty"`
-		Size                  string `json:"size"`
-		GasLimit              string `json:"gasLimit"`
-		GasUsed               string `json:"gasUsed"`
-		BaseFeePerGas         string `json:"baseFeePerGas"`
-		ExtraData             string `json:"extraData"`
-		StateRoot             string `json:"stateRoot"`
-		TransactionsRoot      string `json:"transactionsRoot"`
-		ReceiptsRoot          string `json:"receiptsRoot"`
-		LogsBloom             string `json:"logsBloom"`
-		Timestamp             string `json:"timestamp"`
-		Transactions          []json.RawMessage `json:"transactions"`
-		Uncles                []string `json:"uncles"`
-		Withdrawals           []struct {
+		Hash             string            `json:"hash"`
+		ParentHash       string            `json:"parentHash"`
+		Miner            string            `json:"miner"`
+		Difficulty       string            `json:"difficulty"`
+		TotalDifficulty  string            `json:"totalDifficulty"`
+		Size             string            `json:"size"`
+		GasLimit         string            `json:"gasLimit"`
+		GasUsed          string            `json:"gasUsed"`
+		BaseFeePerGas    string            `json:"baseFeePerGas"`
+		ExtraData        string            `json:"extraData"`
+		StateRoot        string            `json:"stateRoot"`
+		TransactionsRoot string            `json:"transactionsRoot"`
+		ReceiptsRoot     string            `json:"receiptsRoot"`
+		LogsBloom        string            `json:"logsBloom"`
+		Timestamp        string            `json:"timestamp"`
+		Transactions     []json.RawMessage `json:"transactions"`
+		Uncles           []string          `json:"uncles"`
+		Withdrawals      []struct {
 			Index          string `json:"index"`
 			ValidatorIndex string `json:"validatorIndex"`
 			Address        string `json:"address"`
@@ -355,15 +355,15 @@ func (e *EnhancedIndexer) calculateBlockReward(ctx context.Context, blockNumber 
 	txFeeReward := big.NewInt(0)
 
 	reward := BlockReward{
-		BlockNumber:   blockNumber,
-		BlockHash:     blockHash,
-		Validator:     strings.ToLower(miner),
-		BaseReward:    "0", // PoS has no base reward
-		TxFeeReward:   txFeeReward.String(),
-		UncleReward:   "0", // PoS has no uncle rewards
-		TotalReward:   txFeeReward.String(),
-		BurntFees:     burntFees.String(),
-		Timestamp:     timestamp,
+		BlockNumber: blockNumber,
+		BlockHash:   blockHash,
+		Validator:   strings.ToLower(miner),
+		BaseReward:  "0", // PoS has no base reward
+		TxFeeReward: txFeeReward.String(),
+		UncleReward: "0", // PoS has no uncle rewards
+		TotalReward: txFeeReward.String(),
+		BurntFees:   burntFees.String(),
+		Timestamp:   timestamp,
 	}
 
 	return e.StoreBlockReward(ctx, reward)
