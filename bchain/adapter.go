@@ -8,13 +8,13 @@ package bchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/indexer/storage"
 )
 
 // Default configuration
@@ -241,7 +241,7 @@ func (a *Adapter) GetVertexByID(ctx context.Context, id string) (json.RawMessage
 }
 
 // InitSchema creates B-Chain specific database tables
-func (a *Adapter) InitSchema(db *sql.DB) error {
+func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	schema := `
 		-- Bridge transfers table
 		CREATE TABLE IF NOT EXISTS bchain_transfers (
@@ -260,47 +260,41 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			lock_height BIGINT,
 			release_height BIGINT,
 			proof_hash TEXT,
-			timestamp TIMESTAMPTZ NOT NULL,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			timestamp TIMESTAMP NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_vertex ON bchain_transfers(vertex_id);
 		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_source ON bchain_transfers(source_chain);
 		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_dest ON bchain_transfers(dest_chain);
 		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_sender ON bchain_transfers(sender);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_recipient ON bchain_transfers(recipient);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_asset ON bchain_transfers(asset_id);
 		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_status ON bchain_transfers(status);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_timestamp ON bchain_transfers(timestamp DESC);
 
 		-- Bridge proofs table
 		CREATE TABLE IF NOT EXISTS bchain_proofs (
 			id TEXT PRIMARY KEY,
-			transfer_id TEXT NOT NULL REFERENCES bchain_transfers(id),
+			transfer_id TEXT NOT NULL,
 			proof_type TEXT NOT NULL,
 			proof_data TEXT NOT NULL,
-			validators JSONB DEFAULT '[]',
-			signatures JSONB DEFAULT '[]',
+			validators TEXT DEFAULT '[]',
+			signatures TEXT DEFAULT '[]',
 			verified BOOLEAN DEFAULT FALSE,
-			verified_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			verified_at TIMESTAMP,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_bchain_proofs_transfer ON bchain_proofs(transfer_id);
-		CREATE INDEX IF NOT EXISTS idx_bchain_proofs_type ON bchain_proofs(proof_type);
 		CREATE INDEX IF NOT EXISTS idx_bchain_proofs_verified ON bchain_proofs(verified);
 
 		-- Locked assets table
 		CREATE TABLE IF NOT EXISTS bchain_locked_assets (
-			id SERIAL PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			asset_id TEXT NOT NULL,
 			source_chain TEXT NOT NULL,
 			amount TEXT NOT NULL,
 			lock_tx_id TEXT NOT NULL,
-			locked_at TIMESTAMPTZ NOT NULL,
-			unlocked_at TIMESTAMPTZ,
-			UNIQUE(asset_id, source_chain, lock_tx_id)
+			locked_at TIMESTAMP NOT NULL,
+			unlocked_at TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_bchain_locked_asset ON bchain_locked_assets(asset_id);
-		CREATE INDEX IF NOT EXISTS idx_bchain_locked_chain ON bchain_locked_assets(source_chain);
 
 		-- Chain statistics table
 		CREATE TABLE IF NOT EXISTS bchain_chain_stats (
@@ -309,7 +303,7 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			total_transfers_out BIGINT DEFAULT 0,
 			total_volume_locked TEXT DEFAULT '0',
 			active_transfers BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 
 		-- Bridge statistics table
@@ -323,12 +317,12 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			verified_proofs BIGINT DEFAULT 0,
 			unique_assets BIGINT DEFAULT 0,
 			unique_chains BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT INTO bchain_bridge_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
+		INSERT OR IGNORE INTO bchain_bridge_stats (id) VALUES (1);
 	`
 
-	if _, err := db.Exec(schema); err != nil {
+	if err := store.Exec(ctx, schema); err != nil {
 		return fmt.Errorf("init bchain schema: %w", err)
 	}
 
@@ -336,88 +330,45 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 }
 
 // GetStats returns B-Chain specific statistics
-func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error) {
+func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Bridge stats
-	var bridgeStats struct {
-		TotalTransfers     int64
-		PendingTransfers   int64
-		CompletedTransfers int64
-		FailedTransfers    int64
-		TotalProofs        int64
-		VerifiedProofs     int64
-		UniqueAssets       int64
-		UniqueChains       int64
-	}
-
-	err := db.QueryRowContext(ctx, `
+	rows, err := store.Query(ctx, `
 		SELECT total_transfers, pending_transfers, completed_transfers, failed_transfers,
 		       total_proofs, verified_proofs, unique_assets, unique_chains
 		FROM bchain_bridge_stats WHERE id = 1
-	`).Scan(
-		&bridgeStats.TotalTransfers,
-		&bridgeStats.PendingTransfers,
-		&bridgeStats.CompletedTransfers,
-		&bridgeStats.FailedTransfers,
-		&bridgeStats.TotalProofs,
-		&bridgeStats.VerifiedProofs,
-		&bridgeStats.UniqueAssets,
-		&bridgeStats.UniqueChains,
-	)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("get bridge stats: %w", err)
-	}
-
-	stats["bridge"] = map[string]interface{}{
-		"total_transfers":     bridgeStats.TotalTransfers,
-		"pending_transfers":   bridgeStats.PendingTransfers,
-		"completed_transfers": bridgeStats.CompletedTransfers,
-		"failed_transfers":    bridgeStats.FailedTransfers,
-		"total_proofs":        bridgeStats.TotalProofs,
-		"verified_proofs":     bridgeStats.VerifiedProofs,
-		"unique_assets":       bridgeStats.UniqueAssets,
-		"unique_chains":       bridgeStats.UniqueChains,
+	`)
+	if err == nil && len(rows) > 0 {
+		stats["bridge"] = rows[0]
 	}
 
 	// Chain-specific stats
-	rows, err := db.QueryContext(ctx, `
+	chainRows, err := store.Query(ctx, `
 		SELECT chain_id, total_transfers_in, total_transfers_out, total_volume_locked, active_transfers
 		FROM bchain_chain_stats
 	`)
-	if err != nil {
-		return stats, nil // Return partial stats on error
-	}
-	defer rows.Close()
-
-	chainStats := make(map[string]interface{})
-	for rows.Next() {
-		var chainID string
-		var in, out, active int64
-		var volume string
-		if err := rows.Scan(&chainID, &in, &out, &volume, &active); err != nil {
-			continue
+	if err == nil {
+		chainStats := make(map[string]interface{})
+		for _, row := range chainRows {
+			if chainID, ok := row["chain_id"].(string); ok {
+				chainStats[chainID] = row
+			}
 		}
-		chainStats[chainID] = map[string]interface{}{
-			"transfers_in":     in,
-			"transfers_out":    out,
-			"volume_locked":    volume,
-			"active_transfers": active,
-		}
+		stats["chains"] = chainStats
 	}
-	stats["chains"] = chainStats
 
 	return stats, nil
 }
 
 // StoreTransfer stores a bridge transfer
-func (a *Adapter) StoreTransfer(ctx context.Context, db *sql.DB, vertexID string, t *Transfer) error {
-	_, err := db.ExecContext(ctx, `
+func (a *Adapter) StoreTransfer(ctx context.Context, store storage.Store, vertexID string, t *Transfer) error {
+	return store.Exec(ctx, `
 		INSERT INTO bchain_transfers (
 			id, vertex_id, source_chain, dest_chain, source_tx_id, dest_tx_id,
 			sender, recipient, asset_id, amount, fee, status,
 			lock_height, release_height, proof_hash, timestamp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			status = EXCLUDED.status,
 			dest_tx_id = EXCLUDED.dest_tx_id,
@@ -428,30 +379,28 @@ func (a *Adapter) StoreTransfer(ctx context.Context, db *sql.DB, vertexID string
 		t.Sender, t.Recipient, t.AssetID, t.Amount, t.Fee, t.Status,
 		t.LockHeight, t.ReleaseHeight, t.ProofHash, t.Timestamp,
 	)
-	return err
 }
 
 // StoreProof stores a bridge proof
-func (a *Adapter) StoreProof(ctx context.Context, db *sql.DB, p *Proof) error {
+func (a *Adapter) StoreProof(ctx context.Context, store storage.Store, p *Proof) error {
 	validators, _ := json.Marshal(p.Validators)
 	signatures, _ := json.Marshal(p.Signatures)
 
-	_, err := db.ExecContext(ctx, `
+	return store.Exec(ctx, `
 		INSERT INTO bchain_proofs (
 			id, transfer_id, proof_type, proof_data, validators, signatures, verified, verified_at, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			verified = EXCLUDED.verified,
 			verified_at = EXCLUDED.verified_at
 	`,
-		p.ID, p.TransferID, p.ProofType, p.ProofData, validators, signatures, p.Verified, p.VerifiedAt, p.CreatedAt,
+		p.ID, p.TransferID, p.ProofType, p.ProofData, string(validators), string(signatures), p.Verified, p.VerifiedAt, p.CreatedAt,
 	)
-	return err
 }
 
 // UpdateBridgeStats updates aggregate bridge statistics
-func (a *Adapter) UpdateBridgeStats(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `
+func (a *Adapter) UpdateBridgeStats(ctx context.Context, store storage.Store) error {
+	return store.Exec(ctx, `
 		UPDATE bchain_bridge_stats SET
 			total_transfers = (SELECT COUNT(*) FROM bchain_transfers),
 			pending_transfers = (SELECT COUNT(*) FROM bchain_transfers WHERE status = 'pending' OR status = 'locked'),
@@ -467,45 +416,64 @@ func (a *Adapter) UpdateBridgeStats(ctx context.Context, db *sql.DB) error {
 					SELECT dest_chain AS chain FROM bchain_transfers
 				) chains
 			),
-			updated_at = NOW()
+			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`)
-	return err
 }
 
 // GetTransfersByChain retrieves transfers for a specific chain
-func (a *Adapter) GetTransfersByChain(ctx context.Context, db *sql.DB, chainID string, direction string, limit int) ([]Transfer, error) {
-	var query string
+func (a *Adapter) GetTransfersByChain(ctx context.Context, store storage.Store, chainID string, direction string, limit int) ([]Transfer, error) {
+	var q string
 	switch direction {
 	case "in":
-		query = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
+		q = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
 		         asset_id, amount, fee, status, lock_height, release_height, proof_hash, timestamp
-		         FROM bchain_transfers WHERE dest_chain = $1 ORDER BY timestamp DESC LIMIT $2`
+		         FROM bchain_transfers WHERE dest_chain = ? ORDER BY timestamp DESC LIMIT ?`
 	case "out":
-		query = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
+		q = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
 		         asset_id, amount, fee, status, lock_height, release_height, proof_hash, timestamp
-		         FROM bchain_transfers WHERE source_chain = $1 ORDER BY timestamp DESC LIMIT $2`
+		         FROM bchain_transfers WHERE source_chain = ? ORDER BY timestamp DESC LIMIT ?`
 	default:
-		query = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
+		q = `SELECT id, source_chain, dest_chain, source_tx_id, dest_tx_id, sender, recipient,
 		         asset_id, amount, fee, status, lock_height, release_height, proof_hash, timestamp
-		         FROM bchain_transfers WHERE source_chain = $1 OR dest_chain = $1 ORDER BY timestamp DESC LIMIT $2`
+		         FROM bchain_transfers WHERE source_chain = ? OR dest_chain = ? ORDER BY timestamp DESC LIMIT ?`
 	}
 
-	rows, err := db.QueryContext(ctx, query, chainID, limit)
+	var rows []map[string]interface{}
+	var err error
+	if direction == "in" || direction == "out" {
+		rows, err = store.Query(ctx, q, chainID, limit)
+	} else {
+		rows, err = store.Query(ctx, q, chainID, chainID, limit)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("query transfers: %w", err)
 	}
-	defer rows.Close()
 
-	var transfers []Transfer
-	for rows.Next() {
-		var t Transfer
-		if err := rows.Scan(
-			&t.ID, &t.SourceChain, &t.DestChain, &t.SourceTxID, &t.DestTxID,
-			&t.Sender, &t.Recipient, &t.AssetID, &t.Amount, &t.Fee,
-			&t.Status, &t.LockHeight, &t.ReleaseHeight, &t.ProofHash, &t.Timestamp,
-		); err != nil {
-			continue
+	transfers := make([]Transfer, 0, len(rows))
+	for _, row := range rows {
+		t := Transfer{
+			ID:          fmt.Sprintf("%v", row["id"]),
+			SourceChain: fmt.Sprintf("%v", row["source_chain"]),
+			DestChain:   fmt.Sprintf("%v", row["dest_chain"]),
+			SourceTxID:  fmt.Sprintf("%v", row["source_tx_id"]),
+			DestTxID:    fmt.Sprintf("%v", row["dest_tx_id"]),
+			Sender:      fmt.Sprintf("%v", row["sender"]),
+			Recipient:   fmt.Sprintf("%v", row["recipient"]),
+			AssetID:     fmt.Sprintf("%v", row["asset_id"]),
+			Amount:      fmt.Sprintf("%v", row["amount"]),
+			Fee:         fmt.Sprintf("%v", row["fee"]),
+			Status:      BridgeStatus(fmt.Sprintf("%v", row["status"])),
+			ProofHash:   fmt.Sprintf("%v", row["proof_hash"]),
+		}
+		if v, ok := row["lock_height"].(int64); ok {
+			t.LockHeight = uint64(v)
+		}
+		if v, ok := row["release_height"].(int64); ok {
+			t.ReleaseHeight = uint64(v)
+		}
+		if v, ok := row["timestamp"].(time.Time); ok {
+			t.Timestamp = v
 		}
 		transfers = append(transfers, t)
 	}

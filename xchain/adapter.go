@@ -8,13 +8,13 @@ package xchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/indexer/storage"
 )
 
 // Adapter implements dag.Adapter for X-Chain
@@ -235,7 +235,7 @@ func (a *Adapter) GetVertexByID(ctx context.Context, id string) (json.RawMessage
 }
 
 // InitSchema creates X-Chain specific database tables
-func (a *Adapter) InitSchema(db *sql.DB) error {
+func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	schema := `
 		-- X-Chain assets
 		CREATE TABLE IF NOT EXISTS xchain_assets (
@@ -244,7 +244,7 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			symbol TEXT NOT NULL,
 			denomination SMALLINT DEFAULT 0,
 			total_supply BIGINT DEFAULT 0,
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_xchain_assets_symbol ON xchain_assets(symbol);
 
@@ -253,17 +253,16 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			id TEXT PRIMARY KEY,
 			tx_id TEXT NOT NULL,
 			out_index INT NOT NULL,
-			asset_id TEXT NOT NULL REFERENCES xchain_assets(id),
+			asset_id TEXT NOT NULL,
 			amount BIGINT NOT NULL,
 			address TEXT NOT NULL,
 			spent BOOLEAN DEFAULT FALSE,
 			spent_by TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			spent_at TIMESTAMPTZ
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			spent_at TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_xchain_utxos_address ON xchain_utxos(address);
 		CREATE INDEX IF NOT EXISTS idx_xchain_utxos_asset ON xchain_utxos(asset_id);
-		CREATE INDEX IF NOT EXISTS idx_xchain_utxos_unspent ON xchain_utxos(spent) WHERE NOT spent;
 		CREATE INDEX IF NOT EXISTS idx_xchain_utxos_tx ON xchain_utxos(tx_id);
 
 		-- X-Chain transactions
@@ -272,26 +271,24 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			vertex_id TEXT,
 			type TEXT NOT NULL,
 			memo TEXT,
-			timestamp TIMESTAMPTZ NOT NULL,
-			inputs JSONB DEFAULT '[]',
-			outputs JSONB DEFAULT '[]',
-			created_at TIMESTAMPTZ DEFAULT NOW()
+			timestamp TIMESTAMP NOT NULL,
+			inputs TEXT DEFAULT '[]',
+			outputs TEXT DEFAULT '[]',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_xchain_transactions_vertex ON xchain_transactions(vertex_id);
 		CREATE INDEX IF NOT EXISTS idx_xchain_transactions_type ON xchain_transactions(type);
-		CREATE INDEX IF NOT EXISTS idx_xchain_transactions_timestamp ON xchain_transactions(timestamp DESC);
 
-		-- X-Chain address balances (materialized view alternative)
+		-- X-Chain address balances
 		CREATE TABLE IF NOT EXISTS xchain_balances (
 			address TEXT NOT NULL,
-			asset_id TEXT NOT NULL REFERENCES xchain_assets(id),
+			asset_id TEXT NOT NULL,
 			balance BIGINT DEFAULT 0,
 			utxo_count INT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (address, asset_id)
 		);
 		CREATE INDEX IF NOT EXISTS idx_xchain_balances_address ON xchain_balances(address);
-		CREATE INDEX IF NOT EXISTS idx_xchain_balances_asset ON xchain_balances(asset_id);
 
 		-- X-Chain statistics
 		CREATE TABLE IF NOT EXISTS xchain_chain_stats (
@@ -301,74 +298,57 @@ func (a *Adapter) InitSchema(db *sql.DB) error {
 			unspent_utxos BIGINT DEFAULT 0,
 			total_transactions BIGINT DEFAULT 0,
 			total_addresses BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT INTO xchain_chain_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
+		INSERT OR IGNORE INTO xchain_chain_stats (id) VALUES (1);
 
 		-- Insert LUX as default asset if not exists
-		INSERT INTO xchain_assets (id, name, symbol, denomination, total_supply)
-		VALUES ('LUX', 'Lux', 'LUX', 9, 0)
-		ON CONFLICT DO NOTHING;
+		INSERT OR IGNORE INTO xchain_assets (id, name, symbol, denomination, total_supply)
+		VALUES ('LUX', 'Lux', 'LUX', 9, 0);
 	`
 
-	if _, err := db.Exec(schema); err != nil {
+	if err := store.Exec(ctx, schema); err != nil {
 		return fmt.Errorf("xchain schema: %w", err)
 	}
 	return nil
 }
 
 // GetStats returns X-Chain specific statistics
-func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error) {
+func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	// Update stats first
-	_, _ = db.ExecContext(ctx, `
+	_ = store.Exec(ctx, `
 		UPDATE xchain_chain_stats SET
 			total_assets = (SELECT COUNT(*) FROM xchain_assets),
 			total_utxos = (SELECT COUNT(*) FROM xchain_utxos),
 			unspent_utxos = (SELECT COUNT(*) FROM xchain_utxos WHERE NOT spent),
 			total_transactions = (SELECT COUNT(*) FROM xchain_transactions),
 			total_addresses = (SELECT COUNT(DISTINCT address) FROM xchain_utxos),
-			updated_at = NOW()
+			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`)
 
-	var stats struct {
-		TotalAssets       int   `json:"total_assets"`
-		TotalUTXOs        int64 `json:"total_utxos"`
-		UnspentUTXOs      int64 `json:"unspent_utxos"`
-		TotalTransactions int64 `json:"total_transactions"`
-		TotalAddresses    int64 `json:"total_addresses"`
-	}
-
-	err := db.QueryRowContext(ctx, `
+	rows, err := store.Query(ctx, `
 		SELECT total_assets, total_utxos, unspent_utxos, total_transactions, total_addresses
 		FROM xchain_chain_stats WHERE id = 1
-	`).Scan(&stats.TotalAssets, &stats.TotalUTXOs, &stats.UnspentUTXOs,
-		&stats.TotalTransactions, &stats.TotalAddresses)
-
-	if err != nil {
-		return nil, fmt.Errorf("query stats: %w", err)
+	`)
+	if err != nil || len(rows) == 0 {
+		return map[string]interface{}{}, nil
 	}
 
-	return map[string]interface{}{
-		"total_assets":       stats.TotalAssets,
-		"total_utxos":        stats.TotalUTXOs,
-		"unspent_utxos":      stats.UnspentUTXOs,
-		"total_transactions": stats.TotalTransactions,
-		"total_addresses":    stats.TotalAddresses,
-	}, nil
+	return rows[0], nil
 }
 
 // StoreTransaction stores a transaction and updates UTXOs
-func (a *Adapter) StoreTransaction(ctx context.Context, db *sql.DB, vertexID string, tx *Transaction) error {
+func (a *Adapter) StoreTransaction(ctx context.Context, store storage.Store, vertexID string, tx *Transaction) error {
 	inputsJSON, _ := json.Marshal(tx.Inputs)
 	outputsJSON, _ := json.Marshal(tx.Outputs)
 
 	// Store transaction
-	_, err := db.ExecContext(ctx, `
+	err := store.Exec(ctx, `
 		INSERT INTO xchain_transactions (id, vertex_id, type, memo, timestamp, inputs, outputs)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING
-	`, tx.ID, vertexID, tx.Type, tx.Memo, time.Unix(tx.Timestamp, 0), inputsJSON, outputsJSON)
+	`, tx.ID, vertexID, tx.Type, tx.Memo, time.Unix(tx.Timestamp, 0), string(inputsJSON), string(outputsJSON))
 	if err != nil {
 		return fmt.Errorf("store transaction: %w", err)
 	}
@@ -376,9 +356,9 @@ func (a *Adapter) StoreTransaction(ctx context.Context, db *sql.DB, vertexID str
 	// Mark inputs as spent
 	for _, in := range tx.Inputs {
 		utxoID := fmt.Sprintf("%s:%d", in.TxID, in.OutIndex)
-		_, _ = db.ExecContext(ctx, `
-			UPDATE xchain_utxos SET spent = TRUE, spent_by = $1, spent_at = NOW()
-			WHERE id = $2
+		_ = store.Exec(ctx, `
+			UPDATE xchain_utxos SET spent = TRUE, spent_by = ?, spent_at = CURRENT_TIMESTAMP
+			WHERE id = ?
 		`, tx.ID, utxoID)
 	}
 
@@ -388,9 +368,9 @@ func (a *Adapter) StoreTransaction(ctx context.Context, db *sql.DB, vertexID str
 			continue
 		}
 		utxoID := fmt.Sprintf("%s:%d", tx.ID, i)
-		_, _ = db.ExecContext(ctx, `
+		_ = store.Exec(ctx, `
 			INSERT INTO xchain_utxos (id, tx_id, out_index, asset_id, amount, address)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT (id) DO NOTHING
 		`, utxoID, tx.ID, i, out.AssetID, out.Amount, out.Addresses[0])
 	}
@@ -399,54 +379,60 @@ func (a *Adapter) StoreTransaction(ctx context.Context, db *sql.DB, vertexID str
 }
 
 // StoreAsset stores or updates an asset
-func (a *Adapter) StoreAsset(ctx context.Context, db *sql.DB, asset *Asset) error {
-	_, err := db.ExecContext(ctx, `
+func (a *Adapter) StoreAsset(ctx context.Context, store storage.Store, asset *Asset) error {
+	return store.Exec(ctx, `
 		INSERT INTO xchain_assets (id, name, symbol, denomination, total_supply)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
 			symbol = EXCLUDED.symbol,
 			total_supply = EXCLUDED.total_supply
 	`, asset.ID, asset.Name, asset.Symbol, asset.Denomination, asset.TotalSupply)
-	return err
 }
 
 // GetUTXOs fetches UTXOs for an address
-func (a *Adapter) GetUTXOs(ctx context.Context, db *sql.DB, address string, assetID string, spentFilter *bool) ([]UTXO, error) {
-	query := `SELECT id, tx_id, out_index, asset_id, amount, address, spent, spent_by
-		FROM xchain_utxos WHERE address = $1`
+func (a *Adapter) GetUTXOs(ctx context.Context, store storage.Store, address string, assetID string, spentFilter *bool) ([]UTXO, error) {
+	q := `SELECT id, tx_id, out_index, asset_id, amount, address, spent, spent_by
+		FROM xchain_utxos WHERE address = ?`
 	args := []interface{}{address}
 
 	if assetID != "" {
-		query += " AND asset_id = $2"
+		q += " AND asset_id = ?"
 		args = append(args, assetID)
 	}
 
 	if spentFilter != nil {
-		if len(args) == 1 {
-			query += " AND spent = $2"
-		} else {
-			query += " AND spent = $3"
-		}
+		q += " AND spent = ?"
 		args = append(args, *spentFilter)
 	}
 
-	query += " ORDER BY amount DESC"
+	q += " ORDER BY amount DESC"
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := store.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query utxos: %w", err)
 	}
-	defer rows.Close()
 
 	var utxos []UTXO
-	for rows.Next() {
-		var u UTXO
-		var spentBy sql.NullString
-		if err := rows.Scan(&u.ID, &u.TxID, &u.OutIndex, &u.AssetID, &u.Amount, &u.Address, &u.Spent, &spentBy); err != nil {
-			continue
+	for _, row := range rows {
+		u := UTXO{
+			ID:      fmt.Sprintf("%v", row["id"]),
+			TxID:    fmt.Sprintf("%v", row["tx_id"]),
+			AssetID: fmt.Sprintf("%v", row["asset_id"]),
+			Address: fmt.Sprintf("%v", row["address"]),
 		}
-		u.SpentBy = spentBy.String
+		if v, ok := row["out_index"].(int64); ok {
+			u.OutIndex = uint32(v)
+		}
+		if v, ok := row["amount"].(int64); ok {
+			u.Amount = uint64(v)
+		}
+		if v, ok := row["spent"].(bool); ok {
+			u.Spent = v
+		}
+		if v, ok := row["spent_by"].(string); ok {
+			u.SpentBy = v
+		}
 		utxos = append(utxos, u)
 	}
 
@@ -454,13 +440,18 @@ func (a *Adapter) GetUTXOs(ctx context.Context, db *sql.DB, address string, asse
 }
 
 // GetBalance calculates balance for an address
-func (a *Adapter) GetBalance(ctx context.Context, db *sql.DB, address string, assetID string) (uint64, error) {
-	var balance uint64
-	err := db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(amount), 0) FROM xchain_utxos
-		WHERE address = $1 AND asset_id = $2 AND NOT spent
-	`, address, assetID).Scan(&balance)
-	return balance, err
+func (a *Adapter) GetBalance(ctx context.Context, store storage.Store, address string, assetID string) (uint64, error) {
+	rows, err := store.Query(ctx, `
+		SELECT COALESCE(SUM(amount), 0) as balance FROM xchain_utxos
+		WHERE address = ? AND asset_id = ? AND NOT spent
+	`, address, assetID)
+	if err != nil || len(rows) == 0 {
+		return 0, err
+	}
+	if v, ok := rows[0]["balance"].(int64); ok {
+		return uint64(v), nil
+	}
+	return 0, nil
 }
 
 // Verify Adapter implements dag.Adapter interface

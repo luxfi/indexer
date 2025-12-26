@@ -1,0 +1,190 @@
+---
+title: API Reference
+description: REST, GraphQL, and WebSocket API documentation
+---
+
+# API Reference
+
+The Lux Indexer provides full Blockscout API v2 compatibility plus additional endpoints.
+
+## REST API v2
+
+Base URL: `/api/v2`
+
+### Blocks
+
+```bash
+# Get latest blocks
+GET /api/v2/blocks
+
+# Get block by number
+GET /api/v2/blocks/{number}
+
+# Get block transactions
+GET /api/v2/blocks/{number}/transactions
+```
+
+### Transactions
+
+```bash
+# Get transaction by hash
+GET /api/v2/transactions/{hash}
+
+# Get transaction logs
+GET /api/v2/transactions/{hash}/logs
+
+# Get internal transactions
+GET /api/v2/transactions/{hash}/internal-transactions
+```
+
+### Addresses
+
+```bash
+# Get address info
+GET /api/v2/addresses/{hash}
+
+# Get address transactions
+GET /api/v2/addresses/{hash}/transactions
+
+# Get token balances
+GET /api/v2/addresses/{hash}/token-balances
+
+# Get coin balance history
+GET /api/v2/addresses/{hash}/coin-balance-history
+```
+
+### Tokens
+
+```bash
+# List tokens
+GET /api/v2/tokens
+
+# Get token info
+GET /api/v2/tokens/{hash}
+
+# Get token transfers
+GET /api/v2/tokens/{hash}/transfers
+
+# Get token holders
+GET /api/v2/tokens/{hash}/holders
+```
+
+### Smart Contracts
+
+```bash
+# Get verified contract
+GET /api/v2/smart-contracts/{hash}
+
+# Get contract ABI
+GET /api/v2/smart-contracts/{hash}/methods-read
+
+# Submit verification
+POST /api/v2/smart-contracts/{hash}/verification
+```
+
+### Search
+
+```bash
+# Universal search
+GET /api/v2/search?q={query}
+```
+
+### Stats
+
+```bash
+# Get chain stats
+GET /api/v2/stats
+
+# Get gas price oracle
+GET /api/v2/stats/gas-price
+
+# Get charts data
+GET /api/v2/stats/charts/{type}
+```
+
+## GraphQL API
+
+Endpoint: `/graphql`
+
+```graphql
+# Get block with transactions
+query {
+  block(number: 12345) {
+    hash
+    number
+    timestamp
+    transactions {
+      hash
+      from
+      to
+      value
+    }
+  }
+}
+
+# Get address details
+query {
+  address(hash: "0x...") {
+    balance
+    transactionCount
+    tokens {
+      token {
+        name
+        symbol
+      }
+      balance
+    }
+  }
+}
+```
+
+## WebSocket API
+
+Endpoint: `/ws`
+
+### Subscribe to new blocks
+
+```json
+{
+  "type": "subscribe",
+  "channel": "new_block"
+}
+```
+
+### Subscribe to address transactions
+
+```json
+{
+  "type": "subscribe",
+  "channel": "address_updates",
+  "address": "0x..."
+}
+```
+
+### Subscribe to token transfers
+
+```json
+{
+  "type": "subscribe",
+  "channel": "token_transfers",
+  "token": "0x..."
+}
+```
+
+## Etherscan-Compatible RPC
+
+Endpoint: `/api/rpc`
+
+```bash
+# Get balance
+GET /api/rpc?module=account&action=balance&address=0x...
+
+# Get transactions
+GET /api/rpc?module=account&action=txlist&address=0x...
+
+# Get token transfers
+GET /api/rpc?module=account&action=tokentx&address=0x...
+
+# Verify contract
+POST /api/rpc?module=contract&action=verifysourcecode
+```
