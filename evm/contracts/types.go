@@ -23,42 +23,42 @@ const (
 type ProxyType string
 
 const (
-	ProxyNone                       ProxyType = ""
-	ProxyEIP1967                    ProxyType = "eip1967"
-	ProxyEIP1967Beacon              ProxyType = "eip1967_beacon"
-	ProxyEIP1967OpenZeppelin        ProxyType = "eip1967_oz"
-	ProxyEIP1822                    ProxyType = "eip1822"
-	ProxyEIP1167                    ProxyType = "eip1167"
-	ProxyMasterCopy                 ProxyType = "master_copy"
-	ProxyBasicImplementation        ProxyType = "basic_implementation"
-	ProxyCloneWithImmutableArgs     ProxyType = "clone_with_immutable_args"
-	ProxyEIP2535                    ProxyType = "eip2535"
-	ProxyResolvedDelegate           ProxyType = "resolved_delegate"
+	ProxyNone                   ProxyType = ""
+	ProxyEIP1967                ProxyType = "eip1967"
+	ProxyEIP1967Beacon          ProxyType = "eip1967_beacon"
+	ProxyEIP1967OpenZeppelin    ProxyType = "eip1967_oz"
+	ProxyEIP1822                ProxyType = "eip1822"
+	ProxyEIP1167                ProxyType = "eip1167"
+	ProxyMasterCopy             ProxyType = "master_copy"
+	ProxyBasicImplementation    ProxyType = "basic_implementation"
+	ProxyCloneWithImmutableArgs ProxyType = "clone_with_immutable_args"
+	ProxyEIP2535                ProxyType = "eip2535"
+	ProxyResolvedDelegate       ProxyType = "resolved_delegate"
 )
 
 // SmartContract represents a verified smart contract.
 type SmartContract struct {
-	Address           string             `json:"address"`
-	Name              string             `json:"name"`
-	CompilerVersion   string             `json:"compilerVersion"`
-	EVMVersion        string             `json:"evmVersion"`
-	Optimization      bool               `json:"optimization"`
-	OptimizationRuns  int                `json:"optimizationRuns"`
-	SourceCode        string             `json:"sourceCode"`
-	ABI               json.RawMessage    `json:"abi"`
-	Bytecode          string             `json:"bytecode"`
-	DeployedBytecode  string             `json:"deployedBytecode"`
-	ConstructorArgs   string             `json:"constructorArgs,omitempty"`
-	Libraries         map[string]string  `json:"libraries,omitempty"`
+	Address            string             `json:"address"`
+	Name               string             `json:"name"`
+	CompilerVersion    string             `json:"compilerVersion"`
+	EVMVersion         string             `json:"evmVersion"`
+	Optimization       bool               `json:"optimization"`
+	OptimizationRuns   int                `json:"optimizationRuns"`
+	SourceCode         string             `json:"sourceCode"`
+	ABI                json.RawMessage    `json:"abi"`
+	Bytecode           string             `json:"bytecode"`
+	DeployedBytecode   string             `json:"deployedBytecode"`
+	ConstructorArgs    string             `json:"constructorArgs,omitempty"`
+	Libraries          map[string]string  `json:"libraries,omitempty"`
 	VerificationStatus VerificationStatus `json:"verificationStatus"`
-	ProxyType         ProxyType          `json:"proxyType,omitempty"`
-	ImplementationAddr string            `json:"implementationAddress,omitempty"`
-	FilePath          string             `json:"filePath,omitempty"`
-	SecondarySources  []SecondarySource  `json:"secondarySources,omitempty"`
-	CompilerSettings  json.RawMessage    `json:"compilerSettings,omitempty"`
-	VerifiedAt        time.Time          `json:"verifiedAt"`
-	CreatedAt         time.Time          `json:"createdAt"`
-	UpdatedAt         time.Time          `json:"updatedAt"`
+	ProxyType          ProxyType          `json:"proxyType,omitempty"`
+	ImplementationAddr string             `json:"implementationAddress,omitempty"`
+	FilePath           string             `json:"filePath,omitempty"`
+	SecondarySources   []SecondarySource  `json:"secondarySources,omitempty"`
+	CompilerSettings   json.RawMessage    `json:"compilerSettings,omitempty"`
+	VerifiedAt         time.Time          `json:"verifiedAt"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	UpdatedAt          time.Time          `json:"updatedAt"`
 }
 
 // SecondarySource represents additional source files.
@@ -69,15 +69,15 @@ type SecondarySource struct {
 
 // VerificationRequest for contract verification.
 type VerificationRequest struct {
-	Address           string            `json:"address"`
-	Name              string            `json:"name"`
-	CompilerVersion   string            `json:"compilerVersion"`
-	EVMVersion        string            `json:"evmVersion,omitempty"`
-	Optimization      bool              `json:"optimization"`
-	OptimizationRuns  int               `json:"optimizationRuns"`
-	SourceCode        string            `json:"sourceCode"`
-	ConstructorArgs   string            `json:"constructorArgs,omitempty"`
-	Libraries         map[string]string `json:"libraries,omitempty"`
+	Address          string            `json:"address"`
+	Name             string            `json:"name"`
+	CompilerVersion  string            `json:"compilerVersion"`
+	EVMVersion       string            `json:"evmVersion,omitempty"`
+	Optimization     bool              `json:"optimization"`
+	OptimizationRuns int               `json:"optimizationRuns"`
+	SourceCode       string            `json:"sourceCode"`
+	ConstructorArgs  string            `json:"constructorArgs,omitempty"`
+	Libraries        map[string]string `json:"libraries,omitempty"`
 }
 
 // StandardJSONInput for Solidity standard JSON verification.
@@ -95,11 +95,11 @@ type StandardJSONSource struct {
 
 // StandardJSONSettings for compiler settings.
 type StandardJSONSettings struct {
-	Optimizer       OptimizerSettings         `json:"optimizer"`
-	EVMVersion      string                    `json:"evmVersion,omitempty"`
-	Libraries       map[string]map[string]string `json:"libraries,omitempty"`
+	Optimizer       OptimizerSettings              `json:"optimizer"`
+	EVMVersion      string                         `json:"evmVersion,omitempty"`
+	Libraries       map[string]map[string]string   `json:"libraries,omitempty"`
 	OutputSelection map[string]map[string][]string `json:"outputSelection"`
-	Metadata        *MetadataSettings         `json:"metadata,omitempty"`
+	Metadata        *MetadataSettings              `json:"metadata,omitempty"`
 }
 
 // OptimizerSettings for compiler optimization.
@@ -110,8 +110,8 @@ type OptimizerSettings struct {
 
 // MetadataSettings for bytecode metadata.
 type MetadataSettings struct {
-	BytecodeHash string `json:"bytecodeHash,omitempty"`
-	UseLiteralContent bool `json:"useLiteralContent,omitempty"`
+	BytecodeHash      string `json:"bytecodeHash,omitempty"`
+	UseLiteralContent bool   `json:"useLiteralContent,omitempty"`
 }
 
 // CompilerOutput from solc compilation.
@@ -123,13 +123,13 @@ type CompilerOutput struct {
 
 // ContractOutput from compilation.
 type ContractOutput struct {
-	ABI              json.RawMessage   `json:"abi"`
-	Metadata         string            `json:"metadata,omitempty"`
-	UserDoc          json.RawMessage   `json:"userdoc,omitempty"`
-	DevDoc           json.RawMessage   `json:"devdoc,omitempty"`
-	IR               string            `json:"ir,omitempty"`
-	StorageLayout    json.RawMessage   `json:"storageLayout,omitempty"`
-	EVM              EVMOutput         `json:"evm"`
+	ABI           json.RawMessage `json:"abi"`
+	Metadata      string          `json:"metadata,omitempty"`
+	UserDoc       json.RawMessage `json:"userdoc,omitempty"`
+	DevDoc        json.RawMessage `json:"devdoc,omitempty"`
+	IR            string          `json:"ir,omitempty"`
+	StorageLayout json.RawMessage `json:"storageLayout,omitempty"`
+	EVM           EVMOutput       `json:"evm"`
 }
 
 // EVMOutput contains bytecode and related data.
@@ -153,19 +153,19 @@ type BytecodeOutput struct {
 
 // SourceOutput from compilation.
 type SourceOutput struct {
-	ID  int `json:"id"`
+	ID  int             `json:"id"`
 	AST json.RawMessage `json:"ast,omitempty"`
 }
 
 // CompilerError from solc.
 type CompilerError struct {
-	Component       string `json:"component"`
-	ErrorCode       string `json:"errorCode"`
-	FormattedMessage string `json:"formattedMessage"`
-	Message         string `json:"message"`
-	Severity        string `json:"severity"`
-	SourceLocation  *SourceLocation `json:"sourceLocation,omitempty"`
-	Type            string `json:"type"`
+	Component        string          `json:"component"`
+	ErrorCode        string          `json:"errorCode"`
+	FormattedMessage string          `json:"formattedMessage"`
+	Message          string          `json:"message"`
+	Severity         string          `json:"severity"`
+	SourceLocation   *SourceLocation `json:"sourceLocation,omitempty"`
+	Type             string          `json:"type"`
 }
 
 // SourceLocation in source code.
@@ -177,14 +177,14 @@ type SourceLocation struct {
 
 // ABIEntry represents a single ABI element.
 type ABIEntry struct {
-	Type            string      `json:"type"`
-	Name            string      `json:"name,omitempty"`
-	Inputs          []ABIParam  `json:"inputs,omitempty"`
-	Outputs         []ABIParam  `json:"outputs,omitempty"`
-	StateMutability string      `json:"stateMutability,omitempty"`
-	Anonymous       bool        `json:"anonymous,omitempty"`
-	Constant        bool        `json:"constant,omitempty"`
-	Payable         bool        `json:"payable,omitempty"`
+	Type            string     `json:"type"`
+	Name            string     `json:"name,omitempty"`
+	Inputs          []ABIParam `json:"inputs,omitempty"`
+	Outputs         []ABIParam `json:"outputs,omitempty"`
+	StateMutability string     `json:"stateMutability,omitempty"`
+	Anonymous       bool       `json:"anonymous,omitempty"`
+	Constant        bool       `json:"constant,omitempty"`
+	Payable         bool       `json:"payable,omitempty"`
 }
 
 // ABIParam represents an ABI parameter.

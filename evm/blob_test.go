@@ -29,9 +29,9 @@ func TestNewBlobIndexer(t *testing.T) {
 // TestBlobConstants tests EIP-4844 constants
 func TestBlobConstants(t *testing.T) {
 	tests := []struct {
-		name     string
-		got      uint64
-		want     uint64
+		name string
+		got  uint64
+		want uint64
 	}{
 		{"BlobTxType", BlobTxType, 3},
 		{"BlobGasPerBlob", BlobGasPerBlob, 131072},

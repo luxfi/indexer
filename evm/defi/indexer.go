@@ -23,16 +23,16 @@ import (
 
 // DeFiIndexer is the unified indexer for all DeFi protocols
 type DeFiIndexer struct {
-	mu             sync.RWMutex
-	chainID        ChainID
-	amm            *AMMIndexer
-	lssvm          *LSSVMIndexer
-	perps          *PerpsIndexer
-	synths         *SynthsIndexer
-	staking        *StakingIndexer
-	bridge         *BridgeIndexer
-	orderbook      *OrderBookIndexer
-	marketHistory  *MarketHistoryIndexer
+	mu            sync.RWMutex
+	chainID       ChainID
+	amm           *AMMIndexer
+	lssvm         *LSSVMIndexer
+	perps         *PerpsIndexer
+	synths        *SynthsIndexer
+	staking       *StakingIndexer
+	bridge        *BridgeIndexer
+	orderbook     *OrderBookIndexer
+	marketHistory *MarketHistoryIndexer
 
 	// Event routing
 	eventHandlers map[string]func(*LogEntry) error
@@ -43,12 +43,12 @@ type DeFiIndexer struct {
 
 // DeFiStats tracks indexer statistics
 type DeFiStats struct {
-	EventsProcessed   uint64            `json:"eventsProcessed"`
-	EventsByType      map[string]uint64 `json:"eventsByType"`
-	LastBlockIndexed  uint64            `json:"lastBlockIndexed"`
-	LastIndexTime     time.Time         `json:"lastIndexTime"`
-	ErrorCount        uint64            `json:"errorCount"`
-	StartTime         time.Time         `json:"startTime"`
+	EventsProcessed  uint64            `json:"eventsProcessed"`
+	EventsByType     map[string]uint64 `json:"eventsByType"`
+	LastBlockIndexed uint64            `json:"lastBlockIndexed"`
+	LastIndexTime    time.Time         `json:"lastIndexTime"`
+	ErrorCount       uint64            `json:"errorCount"`
+	StartTime        time.Time         `json:"startTime"`
 }
 
 // NewDeFiIndexer creates a new unified DeFi indexer
@@ -231,11 +231,11 @@ func (d *DeFiIndexer) IndexLogs(logs []*LogEntry) error {
 // isTradeEvent checks if an event represents a trade
 func (d *DeFiIndexer) isTradeEvent(topic0 string) bool {
 	tradeEvents := map[string]bool{
-		AMMV2SwapSig:     true,
-		AMMV3SwapSig:     true,
+		AMMV2SwapSig:       true,
+		AMMV3SwapSig:       true,
 		LSSVMSwapNFTInSig:  true,
 		LSSVMSwapNFTOutSig: true,
-		TradeSig:         true,
+		TradeSig:           true,
 	}
 	return tradeEvents[topic0]
 }
@@ -469,31 +469,31 @@ func (d *DeFiIndexer) startCleanup(ctx context.Context) {
 // GetOverview returns a comprehensive DeFi overview
 func (d *DeFiIndexer) GetOverview() *DeFiOverview {
 	return &DeFiOverview{
-		ChainID:        d.chainID,
-		Stats:          d.Stats(),
-		AMMStats:       d.amm.GetStats(),
-		LSSVMStats:     d.lssvm.GetStats(),
-		PerpsStats:     d.perps.GetStats(),
-		SynthsStats:    d.synths.GetStats(),
-		StakingStats:   d.staking.GetStats(),
-		BridgeStats:    d.bridge.GetStats(),
-		MarketStats:    d.marketHistory.Stats(),
-		TopMarkets:     d.marketHistory.GetTopMarkets(10),
-		Timestamp:      time.Now(),
+		ChainID:      d.chainID,
+		Stats:        d.Stats(),
+		AMMStats:     d.amm.GetStats(),
+		LSSVMStats:   d.lssvm.GetStats(),
+		PerpsStats:   d.perps.GetStats(),
+		SynthsStats:  d.synths.GetStats(),
+		StakingStats: d.staking.GetStats(),
+		BridgeStats:  d.bridge.GetStats(),
+		MarketStats:  d.marketHistory.Stats(),
+		TopMarkets:   d.marketHistory.GetTopMarkets(10),
+		Timestamp:    time.Now(),
 	}
 }
 
 // DeFiOverview provides a comprehensive DeFi summary
 type DeFiOverview struct {
-	ChainID       ChainID                `json:"chainId"`
-	Stats         *DeFiStats             `json:"stats"`
-	AMMStats      *AMMStats              `json:"ammStats"`
-	LSSVMStats    *LSSVMStats            `json:"lssvmStats"`
-	PerpsStats    *PerpsStats            `json:"perpsStats"`
-	SynthsStats   *SynthsStats           `json:"synthsStats"`
-	StakingStats  *StakingStats          `json:"stakingStats"`
-	BridgeStats   *BridgeStats           `json:"bridgeStats"`
-	MarketStats   map[string]interface{} `json:"marketStats"`
-	TopMarkets    []*MarketTicker        `json:"topMarkets"`
-	Timestamp     time.Time              `json:"timestamp"`
+	ChainID      ChainID                `json:"chainId"`
+	Stats        *DeFiStats             `json:"stats"`
+	AMMStats     *AMMStats              `json:"ammStats"`
+	LSSVMStats   *LSSVMStats            `json:"lssvmStats"`
+	PerpsStats   *PerpsStats            `json:"perpsStats"`
+	SynthsStats  *SynthsStats           `json:"synthsStats"`
+	StakingStats *StakingStats          `json:"stakingStats"`
+	BridgeStats  *BridgeStats           `json:"bridgeStats"`
+	MarketStats  map[string]interface{} `json:"marketStats"`
+	TopMarkets   []*MarketTicker        `json:"topMarkets"`
+	Timestamp    time.Time              `json:"timestamp"`
 }

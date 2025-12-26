@@ -32,35 +32,35 @@ const (
 
 // Priority levels for search results (higher = more relevant)
 const (
-	PriorityENS         = 5 // ENS domains highest priority
-	PriorityExactMatch  = 4 // Exact hash/address matches
-	PriorityLabel       = 3 // Named/labeled addresses
-	PriorityToken       = 2 // Token matches
-	PriorityContract    = 1 // Verified contracts
-	PriorityPartial     = 0 // Partial matches
+	PriorityENS        = 5 // ENS domains highest priority
+	PriorityExactMatch = 4 // Exact hash/address matches
+	PriorityLabel      = 3 // Named/labeled addresses
+	PriorityToken      = 2 // Token matches
+	PriorityContract   = 1 // Verified contracts
+	PriorityPartial    = 0 // Partial matches
 )
 
 // Result represents a single search result with relevance scoring
 type Result struct {
-	Type           ResultType             `json:"type"`
-	Hash           string                 `json:"hash,omitempty"`           // block/tx hash or address
-	BlockNumber    *uint64                `json:"block_number,omitempty"`   // for blocks
-	Name           string                 `json:"name,omitempty"`           // token/contract name
-	Symbol         string                 `json:"symbol,omitempty"`         // token symbol
-	Verified       bool                   `json:"verified,omitempty"`       // contract verified
-	HolderCount    uint64                 `json:"holder_count,omitempty"`   // token holders
-	Timestamp      *time.Time             `json:"timestamp,omitempty"`      // block/tx timestamp
-	Priority       int                    `json:"priority"`                 // relevance score
-	IconURL        string                 `json:"icon_url,omitempty"`       // token icon
-	TokenType      string                 `json:"token_type,omitempty"`     // ERC20/721/1155
-	ExchangeRate   string                 `json:"exchange_rate,omitempty"`  // token fiat value
-	MarketCap      string                 `json:"market_cap,omitempty"`     // circulating market cap
-	TotalSupply    string                 `json:"total_supply,omitempty"`   // token total supply
-	ENSInfo        map[string]interface{} `json:"ens_info,omitempty"`       // ENS domain info
-	IsContract     bool                   `json:"is_contract,omitempty"`    // if address is contract
-	TxCount        uint64                 `json:"tx_count,omitempty"`       // address tx count
-	Balance        string                 `json:"balance,omitempty"`        // address balance
-	InsertedAt     *time.Time             `json:"inserted_at,omitempty"`    // creation timestamp
+	Type         ResultType             `json:"type"`
+	Hash         string                 `json:"hash,omitempty"`          // block/tx hash or address
+	BlockNumber  *uint64                `json:"block_number,omitempty"`  // for blocks
+	Name         string                 `json:"name,omitempty"`          // token/contract name
+	Symbol       string                 `json:"symbol,omitempty"`        // token symbol
+	Verified     bool                   `json:"verified,omitempty"`      // contract verified
+	HolderCount  uint64                 `json:"holder_count,omitempty"`  // token holders
+	Timestamp    *time.Time             `json:"timestamp,omitempty"`     // block/tx timestamp
+	Priority     int                    `json:"priority"`                // relevance score
+	IconURL      string                 `json:"icon_url,omitempty"`      // token icon
+	TokenType    string                 `json:"token_type,omitempty"`    // ERC20/721/1155
+	ExchangeRate string                 `json:"exchange_rate,omitempty"` // token fiat value
+	MarketCap    string                 `json:"market_cap,omitempty"`    // circulating market cap
+	TotalSupply  string                 `json:"total_supply,omitempty"`  // token total supply
+	ENSInfo      map[string]interface{} `json:"ens_info,omitempty"`      // ENS domain info
+	IsContract   bool                   `json:"is_contract,omitempty"`   // if address is contract
+	TxCount      uint64                 `json:"tx_count,omitempty"`      // address tx count
+	Balance      string                 `json:"balance,omitempty"`       // address balance
+	InsertedAt   *time.Time             `json:"inserted_at,omitempty"`   // creation timestamp
 }
 
 // SearchResponse contains paginated search results
@@ -93,29 +93,29 @@ func NewEngine(db *sql.DB) *Engine {
 
 // Config holds search configuration
 type Config struct {
-	PageSize      int
-	MinQueryLen   int
-	MaxResults    int
-	EnableENS     bool
-	EnableLabels  bool
+	PageSize     int
+	MinQueryLen  int
+	MaxResults   int
+	EnableENS    bool
+	EnableLabels bool
 }
 
 // DefaultConfig returns sensible search defaults
 func DefaultConfig() Config {
 	return Config{
-		PageSize:      50,
-		MinQueryLen:   3,
-		MaxResults:    100,
-		EnableENS:     true,
-		EnableLabels:  true,
+		PageSize:     50,
+		MinQueryLen:  3,
+		MaxResults:   100,
+		EnableENS:    true,
+		EnableLabels: true,
 	}
 }
 
 // PagingParams contains pagination parameters
 type PagingParams struct {
-	Type      string                 `json:"type,omitempty"`
-	Key       map[string]interface{} `json:"key,omitempty"`
-	PageSize  int                    `json:"page_size"`
+	Type     string                 `json:"type,omitempty"`
+	Key      map[string]interface{} `json:"key,omitempty"`
+	PageSize int                    `json:"page_size"`
 }
 
 // Search performs a unified search across all entity types

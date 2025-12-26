@@ -15,13 +15,13 @@ import (
 // AMMIndexer indexes AMM (Automated Market Maker) events
 // Supports both Uniswap V2-style and V3-style concentrated liquidity AMMs
 type AMMIndexer struct {
-	pools       map[string]*Pool         // address -> pool
-	swaps       []*Swap
-	liquidity   []*LiquidityEvent
-	positions   map[string]*Position     // positionId -> position (V3 only)
-	factories   map[string]ProtocolType  // factory address -> protocol type
-	onSwap      func(*Swap)
-	onLiquidity func(*LiquidityEvent)
+	pools         map[string]*Pool // address -> pool
+	swaps         []*Swap
+	liquidity     []*LiquidityEvent
+	positions     map[string]*Position    // positionId -> position (V3 only)
+	factories     map[string]ProtocolType // factory address -> protocol type
+	onSwap        func(*Swap)
+	onLiquidity   func(*LiquidityEvent)
 	onPoolCreated func(*Pool)
 }
 
@@ -53,9 +53,9 @@ func (a *AMMIndexer) IndexLog(ctx context.Context, log *LogEntry) error {
 	if len(log.Topics) == 0 {
 		return nil
 	}
-	
+
 	topic0 := log.Topics[0]
-	
+
 	switch topic0 {
 	// V2 Events
 	case AMMV2SwapSig:
@@ -68,7 +68,7 @@ func (a *AMMIndexer) IndexLog(ctx context.Context, log *LogEntry) error {
 		return a.indexV2Sync(log)
 	case AMMV2PairCreatedSig:
 		return a.indexV2PairCreated(log)
-		
+
 	// V3 Events
 	case AMMV3SwapSig:
 		return a.indexV3Swap(log)
@@ -85,7 +85,7 @@ func (a *AMMIndexer) IndexLog(ctx context.Context, log *LogEntry) error {
 	case AMMV3PoolCreatedSig:
 		return a.indexV3PoolCreated(log)
 	}
-	
+
 	return nil
 }
 
@@ -106,30 +106,30 @@ func (a *AMMIndexer) indexV2Swap(log *LogEntry) error {
 	if len(log.Topics) < 3 {
 		return fmt.Errorf("invalid V2 swap event: insufficient topics")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 128 {
 		return fmt.Errorf("invalid V2 swap event: insufficient data")
 	}
-	
+
 	amount0In := new(big.Int).SetBytes(data[0:32])
 	amount1In := new(big.Int).SetBytes(data[32:64])
 	amount0Out := new(big.Int).SetBytes(data[64:96])
 	amount1Out := new(big.Int).SetBytes(data[96:128])
-	
+
 	sender := topicToAddress(log.Topics[1])
 	recipient := topicToAddress(log.Topics[2])
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV2)
-	
+
 	// Determine token direction
 	var tokenIn, tokenOut string
 	var amountIn, amountOut *big.Int
-	
+
 	if amount0In.Sign() > 0 {
 		tokenIn = pool.Token0
 		tokenOut = pool.Token1
@@ -141,7 +141,7 @@ func (a *AMMIndexer) indexV2Swap(log *LogEntry) error {
 		amountIn = amount1In
 		amountOut = amount0Out
 	}
-	
+
 	swap := &Swap{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:    ProtocolAMMV2,
@@ -157,13 +157,13 @@ func (a *AMMIndexer) indexV2Swap(log *LogEntry) error {
 		AmountOut:   amountOut,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	a.swaps = append(a.swaps, swap)
-	
+
 	if a.onSwap != nil {
 		a.onSwap(swap)
 	}
-	
+
 	return nil
 }
 
@@ -172,22 +172,22 @@ func (a *AMMIndexer) indexV2Mint(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid V2 mint event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid V2 mint data")
 	}
-	
+
 	amount0 := new(big.Int).SetBytes(data[0:32])
 	amount1 := new(big.Int).SetBytes(data[32:64])
 	sender := topicToAddress(log.Topics[1])
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV2)
-	
+
 	event := &LiquidityEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:    ProtocolAMMV2,
@@ -203,13 +203,13 @@ func (a *AMMIndexer) indexV2Mint(log *LogEntry) error {
 		Amount1:     amount1,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	a.liquidity = append(a.liquidity, event)
-	
+
 	if a.onLiquidity != nil {
 		a.onLiquidity(event)
 	}
-	
+
 	return nil
 }
 
@@ -218,22 +218,22 @@ func (a *AMMIndexer) indexV2Burn(log *LogEntry) error {
 	if len(log.Topics) < 3 {
 		return fmt.Errorf("invalid V2 burn event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid V2 burn data")
 	}
-	
+
 	amount0 := new(big.Int).SetBytes(data[0:32])
 	amount1 := new(big.Int).SetBytes(data[32:64])
 	sender := topicToAddress(log.Topics[1])
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV2)
-	
+
 	event := &LiquidityEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:    ProtocolAMMV2,
@@ -249,13 +249,13 @@ func (a *AMMIndexer) indexV2Burn(log *LogEntry) error {
 		Amount1:     amount1,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	a.liquidity = append(a.liquidity, event)
-	
+
 	if a.onLiquidity != nil {
 		a.onLiquidity(event)
 	}
-	
+
 	return nil
 }
 
@@ -265,19 +265,19 @@ func (a *AMMIndexer) indexV2Sync(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return nil
 	}
-	
+
 	reserve0 := new(big.Int).SetBytes(data[0:32])
 	reserve1 := new(big.Int).SetBytes(data[32:64])
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV2)
 	pool.Reserve0 = reserve0
 	pool.Reserve1 = reserve1
 	pool.UpdatedAt = log.Timestamp
-	
+
 	return nil
 }
 
@@ -286,21 +286,21 @@ func (a *AMMIndexer) indexV2PairCreated(log *LogEntry) error {
 	if len(log.Topics) < 3 {
 		return fmt.Errorf("invalid V2 pair created event")
 	}
-	
+
 	token0 := topicToAddress(log.Topics[1])
 	token1 := topicToAddress(log.Topics[2])
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 32 {
 		return fmt.Errorf("invalid pair created data")
 	}
-	
+
 	pairAddress := "0x" + hex.EncodeToString(data[12:32])
-	
+
 	pool := &Pool{
 		Address:   strings.ToLower(pairAddress),
 		Protocol:  ProtocolAMMV2,
@@ -312,13 +312,13 @@ func (a *AMMIndexer) indexV2PairCreated(log *LogEntry) error {
 		CreatedAt: log.Timestamp,
 		UpdatedAt: log.Timestamp,
 	}
-	
+
 	a.pools[pool.Address] = pool
-	
+
 	if a.onPoolCreated != nil {
 		a.onPoolCreated(pool)
 	}
-	
+
 	return nil
 }
 
@@ -327,16 +327,16 @@ func (a *AMMIndexer) indexV3Swap(log *LogEntry) error {
 	if len(log.Topics) < 3 {
 		return fmt.Errorf("invalid V3 swap event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 160 {
 		return fmt.Errorf("invalid V3 swap data")
 	}
-	
+
 	// Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
 	amount0 := new(big.Int).SetBytes(data[0:32])
 	amount1 := new(big.Int).SetBytes(data[32:64])
@@ -344,16 +344,16 @@ func (a *AMMIndexer) indexV3Swap(log *LogEntry) error {
 	liquidity := new(big.Int).SetBytes(data[96:128])
 	tickBytes := data[128:160]
 	tick := int32(new(big.Int).SetBytes(tickBytes[28:32]).Int64())
-	
+
 	sender := topicToAddress(log.Topics[1])
 	recipient := topicToAddress(log.Topics[2])
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV3)
-	
+
 	// Determine direction based on signs
 	var tokenIn, tokenOut string
 	var amountIn, amountOut *big.Int
-	
+
 	if amount0.Sign() > 0 {
 		tokenIn = pool.Token0
 		tokenOut = pool.Token1
@@ -365,7 +365,7 @@ func (a *AMMIndexer) indexV3Swap(log *LogEntry) error {
 		amountIn = new(big.Int).Neg(amount1)
 		amountOut = amount0
 	}
-	
+
 	swap := &Swap{
 		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:     ProtocolAMMV3,
@@ -384,19 +384,19 @@ func (a *AMMIndexer) indexV3Swap(log *LogEntry) error {
 		Liquidity:    liquidity,
 		Timestamp:    log.Timestamp,
 	}
-	
+
 	// Update pool state
 	pool.SqrtPriceX96 = sqrtPriceX96
 	pool.CurrentTick = tick
 	pool.Liquidity = liquidity
 	pool.UpdatedAt = log.Timestamp
-	
+
 	a.swaps = append(a.swaps, swap)
-	
+
 	if a.onSwap != nil {
 		a.onSwap(swap)
 	}
-	
+
 	return nil
 }
 
@@ -405,27 +405,27 @@ func (a *AMMIndexer) indexV3Mint(log *LogEntry) error {
 	if len(log.Topics) < 4 {
 		return fmt.Errorf("invalid V3 mint event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 96 {
 		return fmt.Errorf("invalid V3 mint data")
 	}
-	
+
 	// Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)
 	amount := new(big.Int).SetBytes(data[0:32])
 	amount0 := new(big.Int).SetBytes(data[32:64])
 	amount1 := new(big.Int).SetBytes(data[64:96])
-	
+
 	owner := topicToAddress(log.Topics[1])
 	tickLower := int32(new(big.Int).SetBytes(hexToBytes(log.Topics[2])).Int64())
 	tickUpper := int32(new(big.Int).SetBytes(hexToBytes(log.Topics[3])).Int64())
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV3)
-	
+
 	event := &LiquidityEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:    ProtocolAMMV3,
@@ -444,13 +444,13 @@ func (a *AMMIndexer) indexV3Mint(log *LogEntry) error {
 		Liquidity:   amount,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	a.liquidity = append(a.liquidity, event)
-	
+
 	if a.onLiquidity != nil {
 		a.onLiquidity(event)
 	}
-	
+
 	return nil
 }
 
@@ -459,26 +459,26 @@ func (a *AMMIndexer) indexV3Burn(log *LogEntry) error {
 	if len(log.Topics) < 4 {
 		return fmt.Errorf("invalid V3 burn event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 96 {
 		return fmt.Errorf("invalid V3 burn data")
 	}
-	
+
 	amount := new(big.Int).SetBytes(data[0:32])
 	amount0 := new(big.Int).SetBytes(data[32:64])
 	amount1 := new(big.Int).SetBytes(data[64:96])
-	
+
 	owner := topicToAddress(log.Topics[1])
 	tickLower := int32(new(big.Int).SetBytes(hexToBytes(log.Topics[2])).Int64())
 	tickUpper := int32(new(big.Int).SetBytes(hexToBytes(log.Topics[3])).Int64())
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV3)
-	
+
 	event := &LiquidityEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		Protocol:    ProtocolAMMV3,
@@ -497,13 +497,13 @@ func (a *AMMIndexer) indexV3Burn(log *LogEntry) error {
 		Liquidity:   amount,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	a.liquidity = append(a.liquidity, event)
-	
+
 	if a.onLiquidity != nil {
 		a.onLiquidity(event)
 	}
-	
+
 	return nil
 }
 
@@ -525,19 +525,19 @@ func (a *AMMIndexer) indexV3Initialize(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid V3 initialize data")
 	}
-	
+
 	sqrtPriceX96 := new(big.Int).SetBytes(data[0:32])
 	tick := int32(new(big.Int).SetBytes(data[60:64]).Int64())
-	
+
 	pool := a.getOrCreatePool(log.Address, ProtocolAMMV3)
 	pool.SqrtPriceX96 = sqrtPriceX96
 	pool.CurrentTick = tick
 	pool.UpdatedAt = log.Timestamp
-	
+
 	return nil
 }
 
@@ -546,23 +546,23 @@ func (a *AMMIndexer) indexV3PoolCreated(log *LogEntry) error {
 	if len(log.Topics) < 4 {
 		return fmt.Errorf("invalid V3 pool created event")
 	}
-	
+
 	token0 := topicToAddress(log.Topics[1])
 	token1 := topicToAddress(log.Topics[2])
 	fee := new(big.Int).SetBytes(hexToBytes(log.Topics[3])).Uint64()
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid pool created data")
 	}
-	
+
 	tickSpacing := int32(new(big.Int).SetBytes(data[0:32]).Int64())
 	poolAddress := "0x" + hex.EncodeToString(data[44:64])
-	
+
 	pool := &Pool{
 		Address:     strings.ToLower(poolAddress),
 		Protocol:    ProtocolAMMV3,
@@ -576,13 +576,13 @@ func (a *AMMIndexer) indexV3PoolCreated(log *LogEntry) error {
 		CreatedAt:   log.Timestamp,
 		UpdatedAt:   log.Timestamp,
 	}
-	
+
 	a.pools[pool.Address] = pool
-	
+
 	if a.onPoolCreated != nil {
 		a.onPoolCreated(pool)
 	}
-	
+
 	return nil
 }
 
@@ -592,7 +592,7 @@ func (a *AMMIndexer) getOrCreatePool(address string, protocol ProtocolType) *Poo
 	if pool, exists := a.pools[addr]; exists {
 		return pool
 	}
-	
+
 	pool := &Pool{
 		Address:   addr,
 		Protocol:  protocol,
@@ -627,7 +627,7 @@ func (a *AMMIndexer) GetSwaps(poolAddress string, limit int) []*Swap {
 		}
 		return a.swaps
 	}
-	
+
 	var filtered []*Swap
 	addr := strings.ToLower(poolAddress)
 	for _, s := range a.swaps {
@@ -635,7 +635,7 @@ func (a *AMMIndexer) GetSwaps(poolAddress string, limit int) []*Swap {
 			filtered = append(filtered, s)
 		}
 	}
-	
+
 	if limit > 0 && limit < len(filtered) {
 		return filtered[len(filtered)-limit:]
 	}
@@ -644,12 +644,12 @@ func (a *AMMIndexer) GetSwaps(poolAddress string, limit int) []*Swap {
 
 // AMMStats represents AMM indexer statistics
 type AMMStats struct {
-	TotalPools       uint64             `json:"totalPools"`
-	TotalSwaps       uint64             `json:"totalSwaps"`
+	TotalPools       uint64              `json:"totalPools"`
+	TotalSwaps       uint64              `json:"totalSwaps"`
 	TotalVolume      map[string]*big.Int `json:"totalVolume"`
-	Swaps24h         uint64             `json:"swaps24h"`
-	UniqueTraders24h uint64             `json:"uniqueTraders24h"`
-	LastUpdated      time.Time          `json:"lastUpdated"`
+	Swaps24h         uint64              `json:"swaps24h"`
+	UniqueTraders24h uint64              `json:"uniqueTraders24h"`
+	LastUpdated      time.Time           `json:"lastUpdated"`
 }
 
 // GetStats returns AMM indexer statistics

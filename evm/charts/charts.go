@@ -35,24 +35,24 @@ func DefaultConfig() *Config {
 
 // DailyTransactionStats represents transaction statistics for a single day
 type DailyTransactionStats struct {
-	Date                 time.Time `json:"date"`
-	TransactionCount     int64     `json:"transaction_count"`
-	GasUsed              *big.Int  `json:"gas_used"`
-	TotalFee             *big.Int  `json:"total_fee"`
-	AverageGasPrice      *big.Int  `json:"average_gas_price,omitempty"`
-	UniqueAddresses      int64     `json:"unique_addresses,omitempty"`
-	ContractDeployments  int64     `json:"contract_deployments,omitempty"`
-	TokenTransfers       int64     `json:"token_transfers,omitempty"`
+	Date                time.Time `json:"date"`
+	TransactionCount    int64     `json:"transaction_count"`
+	GasUsed             *big.Int  `json:"gas_used"`
+	TotalFee            *big.Int  `json:"total_fee"`
+	AverageGasPrice     *big.Int  `json:"average_gas_price,omitempty"`
+	UniqueAddresses     int64     `json:"unique_addresses,omitempty"`
+	ContractDeployments int64     `json:"contract_deployments,omitempty"`
+	TokenTransfers      int64     `json:"token_transfers,omitempty"`
 }
 
 // DailyGasStats represents gas usage statistics for a single day
 type DailyGasStats struct {
-	Date           time.Time `json:"date"`
-	GasUsed        *big.Int  `json:"gas_used"`
-	GasLimit       *big.Int  `json:"gas_limit"`
-	UtilizationPct float64   `json:"utilization_pct"`
-	AverageGasPrice *big.Int `json:"average_gas_price"`
-	BlockCount     int64     `json:"block_count"`
+	Date            time.Time `json:"date"`
+	GasUsed         *big.Int  `json:"gas_used"`
+	GasLimit        *big.Int  `json:"gas_limit"`
+	UtilizationPct  float64   `json:"utilization_pct"`
+	AverageGasPrice *big.Int  `json:"average_gas_price"`
+	BlockCount      int64     `json:"block_count"`
 }
 
 // DailyTokenTransferStats represents token transfer statistics for a single day
@@ -84,20 +84,20 @@ type DailyBlockStats struct {
 
 // MarketData represents market information for a single day
 type MarketData struct {
-	Date        time.Time `json:"date"`
-	ClosePrice  float64   `json:"closing_price"`
-	MarketCap   float64   `json:"market_cap,omitempty"`
-	Volume      float64   `json:"volume,omitempty"`
-	TVL         float64   `json:"tvl,omitempty"`
+	Date       time.Time `json:"date"`
+	ClosePrice float64   `json:"closing_price"`
+	MarketCap  float64   `json:"market_cap,omitempty"`
+	Volume     float64   `json:"volume,omitempty"`
+	TVL        float64   `json:"tvl,omitempty"`
 }
 
 // ChartResponse is the standard response format for chart data
 type ChartResponse struct {
-	ChartData   interface{} `json:"chart_data"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	Period      string      `json:"period,omitempty"`
-	StartDate   time.Time   `json:"start_date,omitempty"`
-	EndDate     time.Time   `json:"end_date,omitempty"`
+	ChartData interface{} `json:"chart_data"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Period    string      `json:"period,omitempty"`
+	StartDate time.Time   `json:"start_date,omitempty"`
+	EndDate   time.Time   `json:"end_date,omitempty"`
 }
 
 // Service provides chart data operations
@@ -109,17 +109,17 @@ type Service struct {
 
 // chartCache holds cached chart data
 type chartCache struct {
-	mu                sync.RWMutex
-	txStats           []DailyTransactionStats
-	txStatsUpdated    time.Time
-	gasStats          []DailyGasStats
-	gasStatsUpdated   time.Time
-	tokenStats        []DailyTokenTransferStats
-	tokenStatsUpdated time.Time
-	addressStats      []DailyAddressStats
+	mu                  sync.RWMutex
+	txStats             []DailyTransactionStats
+	txStatsUpdated      time.Time
+	gasStats            []DailyGasStats
+	gasStatsUpdated     time.Time
+	tokenStats          []DailyTokenTransferStats
+	tokenStatsUpdated   time.Time
+	addressStats        []DailyAddressStats
 	addressStatsUpdated time.Time
-	blockStats        []DailyBlockStats
-	blockStatsUpdated time.Time
+	blockStats          []DailyBlockStats
+	blockStatsUpdated   time.Time
 }
 
 // NewService creates a new chart service

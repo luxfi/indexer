@@ -18,8 +18,8 @@ var (
 	OrderPartialSig   = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"
 
 	// Trade Events
-	TradeSig            = "0x9b3561d1d0bf65f6b8f53bf57c4e227ab4e9b6f7d8b9c8c7c6b5a4b3c2d1e0f1"
-	TradeSettledSig     = "0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+	TradeSig        = "0x9b3561d1d0bf65f6b8f53bf57c4e227ab4e9b6f7d8b9c8c7c6b5a4b3c2d1e0f1"
+	TradeSettledSig = "0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
 
 	// Position Events
 	PositionOpenedSig     = "0x2fe68525253654c21998f35787a8d0f361905ef647c854092430ab65f2f15022"
@@ -28,23 +28,23 @@ var (
 	PositionLiquidatedSig = "0x5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4"
 
 	// Margin Events
-	MarginDepositedSig  = "0x6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5"
-	MarginWithdrawnSig  = "0x7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6"
-	MarginCallSig       = "0x8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7"
+	MarginDepositedSig = "0x6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5"
+	MarginWithdrawnSig = "0x7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6"
+	MarginCallSig      = "0x8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7"
 
 	// Lending Events
-	LendingDepositSig   = "0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8"
-	LendingWithdrawSig  = "0xa0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9"
-	LendingBorrowSig    = "0xb1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0"
-	LendingRepaySig     = "0xc2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1"
+	LendingDepositSig  = "0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8"
+	LendingWithdrawSig = "0xa0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9"
+	LendingBorrowSig   = "0xb1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0"
+	LendingRepaySig    = "0xc2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1"
 
 	// Funding Events
 	FundingRateSig    = "0xd3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2"
 	FundingPaymentSig = "0xe4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3"
 
 	// Clearinghouse Events
-	SettlementSig      = "0xf5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4"
-	InsuranceFundSig   = "0xa6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5"
+	SettlementSig    = "0xf5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4"
+	InsuranceFundSig = "0xa6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5"
 )
 
 // OrderSide represents buy or sell
@@ -64,93 +64,93 @@ const (
 	OrderTypeStopLimit  OrderType = "stop_limit"
 	OrderTypeStopMarket OrderType = "stop_market"
 	OrderTypeTakeProfit OrderType = "take_profit"
-	OrderTypeIOC        OrderType = "ioc"  // Immediate or Cancel
-	OrderTypeFOK        OrderType = "fok"  // Fill or Kill
-	OrderTypeGTC        OrderType = "gtc"  // Good Till Cancelled
-	OrderTypeGTD        OrderType = "gtd"  // Good Till Date
+	OrderTypeIOC        OrderType = "ioc" // Immediate or Cancel
+	OrderTypeFOK        OrderType = "fok" // Fill or Kill
+	OrderTypeGTC        OrderType = "gtc" // Good Till Cancelled
+	OrderTypeGTD        OrderType = "gtd" // Good Till Date
 )
 
 // OrderStatus represents order status
 type OrderStatus string
 
 const (
-	OrderStatusOpen           OrderStatus = "open"
+	OrderStatusOpen            OrderStatus = "open"
 	OrderStatusPartiallyFilled OrderStatus = "partially_filled"
-	OrderStatusFilled         OrderStatus = "filled"
-	OrderStatusCancelled      OrderStatus = "cancelled"
-	OrderStatusExpired        OrderStatus = "expired"
-	OrderStatusRejected       OrderStatus = "rejected"
+	OrderStatusFilled          OrderStatus = "filled"
+	OrderStatusCancelled       OrderStatus = "cancelled"
+	OrderStatusExpired         OrderStatus = "expired"
+	OrderStatusRejected        OrderStatus = "rejected"
 )
 
 // Order represents an order in the order book
 type Order struct {
-	ID             string      `json:"id"`
-	Market         string      `json:"market"`         // e.g., "BTC-USD", "LUX-USDC"
-	Trader         string      `json:"trader"`
-	Side           OrderSide   `json:"side"`
-	Type           OrderType   `json:"type"`
-	Status         OrderStatus `json:"status"`
-	Price          *big.Int    `json:"price"`          // Price in base units
-	Size           *big.Int    `json:"size"`           // Size in base units
-	FilledSize     *big.Int    `json:"filledSize"`
-	RemainingSize  *big.Int    `json:"remainingSize"`
-	AveragePrice   *big.Int    `json:"averagePrice"`
-	StopPrice      *big.Int    `json:"stopPrice,omitempty"`
-	TriggerPrice   *big.Int    `json:"triggerPrice,omitempty"`
-	ReduceOnly     bool        `json:"reduceOnly"`
-	PostOnly       bool        `json:"postOnly"`
-	TimeInForce    string      `json:"timeInForce"`
-	ExpiresAt      *time.Time  `json:"expiresAt,omitempty"`
-	CreatedAt      time.Time   `json:"createdAt"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
-	FilledAt       *time.Time  `json:"filledAt,omitempty"`
-	CancelledAt    *time.Time  `json:"cancelledAt,omitempty"`
-	TxHash         string      `json:"txHash"`
-	BlockNumber    uint64      `json:"blockNumber"`
-	LogIndex       uint64      `json:"logIndex"`
-	Fees           *big.Int    `json:"fees"`
-	FeeToken       string      `json:"feeToken"`
+	ID            string      `json:"id"`
+	Market        string      `json:"market"` // e.g., "BTC-USD", "LUX-USDC"
+	Trader        string      `json:"trader"`
+	Side          OrderSide   `json:"side"`
+	Type          OrderType   `json:"type"`
+	Status        OrderStatus `json:"status"`
+	Price         *big.Int    `json:"price"` // Price in base units
+	Size          *big.Int    `json:"size"`  // Size in base units
+	FilledSize    *big.Int    `json:"filledSize"`
+	RemainingSize *big.Int    `json:"remainingSize"`
+	AveragePrice  *big.Int    `json:"averagePrice"`
+	StopPrice     *big.Int    `json:"stopPrice,omitempty"`
+	TriggerPrice  *big.Int    `json:"triggerPrice,omitempty"`
+	ReduceOnly    bool        `json:"reduceOnly"`
+	PostOnly      bool        `json:"postOnly"`
+	TimeInForce   string      `json:"timeInForce"`
+	ExpiresAt     *time.Time  `json:"expiresAt,omitempty"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     time.Time   `json:"updatedAt"`
+	FilledAt      *time.Time  `json:"filledAt,omitempty"`
+	CancelledAt   *time.Time  `json:"cancelledAt,omitempty"`
+	TxHash        string      `json:"txHash"`
+	BlockNumber   uint64      `json:"blockNumber"`
+	LogIndex      uint64      `json:"logIndex"`
+	Fees          *big.Int    `json:"fees"`
+	FeeToken      string      `json:"feeToken"`
 }
 
 // Trade represents a matched trade
 type Trade struct {
-	ID          string    `json:"id"`
-	Market      string    `json:"market"`
-	MakerOrderID string   `json:"makerOrderId"`
-	TakerOrderID string   `json:"takerOrderId"`
-	Maker       string    `json:"maker"`
-	Taker       string    `json:"taker"`
-	Side        OrderSide `json:"side"`      // Taker's side
-	Price       *big.Int  `json:"price"`
-	Size        *big.Int  `json:"size"`
-	Volume      *big.Int  `json:"volume"`    // Price * Size
-	MakerFee    *big.Int  `json:"makerFee"`
-	TakerFee    *big.Int  `json:"takerFee"`
-	Timestamp   time.Time `json:"timestamp"`
-	TxHash      string    `json:"txHash"`
-	BlockNumber uint64    `json:"blockNumber"`
-	LogIndex    uint64    `json:"logIndex"`
-	Settled     bool      `json:"settled"`
+	ID           string    `json:"id"`
+	Market       string    `json:"market"`
+	MakerOrderID string    `json:"makerOrderId"`
+	TakerOrderID string    `json:"takerOrderId"`
+	Maker        string    `json:"maker"`
+	Taker        string    `json:"taker"`
+	Side         OrderSide `json:"side"` // Taker's side
+	Price        *big.Int  `json:"price"`
+	Size         *big.Int  `json:"size"`
+	Volume       *big.Int  `json:"volume"` // Price * Size
+	MakerFee     *big.Int  `json:"makerFee"`
+	TakerFee     *big.Int  `json:"takerFee"`
+	Timestamp    time.Time `json:"timestamp"`
+	TxHash       string    `json:"txHash"`
+	BlockNumber  uint64    `json:"blockNumber"`
+	LogIndex     uint64    `json:"logIndex"`
+	Settled      bool      `json:"settled"`
 }
 
 // MarginPosition represents a margin/leveraged position
 type MarginPosition struct {
-	ID               string        `json:"id"`
-	Market           string        `json:"market"`
-	Trader           string        `json:"trader"`
-	Side             OrderSide     `json:"side"`
-	Size             *big.Int      `json:"size"`
-	EntryPrice       *big.Int      `json:"entryPrice"`
-	MarkPrice        *big.Int      `json:"markPrice"`
-	LiquidationPrice *big.Int      `json:"liquidationPrice"`
-	Margin           *big.Int      `json:"margin"`
-	Leverage         float64       `json:"leverage"`
-	UnrealizedPnL    *big.Int      `json:"unrealizedPnl"`
-	RealizedPnL      *big.Int      `json:"realizedPnl"`
-	FundingPaid      *big.Int      `json:"fundingPaid"`
-	OpenedAt         time.Time     `json:"openedAt"`
-	UpdatedAt        time.Time     `json:"updatedAt"`
-	ClosedAt         *time.Time    `json:"closedAt,omitempty"`
+	ID               string           `json:"id"`
+	Market           string           `json:"market"`
+	Trader           string           `json:"trader"`
+	Side             OrderSide        `json:"side"`
+	Size             *big.Int         `json:"size"`
+	EntryPrice       *big.Int         `json:"entryPrice"`
+	MarkPrice        *big.Int         `json:"markPrice"`
+	LiquidationPrice *big.Int         `json:"liquidationPrice"`
+	Margin           *big.Int         `json:"margin"`
+	Leverage         float64          `json:"leverage"`
+	UnrealizedPnL    *big.Int         `json:"unrealizedPnl"`
+	RealizedPnL      *big.Int         `json:"realizedPnl"`
+	FundingPaid      *big.Int         `json:"fundingPaid"`
+	OpenedAt         time.Time        `json:"openedAt"`
+	UpdatedAt        time.Time        `json:"updatedAt"`
+	ClosedAt         *time.Time       `json:"closedAt,omitempty"`
 	Status           PositionStatusOB `json:"status"`
 }
 
@@ -165,17 +165,17 @@ const (
 
 // MarginAccount represents a trader's margin account
 type MarginAccount struct {
-	Trader           string              `json:"trader"`
-	TotalDeposited   *big.Int            `json:"totalDeposited"`
-	TotalWithdrawn   *big.Int            `json:"totalWithdrawn"`
-	AvailableMargin  *big.Int            `json:"availableMargin"`
-	LockedMargin     *big.Int            `json:"lockedMargin"`
-	UnrealizedPnL    *big.Int            `json:"unrealizedPnl"`
-	RealizedPnL      *big.Int            `json:"realizedPnl"`
-	MaintenanceMargin *big.Int           `json:"maintenanceMargin"`
-	MarginRatio      float64             `json:"marginRatio"`
-	Positions        map[string]*MarginPosition `json:"positions"`
-	LastUpdated      time.Time           `json:"lastUpdated"`
+	Trader            string                     `json:"trader"`
+	TotalDeposited    *big.Int                   `json:"totalDeposited"`
+	TotalWithdrawn    *big.Int                   `json:"totalWithdrawn"`
+	AvailableMargin   *big.Int                   `json:"availableMargin"`
+	LockedMargin      *big.Int                   `json:"lockedMargin"`
+	UnrealizedPnL     *big.Int                   `json:"unrealizedPnl"`
+	RealizedPnL       *big.Int                   `json:"realizedPnl"`
+	MaintenanceMargin *big.Int                   `json:"maintenanceMargin"`
+	MarginRatio       float64                    `json:"marginRatio"`
+	Positions         map[string]*MarginPosition `json:"positions"`
+	LastUpdated       time.Time                  `json:"lastUpdated"`
 }
 
 // LendingPosition represents a lending/borrowing position
@@ -197,7 +197,7 @@ type LendingPosition struct {
 // FundingRate represents a funding rate event
 type FundingRate struct {
 	Market      string    `json:"market"`
-	Rate        *big.Int  `json:"rate"`        // Rate in basis points
+	Rate        *big.Int  `json:"rate"` // Rate in basis points
 	Premium     *big.Int  `json:"premium"`
 	IndexPrice  *big.Int  `json:"indexPrice"`
 	MarkPrice   *big.Int  `json:"markPrice"`
@@ -222,26 +222,26 @@ type FundingPayment struct {
 
 // Liquidation represents a position liquidation
 type Liquidation struct {
-	ID             string    `json:"id"`
-	Market         string    `json:"market"`
-	Trader         string    `json:"trader"`
-	Liquidator     string    `json:"liquidator"`
-	PositionID     string    `json:"positionId"`
-	Size           *big.Int  `json:"size"`
-	Price          *big.Int  `json:"price"`
-	Collateral     *big.Int  `json:"collateral"`
-	Penalty        *big.Int  `json:"penalty"`
-	InsurancePayout *big.Int `json:"insurancePayout"`
-	Timestamp      time.Time `json:"timestamp"`
-	TxHash         string    `json:"txHash"`
-	BlockNumber    uint64    `json:"blockNumber"`
+	ID              string    `json:"id"`
+	Market          string    `json:"market"`
+	Trader          string    `json:"trader"`
+	Liquidator      string    `json:"liquidator"`
+	PositionID      string    `json:"positionId"`
+	Size            *big.Int  `json:"size"`
+	Price           *big.Int  `json:"price"`
+	Collateral      *big.Int  `json:"collateral"`
+	Penalty         *big.Int  `json:"penalty"`
+	InsurancePayout *big.Int  `json:"insurancePayout"`
+	Timestamp       time.Time `json:"timestamp"`
+	TxHash          string    `json:"txHash"`
+	BlockNumber     uint64    `json:"blockNumber"`
 }
 
 // OrderBookLevel represents a price level in the order book
 type OrderBookLevel struct {
-	Price     *big.Int `json:"price"`
-	Size      *big.Int `json:"size"`
-	OrderCount int     `json:"orderCount"`
+	Price      *big.Int `json:"price"`
+	Size       *big.Int `json:"size"`
+	OrderCount int      `json:"orderCount"`
 }
 
 // OrderBookSnapshot represents a snapshot of the order book
@@ -257,55 +257,55 @@ type OrderBookSnapshot struct {
 
 // MarketStats represents market statistics
 type MarketStats struct {
-	Market        string    `json:"market"`
-	LastPrice     *big.Int  `json:"lastPrice"`
-	High24h       *big.Int  `json:"high24h"`
-	Low24h        *big.Int  `json:"low24h"`
-	Volume24h     *big.Int  `json:"volume24h"`
-	Trades24h     uint64    `json:"trades24h"`
-	OpenInterest  *big.Int  `json:"openInterest"`
-	FundingRate   *big.Int  `json:"fundingRate"`
-	MarkPrice     *big.Int  `json:"markPrice"`
-	IndexPrice    *big.Int  `json:"indexPrice"`
-	BestBid       *big.Int  `json:"bestBid"`
-	BestAsk       *big.Int  `json:"bestAsk"`
-	LastUpdated   time.Time `json:"lastUpdated"`
+	Market       string    `json:"market"`
+	LastPrice    *big.Int  `json:"lastPrice"`
+	High24h      *big.Int  `json:"high24h"`
+	Low24h       *big.Int  `json:"low24h"`
+	Volume24h    *big.Int  `json:"volume24h"`
+	Trades24h    uint64    `json:"trades24h"`
+	OpenInterest *big.Int  `json:"openInterest"`
+	FundingRate  *big.Int  `json:"fundingRate"`
+	MarkPrice    *big.Int  `json:"markPrice"`
+	IndexPrice   *big.Int  `json:"indexPrice"`
+	BestBid      *big.Int  `json:"bestBid"`
+	BestAsk      *big.Int  `json:"bestAsk"`
+	LastUpdated  time.Time `json:"lastUpdated"`
 }
 
 // OrderBookIndexer indexes order book data
 type OrderBookIndexer struct {
-	mu              sync.RWMutex
-	orders          map[string]*Order
-	ordersByTrader  map[string]map[string]*Order
-	ordersByMarket  map[string]map[string]*Order
-	trades          []*Trade
-	tradesByMarket  map[string][]*Trade
-	positions       map[string]*MarginPosition
-	marginAccounts  map[string]*MarginAccount
+	mu               sync.RWMutex
+	orders           map[string]*Order
+	ordersByTrader   map[string]map[string]*Order
+	ordersByMarket   map[string]map[string]*Order
+	trades           []*Trade
+	tradesByMarket   map[string][]*Trade
+	positions        map[string]*MarginPosition
+	marginAccounts   map[string]*MarginAccount
 	lendingPositions map[string]*LendingPosition
-	fundingRates    map[string][]*FundingRate
-	fundingPayments []*FundingPayment
-	liquidations    []*Liquidation
-	marketStats     map[string]*MarketStats
-	orderBooks      map[string]*OrderBookSnapshot
+	fundingRates     map[string][]*FundingRate
+	fundingPayments  []*FundingPayment
+	liquidations     []*Liquidation
+	marketStats      map[string]*MarketStats
+	orderBooks       map[string]*OrderBookSnapshot
 }
 
 // NewOrderBookIndexer creates a new order book indexer
 func NewOrderBookIndexer() *OrderBookIndexer {
 	return &OrderBookIndexer{
-		orders:          make(map[string]*Order),
-		ordersByTrader:  make(map[string]map[string]*Order),
-		ordersByMarket:  make(map[string]map[string]*Order),
-		trades:          make([]*Trade, 0),
-		tradesByMarket:  make(map[string][]*Trade),
-		positions:       make(map[string]*MarginPosition),
-		marginAccounts:  make(map[string]*MarginAccount),
+		orders:           make(map[string]*Order),
+		ordersByTrader:   make(map[string]map[string]*Order),
+		ordersByMarket:   make(map[string]map[string]*Order),
+		trades:           make([]*Trade, 0),
+		tradesByMarket:   make(map[string][]*Trade),
+		positions:        make(map[string]*MarginPosition),
+		marginAccounts:   make(map[string]*MarginAccount),
 		lendingPositions: make(map[string]*LendingPosition),
-		fundingRates:    make(map[string][]*FundingRate),
-		fundingPayments: make([]*FundingPayment, 0),
-		liquidations:    make([]*Liquidation, 0),
-		marketStats:     make(map[string]*MarketStats),
-		orderBooks:      make(map[string]*OrderBookSnapshot),
+		fundingRates:     make(map[string][]*FundingRate),
+		fundingPayments:  make([]*FundingPayment, 0),
+		liquidations:     make([]*Liquidation, 0),
+		marketStats:      make(map[string]*MarketStats),
+		orderBooks:       make(map[string]*OrderBookSnapshot),
 	}
 }
 
@@ -1209,16 +1209,16 @@ func (o *OrderBookIndexer) getOrCreateMarginAccount(trader string) *MarginAccoun
 	account, ok := o.marginAccounts[trader]
 	if !ok {
 		account = &MarginAccount{
-			Trader:           trader,
-			TotalDeposited:   big.NewInt(0),
-			TotalWithdrawn:   big.NewInt(0),
-			AvailableMargin:  big.NewInt(0),
-			LockedMargin:     big.NewInt(0),
-			UnrealizedPnL:    big.NewInt(0),
-			RealizedPnL:      big.NewInt(0),
+			Trader:            trader,
+			TotalDeposited:    big.NewInt(0),
+			TotalWithdrawn:    big.NewInt(0),
+			AvailableMargin:   big.NewInt(0),
+			LockedMargin:      big.NewInt(0),
+			UnrealizedPnL:     big.NewInt(0),
+			RealizedPnL:       big.NewInt(0),
 			MaintenanceMargin: big.NewInt(0),
-			Positions:        make(map[string]*MarginPosition),
-			LastUpdated:      time.Now(),
+			Positions:         make(map[string]*MarginPosition),
+			LastUpdated:       time.Now(),
 		}
 		o.marginAccounts[trader] = account
 	}

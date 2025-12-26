@@ -21,11 +21,11 @@ import (
 
 // TestConfig holds E2E test configuration
 type TestConfig struct {
-	RPCURL       string
-	ChainID      uint64
-	StorageType  string
-	DataDir      string
-	Timeout      time.Duration
+	RPCURL      string
+	ChainID     uint64
+	StorageType string
+	DataDir     string
+	Timeout     time.Duration
 }
 
 // DefaultConfig returns default test configuration
@@ -645,13 +645,13 @@ func TestE2EStorageStats(t *testing.T) {
 // Helper types
 
 type EVMBlock struct {
-	Hash         string          `json:"hash"`
-	ParentHash   string          `json:"parentHash"`
-	Number       uint64          `json:"number"`
-	Timestamp    uint64          `json:"timestamp"`
-	Miner        string          `json:"miner"`
-	GasLimit     uint64          `json:"gasLimit"`
-	GasUsed      uint64          `json:"gasUsed"`
+	Hash         string           `json:"hash"`
+	ParentHash   string           `json:"parentHash"`
+	Number       uint64           `json:"number"`
+	Timestamp    uint64           `json:"timestamp"`
+	Miner        string           `json:"miner"`
+	GasLimit     uint64           `json:"gasLimit"`
+	GasUsed      uint64           `json:"gasUsed"`
 	Transactions []EVMTransaction `json:"transactions"`
 	TxHashes     []string
 }
@@ -692,17 +692,17 @@ type TokenTransfer struct {
 }
 
 type InternalTx struct {
-	TxHash       string `json:"txHash"`
-	TraceIndex   int    `json:"traceIndex"`
-	CallType     string `json:"callType"`
-	From         string `json:"from"`
-	To           string `json:"to"`
-	Value        string `json:"value"`
-	Gas          uint64 `json:"gas"`
-	GasUsed      uint64 `json:"gasUsed"`
-	Input        string `json:"input"`
-	Output       string `json:"output"`
-	Error        string `json:"error,omitempty"`
+	TxHash     string `json:"txHash"`
+	TraceIndex int    `json:"traceIndex"`
+	CallType   string `json:"callType"`
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      string `json:"value"`
+	Gas        uint64 `json:"gas"`
+	GasUsed    uint64 `json:"gasUsed"`
+	Input      string `json:"input"`
+	Output     string `json:"output"`
+	Error      string `json:"error,omitempty"`
 }
 
 type CallTrace struct {

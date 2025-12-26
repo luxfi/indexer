@@ -569,15 +569,15 @@ func TestMultiABIDecoder(t *testing.T) {
 func TestSmartContractTypes(t *testing.T) {
 	// Test SmartContract struct
 	contract := SmartContract{
-		Address:           "0x1234567890123456789012345678901234567890",
-		Name:              "TestContract",
-		CompilerVersion:   "v0.8.20+commit.a1b2c3d4",
-		EVMVersion:        "paris",
-		Optimization:      true,
-		OptimizationRuns:  200,
-		SourceCode:        "contract TestContract {}",
+		Address:            "0x1234567890123456789012345678901234567890",
+		Name:               "TestContract",
+		CompilerVersion:    "v0.8.20+commit.a1b2c3d4",
+		EVMVersion:         "paris",
+		Optimization:       true,
+		OptimizationRuns:   200,
+		SourceCode:         "contract TestContract {}",
 		VerificationStatus: StatusVerified,
-		ProxyType:         ProxyEIP1967,
+		ProxyType:          ProxyEIP1967,
 	}
 
 	if contract.Address == "" {

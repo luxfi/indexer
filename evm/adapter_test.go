@@ -41,9 +41,9 @@ func TestNew(t *testing.T) {
 // TestConstants tests the package constants
 func TestConstants(t *testing.T) {
 	tests := []struct {
-		name  string
-		got   interface{}
-		want  interface{}
+		name string
+		got  interface{}
+		want interface{}
 	}{
 		{"DefaultPort", DefaultPort, 4000},
 		{"DefaultDatabase", DefaultDatabase, "explorer_evm"},
@@ -102,12 +102,12 @@ func TestParseBlock(t *testing.T) {
 	adapter := New("http://localhost:9650")
 
 	tests := []struct {
-		name      string
-		input     json.RawMessage
-		wantID    string
-		wantHeight uint64
+		name        string
+		input       json.RawMessage
+		wantID      string
+		wantHeight  uint64
 		wantTxCount int
-		wantErr   bool
+		wantErr     bool
 	}{
 		{
 			name: "valid block with tx hashes",
@@ -123,10 +123,10 @@ func TestParseBlock(t *testing.T) {
 				"baseFeePerGas": "0x174876e800",
 				"size": "0x200"
 			}`),
-			wantID:    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-			wantHeight: 100,
+			wantID:      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			wantHeight:  100,
 			wantTxCount: 3,
-			wantErr:   false,
+			wantErr:     false,
 		},
 		{
 			name: "valid block with tx objects",
@@ -142,10 +142,10 @@ func TestParseBlock(t *testing.T) {
 				"baseFeePerGas": "0x0",
 				"size": "0x0"
 			}`),
-			wantID:    "0xabcd",
-			wantHeight: 10,
+			wantID:      "0xabcd",
+			wantHeight:  10,
 			wantTxCount: 2,
-			wantErr:   false,
+			wantErr:     false,
 		},
 		{
 			name: "block with no transactions",
@@ -158,10 +158,10 @@ func TestParseBlock(t *testing.T) {
 				"gasUsed": "0x0",
 				"gasLimit": "0x0"
 			}`),
-			wantID:    "0xempty",
-			wantHeight: 1,
+			wantID:      "0xempty",
+			wantHeight:  1,
 			wantTxCount: 0,
-			wantErr:   false,
+			wantErr:     false,
 		},
 		{
 			name:    "invalid JSON",
@@ -409,15 +409,15 @@ func TestGetTransactionReceipt(t *testing.T) {
 			"jsonrpc": "2.0",
 			"id":      1,
 			"result": map[string]interface{}{
-				"transactionHash":   txHash,
-				"blockHash":         "0xblock",
-				"blockNumber":       "0x64",
-				"from":              "0xfrom123",
-				"to":                "0xto456",
-				"gasUsed":           "0x5208",
-				"status":            "0x1",
-				"contractAddress":   "",
-				"transactionIndex":  "0x0",
+				"transactionHash":  txHash,
+				"blockHash":        "0xblock",
+				"blockNumber":      "0x64",
+				"from":             "0xfrom123",
+				"to":               "0xto456",
+				"gasUsed":          "0x5208",
+				"status":           "0x1",
+				"contractAddress":  "",
+				"transactionIndex": "0x0",
 				"logs": []map[string]interface{}{
 					{
 						"address":  "0xtoken",
@@ -1198,11 +1198,11 @@ func TestFlattenCallFrame(t *testing.T) {
 	blockNumber := uint64(100)
 
 	tests := []struct {
-		name           string
-		frame          *CallFrame
-		wantCount      int
-		wantAddresses  [][]int
-		wantCallTypes  []string
+		name          string
+		frame         *CallFrame
+		wantCount     int
+		wantAddresses [][]int
+		wantCallTypes []string
 	}{
 		{
 			name: "single call",

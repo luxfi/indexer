@@ -13,14 +13,14 @@ import (
 
 // StakingIndexer indexes staking protocol events
 type StakingIndexer struct {
-	pools       map[string]*StakingPool
-	stakes      []*StakeEvent
-	unstakes    []*UnstakeEvent
-	rewards     []*RewardEvent
-	positions   map[string]*StakingPosition // account:pool -> position
-	onStake     func(*StakeEvent)
-	onUnstake   func(*UnstakeEvent)
-	onReward    func(*RewardEvent)
+	pools     map[string]*StakingPool
+	stakes    []*StakeEvent
+	unstakes  []*UnstakeEvent
+	rewards   []*RewardEvent
+	positions map[string]*StakingPosition // account:pool -> position
+	onStake   func(*StakeEvent)
+	onUnstake func(*UnstakeEvent)
+	onReward  func(*RewardEvent)
 }
 
 // StakingPool represents a staking pool
@@ -35,7 +35,7 @@ type StakingPool struct {
 	ReceiptSymbol  string     `json:"receiptSymbol,omitempty"`
 	TotalStaked    *big.Int   `json:"totalStaked"`
 	TotalRewards   *big.Int   `json:"totalRewards"`
-	RewardRate     *big.Int   `json:"rewardRate"`     // Rewards per second
+	RewardRate     *big.Int   `json:"rewardRate"` // Rewards per second
 	APY            float64    `json:"apy"`
 	MinStake       *big.Int   `json:"minStake,omitempty"`
 	LockPeriod     uint64     `json:"lockPeriod,omitempty"` // Lock period in seconds
@@ -49,21 +49,21 @@ type StakingPool struct {
 
 // StakingPosition represents a user's staking position
 type StakingPosition struct {
-	ID              string    `json:"id"`
-	Account         string    `json:"account"`
-	PoolAddress     string    `json:"poolAddress"`
-	StakedAmount    *big.Int  `json:"stakedAmount"`
-	ReceiptAmount   *big.Int  `json:"receiptAmount"` // Receipt tokens received
-	RewardsEarned   *big.Int  `json:"rewardsEarned"`
-	RewardsClaimed  *big.Int  `json:"rewardsClaimed"`
-	PendingRewards  *big.Int  `json:"pendingRewards"`
-	StakedAt        time.Time `json:"stakedAt"`
+	ID              string     `json:"id"`
+	Account         string     `json:"account"`
+	PoolAddress     string     `json:"poolAddress"`
+	StakedAmount    *big.Int   `json:"stakedAmount"`
+	ReceiptAmount   *big.Int   `json:"receiptAmount"` // Receipt tokens received
+	RewardsEarned   *big.Int   `json:"rewardsEarned"`
+	RewardsClaimed  *big.Int   `json:"rewardsClaimed"`
+	PendingRewards  *big.Int   `json:"pendingRewards"`
+	StakedAt        time.Time  `json:"stakedAt"`
 	LastClaimedAt   *time.Time `json:"lastClaimedAt,omitempty"`
 	CooldownStarted *time.Time `json:"cooldownStarted,omitempty"`
-	CooldownAmount  *big.Int  `json:"cooldownAmount,omitempty"`
+	CooldownAmount  *big.Int   `json:"cooldownAmount,omitempty"`
 	UnlockTime      *time.Time `json:"unlockTime,omitempty"`
-	IsActive        bool      `json:"isActive"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	IsActive        bool       `json:"isActive"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
 // StakeEvent represents a stake event
@@ -81,16 +81,16 @@ type StakeEvent struct {
 
 // UnstakeEvent represents an unstake event
 type UnstakeEvent struct {
-	ID             string    `json:"id"`
-	TxHash         string    `json:"txHash"`
-	BlockNumber    uint64    `json:"blockNumber"`
-	LogIndex       uint64    `json:"logIndex"`
-	PoolAddress    string    `json:"poolAddress"`
-	Account        string    `json:"account"`
-	Amount         *big.Int  `json:"amount"`
-	ReceiptBurned  *big.Int  `json:"receiptBurned,omitempty"` // Receipt tokens burned
-	IsCooldown     bool      `json:"isCooldown"`              // Is this a cooldown initiation?
-	Timestamp      time.Time `json:"timestamp"`
+	ID            string    `json:"id"`
+	TxHash        string    `json:"txHash"`
+	BlockNumber   uint64    `json:"blockNumber"`
+	LogIndex      uint64    `json:"logIndex"`
+	PoolAddress   string    `json:"poolAddress"`
+	Account       string    `json:"account"`
+	Amount        *big.Int  `json:"amount"`
+	ReceiptBurned *big.Int  `json:"receiptBurned,omitempty"` // Receipt tokens burned
+	IsCooldown    bool      `json:"isCooldown"`              // Is this a cooldown initiation?
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // RewardEvent represents a reward distribution or claim
@@ -133,9 +133,9 @@ func (s *StakingIndexer) IndexLog(log *LogEntry) error {
 	if len(log.Topics) == 0 {
 		return nil
 	}
-	
+
 	topic0 := log.Topics[0]
-	
+
 	switch topic0 {
 	case StakingStakedSig:
 		return s.indexStake(log)
@@ -146,7 +146,7 @@ func (s *StakingIndexer) IndexLog(log *LogEntry) error {
 	case StakingCooldownSig:
 		return s.indexCooldown(log)
 	}
-	
+
 	return nil
 }
 
@@ -155,23 +155,23 @@ func (s *StakingIndexer) indexStake(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid stake event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid stake data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	amount := new(big.Int).SetBytes(data[0:32])
 	var receiptMinted *big.Int
 	if len(data) >= 64 {
 		receiptMinted = new(big.Int).SetBytes(data[32:64])
 	}
-	
+
 	stake := &StakeEvent{
 		ID:            fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:        log.TxHash,
@@ -183,9 +183,9 @@ func (s *StakingIndexer) indexStake(log *LogEntry) error {
 		ReceiptMinted: receiptMinted,
 		Timestamp:     log.Timestamp,
 	}
-	
+
 	s.stakes = append(s.stakes, stake)
-	
+
 	// Update position
 	pos := s.getOrCreatePosition(log.Address, account)
 	pos.StakedAmount = new(big.Int).Add(pos.StakedAmount, amount)
@@ -195,16 +195,16 @@ func (s *StakingIndexer) indexStake(log *LogEntry) error {
 	pos.StakedAt = log.Timestamp
 	pos.IsActive = true
 	pos.UpdatedAt = log.Timestamp
-	
+
 	// Update pool
 	pool := s.getOrCreatePool(log.Address)
 	pool.TotalStaked = new(big.Int).Add(pool.TotalStaked, amount)
 	pool.UpdatedAt = log.Timestamp
-	
+
 	if s.onStake != nil {
 		s.onStake(stake)
 	}
-	
+
 	return nil
 }
 
@@ -213,20 +213,20 @@ func (s *StakingIndexer) indexUnstake(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid unstake event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 64 {
 		return fmt.Errorf("invalid unstake data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	receiptBurned := new(big.Int).SetBytes(data[0:32])
 	amount := new(big.Int).SetBytes(data[32:64])
-	
+
 	unstake := &UnstakeEvent{
 		ID:            fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:        log.TxHash,
@@ -238,28 +238,28 @@ func (s *StakingIndexer) indexUnstake(log *LogEntry) error {
 		ReceiptBurned: receiptBurned,
 		Timestamp:     log.Timestamp,
 	}
-	
+
 	s.unstakes = append(s.unstakes, unstake)
-	
+
 	// Update position
 	pos := s.getOrCreatePosition(log.Address, account)
 	pos.StakedAmount = new(big.Int).Sub(pos.StakedAmount, amount)
 	pos.ReceiptAmount = new(big.Int).Sub(pos.ReceiptAmount, receiptBurned)
 	pos.UpdatedAt = log.Timestamp
-	
+
 	if pos.StakedAmount.Sign() <= 0 {
 		pos.IsActive = false
 	}
-	
+
 	// Update pool
 	pool := s.getOrCreatePool(log.Address)
 	pool.TotalStaked = new(big.Int).Sub(pool.TotalStaked, amount)
 	pool.UpdatedAt = log.Timestamp
-	
+
 	if s.onUnstake != nil {
 		s.onUnstake(unstake)
 	}
-	
+
 	return nil
 }
 
@@ -269,20 +269,20 @@ func (s *StakingIndexer) indexRewards(log *LogEntry) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 32 {
 		return fmt.Errorf("invalid rewards data")
 	}
-	
+
 	amount := new(big.Int).SetBytes(data[0:32])
-	
+
 	var account string
 	eventType := "distribute"
 	if len(log.Topics) >= 2 {
 		account = topicToAddress(log.Topics[1])
 		eventType = "claim"
 	}
-	
+
 	reward := &RewardEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
 		TxHash:      log.TxHash,
@@ -294,14 +294,14 @@ func (s *StakingIndexer) indexRewards(log *LogEntry) error {
 		EventType:   eventType,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	s.rewards = append(s.rewards, reward)
-	
+
 	// Update pool
 	pool := s.getOrCreatePool(log.Address)
 	pool.TotalRewards = new(big.Int).Add(pool.TotalRewards, amount)
 	pool.UpdatedAt = log.Timestamp
-	
+
 	// Update position if individual claim
 	if account != "" {
 		pos := s.getOrCreatePosition(log.Address, account)
@@ -311,11 +311,11 @@ func (s *StakingIndexer) indexRewards(log *LogEntry) error {
 		pos.LastClaimedAt = &now
 		pos.UpdatedAt = log.Timestamp
 	}
-	
+
 	if s.onReward != nil {
 		s.onReward(reward)
 	}
-	
+
 	return nil
 }
 
@@ -324,33 +324,33 @@ func (s *StakingIndexer) indexCooldown(log *LogEntry) error {
 	if len(log.Topics) < 2 {
 		return fmt.Errorf("invalid cooldown event")
 	}
-	
+
 	data, err := hex.DecodeString(strings.TrimPrefix(log.Data, "0x"))
 	if err != nil {
 		return err
 	}
-	
+
 	if len(data) < 32 {
 		return fmt.Errorf("invalid cooldown data")
 	}
-	
+
 	account := topicToAddress(log.Topics[1])
 	amount := new(big.Int).SetBytes(data[0:32])
-	
+
 	// Update position
 	pos := s.getOrCreatePosition(log.Address, account)
 	now := log.Timestamp
 	pos.CooldownStarted = &now
 	pos.CooldownAmount = amount
 	pos.UpdatedAt = log.Timestamp
-	
+
 	// Calculate unlock time based on pool cooldown period
 	pool := s.getOrCreatePool(log.Address)
 	if pool.CooldownPeriod > 0 {
 		unlockTime := now.Add(time.Duration(pool.CooldownPeriod) * time.Second)
 		pos.UnlockTime = &unlockTime
 	}
-	
+
 	// Record as unstake with cooldown flag
 	unstake := &UnstakeEvent{
 		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
@@ -363,13 +363,13 @@ func (s *StakingIndexer) indexCooldown(log *LogEntry) error {
 		IsCooldown:  true,
 		Timestamp:   log.Timestamp,
 	}
-	
+
 	s.unstakes = append(s.unstakes, unstake)
-	
+
 	if s.onUnstake != nil {
 		s.onUnstake(unstake)
 	}
-	
+
 	return nil
 }
 
@@ -384,7 +384,7 @@ func (s *StakingIndexer) getOrCreatePosition(pool, account string) *StakingPosit
 	if pos, exists := s.positions[id]; exists {
 		return pos
 	}
-	
+
 	pos := &StakingPosition{
 		ID:             id,
 		Account:        account,
@@ -407,7 +407,7 @@ func (s *StakingIndexer) getOrCreatePool(address string) *StakingPool {
 	if pool, exists := s.pools[addr]; exists {
 		return pool
 	}
-	
+
 	pool := &StakingPool{
 		Address:      addr,
 		TotalStaked:  big.NewInt(0),
@@ -485,11 +485,11 @@ func (s *StakingIndexer) GetStats() *StakingStats {
 		TotalRewardEvents: uint64(len(s.rewards)),
 		LastUpdated:       time.Now(),
 	}
-	
+
 	for _, pool := range s.pools {
 		stats.TotalStaked.Add(stats.TotalStaked, pool.TotalStaked)
 		stats.TotalRewards.Add(stats.TotalRewards, pool.TotalRewards)
 	}
-	
+
 	return stats
 }

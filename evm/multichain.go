@@ -89,23 +89,23 @@ var DefaultChains = []ChainConfig{
 
 // MultiChainIndexer manages multiple chain adapters
 type MultiChainIndexer struct {
-	db       *sql.DB
-	chains   map[uint64]*ChainAdapter
-	configs  map[uint64]ChainConfig
-	mu       sync.RWMutex
+	db      *sql.DB
+	chains  map[uint64]*ChainAdapter
+	configs map[uint64]ChainConfig
+	mu      sync.RWMutex
 }
 
 // ChainAdapter wraps an adapter with chain-specific configuration
 type ChainAdapter struct {
-	Adapter       *Adapter
-	Config        ChainConfig
-	ERC4337       *ERC4337Indexer
-	MEV           *MEVIndexer
-	Blob          *BlobIndexer
-	Enhanced      *EnhancedIndexer
-	lastBlock     uint64
-	isRunning     bool
-	stopChan      chan struct{}
+	Adapter   *Adapter
+	Config    ChainConfig
+	ERC4337   *ERC4337Indexer
+	MEV       *MEVIndexer
+	Blob      *BlobIndexer
+	Enhanced  *EnhancedIndexer
+	lastBlock uint64
+	isRunning bool
+	stopChan  chan struct{}
 }
 
 // NewMultiChainIndexer creates a new multi-chain indexer
@@ -220,9 +220,9 @@ func (m *MultiChainIndexer) AddChain(ctx context.Context, config ChainConfig) er
 	adapter := New(config.RPCEndpoint)
 
 	chainAdapter := &ChainAdapter{
-		Adapter:   adapter,
-		Config:    config,
-		stopChan:  make(chan struct{}),
+		Adapter:  adapter,
+		Config:   config,
+		stopChan: make(chan struct{}),
 	}
 
 	// Initialize sub-indexers based on chain capabilities
@@ -659,13 +659,13 @@ func (m *MultiChainIndexer) GetStats(ctx context.Context) (map[string]interface{
 	chainStats, _ := m.GetChainSyncStatus(ctx)
 
 	return map[string]interface{}{
-		"total_chains":             totalChains,
-		"active_chains":            activeChains,
-		"total_cross_chain_txs":    totalXChain,
-		"pending_cross_chain_txs":  pendingXChain,
+		"total_chains":              totalChains,
+		"active_chains":             activeChains,
+		"total_cross_chain_txs":     totalXChain,
+		"pending_cross_chain_txs":   pendingXChain,
 		"completed_cross_chain_txs": completedXChain,
-		"chain_status":             chainStats,
-		"updated_at":               updatedAt,
+		"chain_status":              chainStats,
+		"updated_at":                updatedAt,
 	}, nil
 }
 

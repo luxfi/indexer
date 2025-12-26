@@ -153,22 +153,22 @@ func (h *RPCHandler) getTxList(ctx context.Context, r *http.Request) RPCResponse
 
 	for _, tx := range txs {
 		etx := map[string]interface{}{
-			"hash":              tx.Hash,
-			"blockNumber":       fmt.Sprintf("%d", *tx.BlockNumber),
-			"timeStamp":         fmt.Sprintf("%d", tx.Timestamp.Unix()),
-			"from":              tx.From.Hash,
-			"to":                "",
-			"value":             tx.Value,
-			"gas":               fmt.Sprintf("%d", tx.Gas),
-			"gasPrice":          tx.GasPrice,
-			"gasUsed":           fmt.Sprintf("%d", *tx.GasUsed),
-			"nonce":             fmt.Sprintf("%d", tx.Nonce),
-			"input":             tx.Input,
-			"transactionIndex":  fmt.Sprintf("%d", *tx.TransactionIndex),
-			"isError":           "0",
-			"txreceipt_status":  "1",
-			"contractAddress":   "",
-			"confirmations":     fmt.Sprintf("%d", tx.Confirmations),
+			"hash":             tx.Hash,
+			"blockNumber":      fmt.Sprintf("%d", *tx.BlockNumber),
+			"timeStamp":        fmt.Sprintf("%d", tx.Timestamp.Unix()),
+			"from":             tx.From.Hash,
+			"to":               "",
+			"value":            tx.Value,
+			"gas":              fmt.Sprintf("%d", tx.Gas),
+			"gasPrice":         tx.GasPrice,
+			"gasUsed":          fmt.Sprintf("%d", *tx.GasUsed),
+			"nonce":            fmt.Sprintf("%d", tx.Nonce),
+			"input":            tx.Input,
+			"transactionIndex": fmt.Sprintf("%d", *tx.TransactionIndex),
+			"isError":          "0",
+			"txreceipt_status": "1",
+			"contractAddress":  "",
+			"confirmations":    fmt.Sprintf("%d", tx.Confirmations),
 		}
 		if tx.To != nil {
 			etx["to"] = tx.To.Hash
@@ -284,20 +284,20 @@ func (h *RPCHandler) getTokenTx(ctx context.Context, r *http.Request) RPCRespons
 		}
 
 		etx := map[string]interface{}{
-			"hash":            t.TxHash,
-			"blockNumber":     fmt.Sprintf("%d", t.BlockNumber),
-			"timeStamp":       fmt.Sprintf("%d", t.Timestamp.Unix()),
-			"from":            t.From.Hash,
-			"to":              t.To.Hash,
-			"value":           t.Total.Value,
-			"contractAddress": t.Token.Address,
-			"tokenName":       t.Token.Name,
-			"tokenSymbol":     t.Token.Symbol,
-			"tokenDecimal":    fmt.Sprintf("%d", *t.Token.Decimals),
+			"hash":             t.TxHash,
+			"blockNumber":      fmt.Sprintf("%d", t.BlockNumber),
+			"timeStamp":        fmt.Sprintf("%d", t.Timestamp.Unix()),
+			"from":             t.From.Hash,
+			"to":               t.To.Hash,
+			"value":            t.Total.Value,
+			"contractAddress":  t.Token.Address,
+			"tokenName":        t.Token.Name,
+			"tokenSymbol":      t.Token.Symbol,
+			"tokenDecimal":     fmt.Sprintf("%d", *t.Token.Decimals),
 			"transactionIndex": fmt.Sprintf("%d", t.LogIndex),
-			"gas":             "0",
-			"gasPrice":        "0",
-			"gasUsed":         "0",
+			"gas":              "0",
+			"gasPrice":         "0",
+			"gasUsed":          "0",
 		}
 		etherscanTxs = append(etherscanTxs, etx)
 	}
@@ -462,7 +462,7 @@ func (h *RPCHandler) getTxStatus(ctx context.Context, r *http.Request) RPCRespon
 	}
 
 	result := map[string]interface{}{
-		"isError":     "0",
+		"isError":        "0",
 		"errDescription": "",
 	}
 
@@ -527,11 +527,11 @@ func (h *RPCHandler) getBlockReward(ctx context.Context, r *http.Request) RPCRes
 	}
 
 	result := map[string]interface{}{
-		"blockNumber": fmt.Sprintf("%d", block.Height),
-		"timeStamp":   fmt.Sprintf("%d", block.Timestamp.Unix()),
-		"blockMiner":  "",
-		"blockReward": "0",
-		"uncles":      []interface{}{},
+		"blockNumber":          fmt.Sprintf("%d", block.Height),
+		"timeStamp":            fmt.Sprintf("%d", block.Timestamp.Unix()),
+		"blockMiner":           "",
+		"blockReward":          "0",
+		"uncles":               []interface{}{},
 		"uncleInclusionReward": "0",
 	}
 
@@ -545,10 +545,10 @@ func (h *RPCHandler) getBlockReward(ctx context.Context, r *http.Request) RPCRes
 func (h *RPCHandler) getBlockCountdown(ctx context.Context, r *http.Request) RPCResponse {
 	// Return countdown to target block
 	return RPCResponse{Status: "1", Message: "OK", Result: map[string]interface{}{
-		"CurrentBlock":         "0",
-		"CountdownBlock":       "0",
-		"RemainingBlock":       "0",
-		"EstimateTimeInSec":    "0",
+		"CurrentBlock":      "0",
+		"CountdownBlock":    "0",
+		"RemainingBlock":    "0",
+		"EstimateTimeInSec": "0",
 	}}
 }
 
@@ -731,9 +731,9 @@ func (h *RPCHandler) getEthSupply(ctx context.Context, r *http.Request) RPCRespo
 
 func (h *RPCHandler) getEthPrice(ctx context.Context, r *http.Request) RPCResponse {
 	return RPCResponse{Status: "1", Message: "OK", Result: map[string]interface{}{
-		"ethbtc":          "0",
+		"ethbtc":           "0",
 		"ethbtc_timestamp": "0",
-		"ethusd":          "0",
+		"ethusd":           "0",
 		"ethusd_timestamp": "0",
 	}}
 }

@@ -49,9 +49,9 @@ func setupTestServer(t *testing.T) (*Server, *httptest.Server) {
 
 	// Create server with nil DB (handlers will need to handle this)
 	s := &Server{
-		config:     cfg,
-		wsHub:      NewWebSocketHub(),
-		repo:       nil, // Mock repository
+		config: cfg,
+		wsHub:  NewWebSocketHub(),
+		repo:   nil, // Mock repository
 	}
 
 	// Setup routes manually for testing
@@ -593,8 +593,8 @@ func TestPaginationParameters(t *testing.T) {
 	defer ts.Close()
 
 	tests := []struct {
-		url     string
-		name    string
+		url  string
+		name string
 	}{
 		{"/api/v2/blocks?page=0&page_size=10", "blocks with page params"},
 		{"/api/v2/transactions?page=0&page_size=10", "transactions with page params"},

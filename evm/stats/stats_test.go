@@ -157,9 +157,9 @@ func TestNormalizeAddress(t *testing.T) {
 }
 
 func TestCreateGasPrice(t *testing.T) {
-	gasPrice := big.NewInt(50000000000)  // 50 gwei
-	baseFee := big.NewInt(30000000000)   // 30 gwei
-	estimatedTime := 2000.0               // 2 seconds
+	gasPrice := big.NewInt(50000000000) // 50 gwei
+	baseFee := big.NewInt(30000000000)  // 30 gwei
+	estimatedTime := 2000.0             // 2 seconds
 	simpleGas := int64(21000)
 
 	result := createGasPrice(gasPrice, baseFee, estimatedTime, simpleGas)
