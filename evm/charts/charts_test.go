@@ -281,10 +281,10 @@ func TestDaysParameter_Bounds(t *testing.T) {
 		input    int
 		expected int
 	}{
-		{0, 30},     // Zero uses default
-		{-5, 30},    // Negative uses default
-		{50, 50},    // Within bounds
-		{200, 100},  // Above max gets capped
+		{0, 30},    // Zero uses default
+		{-5, 30},   // Negative uses default
+		{50, 50},   // Within bounds
+		{200, 100}, // Above max gets capped
 	}
 
 	for _, tt := range tests {

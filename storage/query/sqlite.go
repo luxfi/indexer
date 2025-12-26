@@ -456,15 +456,15 @@ type sqliteTx struct {
 	parent *SQLite
 }
 
-func (t *sqliteTx) Backend() Backend                                                   { return BackendSQLite }
-func (t *sqliteTx) Init(ctx context.Context) error                                     { return nil }
-func (t *sqliteTx) Close() error                                                       { return t.Rollback() }
-func (t *sqliteTx) Ping(ctx context.Context) error                                     { return nil }
-func (t *sqliteTx) InitSchema(ctx context.Context, schema Schema) error                { return ErrNotSupported }
-func (t *sqliteTx) Migrate(ctx context.Context, schema Schema) error                   { return ErrNotSupported }
-func (t *sqliteTx) Begin(ctx context.Context) (Tx, error)                              { return nil, ErrNotSupported }
-func (t *sqliteTx) Commit() error                                                      { return t.tx.Commit() }
-func (t *sqliteTx) Rollback() error                                                    { return t.tx.Rollback() }
+func (t *sqliteTx) Backend() Backend                                    { return BackendSQLite }
+func (t *sqliteTx) Init(ctx context.Context) error                      { return nil }
+func (t *sqliteTx) Close() error                                        { return t.Rollback() }
+func (t *sqliteTx) Ping(ctx context.Context) error                      { return nil }
+func (t *sqliteTx) InitSchema(ctx context.Context, schema Schema) error { return ErrNotSupported }
+func (t *sqliteTx) Migrate(ctx context.Context, schema Schema) error    { return ErrNotSupported }
+func (t *sqliteTx) Begin(ctx context.Context) (Tx, error)               { return nil, ErrNotSupported }
+func (t *sqliteTx) Commit() error                                       { return t.tx.Commit() }
+func (t *sqliteTx) Rollback() error                                     { return t.tx.Rollback() }
 
 func (t *sqliteTx) InsertBlock(ctx context.Context, table string, block *Block) error {
 	txIDsJSON, _ := json.Marshal(block.TxIDs)

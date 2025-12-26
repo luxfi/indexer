@@ -13,9 +13,9 @@ import (
 // TestChainIDConstants tests chain ID constants
 func TestChainIDConstants(t *testing.T) {
 	tests := []struct {
-		name   string
-		got    uint64
-		want   uint64
+		name string
+		got  uint64
+		want uint64
 	}{
 		{"LuxMainnet", ChainIDLuxMainnet, 96369},
 		{"LuxTestnet", ChainIDLuxTestnet, 96368},
@@ -440,14 +440,14 @@ func BenchmarkParseBigInt(b *testing.B) {
 
 func BenchmarkUserOperationMarshal(b *testing.B) {
 	op := UserOperation{
-		Hash:              "0x123abc",
-		Sender:            "0xsender",
-		Nonce:             "0x1",
-		CallData:          "0xdata",
-		CallGasLimit:      100000,
-		EntryPoint:        EntryPointV06,
-		BlockNumber:       1000,
-		Timestamp:         time.Now(),
+		Hash:         "0x123abc",
+		Sender:       "0xsender",
+		Nonce:        "0x1",
+		CallData:     "0xdata",
+		CallGasLimit: 100000,
+		EntryPoint:   EntryPointV06,
+		BlockNumber:  1000,
+		Timestamp:    time.Now(),
 	}
 
 	b.ResetTimer()

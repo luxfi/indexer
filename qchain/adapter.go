@@ -292,9 +292,9 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 
 	// Insert default lattice configurations
 	defaults := []struct {
-		name, algorithm, description string
+		name, algorithm, description  string
 		dimension, errorBound, secLvl int
-		modulus                        int64
+		modulus                       int64
 	}{
 		{"dilithium2", "dilithium", "NIST Level 2 Dilithium", 256, 2, 2, 8380417},
 		{"dilithium3", "dilithium", "NIST Level 3 Dilithium", 256, 4, 3, 8380417},

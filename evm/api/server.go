@@ -967,9 +967,9 @@ func (s *Server) handleMainPageTransactions(w http.ResponseWriter, r *http.Reque
 
 func (s *Server) handleIndexingStatus(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"finished_indexing":                true,
-		"finished_indexing_blocks":         true,
-		"indexed_blocks_ratio":             "1.00",
+		"finished_indexing":                   true,
+		"finished_indexing_blocks":            true,
+		"indexed_blocks_ratio":                "1.00",
 		"indexed_internal_transactions_ratio": "1.00",
 	})
 }
