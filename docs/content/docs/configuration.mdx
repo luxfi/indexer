@@ -1,0 +1,164 @@
+---
+title: Configuration
+description: Configure the Lux Indexer for your environment
+---
+
+# Configuration
+
+The Lux Indexer can be configured through environment variables, configuration files, or command-line flags.
+
+## Environment Variables
+
+### Core Settings
+
+```bash
+# RPC endpoints for each chain
+LUX_C_RPC=http://127.0.0.1:9630/ext/bc/C/rpc
+LUX_P_RPC=http://127.0.0.1:9630/ext/bc/P
+LUX_X_RPC=http://127.0.0.1:9630/ext/bc/X
+
+# Database configuration
+LUX_DB_BACKEND=sqlite     # sqlite, postgres, or memory
+LUX_DB_URL=./indexer.db   # Connection string or file path
+LUX_DATA_DIR=./data       # Data directory for indexes
+```
+
+### Chain-Specific Configuration
+
+```bash
+# C-Chain (EVM)
+LUX_CCHAIN_START_BLOCK=0
+LUX_CCHAIN_BATCH_SIZE=100
+LUX_CCHAIN_CONFIRMATIONS=1
+
+# P-Chain (Platform)
+LUX_PCHAIN_SYNC_VALIDATORS=true
+LUX_PCHAIN_VALIDATOR_REFRESH=300  # seconds
+
+# X-Chain (DAG)
+LUX_XCHAIN_ENABLED=false  # DAG mode not active by default
+```
+
+## Configuration File
+
+Create a `config.yaml` file:
+
+```yaml
+rpc:
+  c_chain: http://127.0.0.1:9630/ext/bc/C/rpc
+  p_chain: http://127.0.0.1:9630/ext/bc/P
+  x_chain: http://127.0.0.1:9630/ext/bc/X
+
+storage:
+  backend: sqlite
+  url: ./indexer.db
+  data_dir: ./data
+
+indexer:
+  c_chain:
+    enabled: true
+    start_block: 0
+    batch_size: 100
+    confirmations: 1
+  
+  p_chain:
+    enabled: true
+    sync_validators: true
+    validator_refresh: 300
+  
+  x_chain:
+    enabled: false
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  cors_origins:
+    - http://localhost:3000
+```
+
+## Storage Backends
+
+### SQLite (Default)
+
+Best for development and single-node deployments:
+
+```yaml
+storage:
+  backend: sqlite
+  url: ./indexer.db
+```
+
+### PostgreSQL
+
+Recommended for production deployments:
+
+```yaml
+storage:
+  backend: postgres
+  url: postgres://user:pass@localhost:5432/indexer?sslmode=disable
+```
+
+### In-Memory
+
+For testing only:
+
+```yaml
+storage:
+  backend: memory
+```
+
+## Network Presets
+
+### Mainnet
+
+```bash
+LUX_NETWORK=mainnet
+# Auto-configures:
+# - Chain ID: 96369
+# - RPC: https://api.lux.network
+```
+
+### Testnet
+
+```bash
+LUX_NETWORK=testnet
+# Auto-configures:
+# - Chain ID: 96368
+# - RPC: https://testnet-api.lux.network
+```
+
+### Local Development
+
+```bash
+LUX_NETWORK=local
+LUX_C_RPC=http://127.0.0.1:9650/ext/bc/C/rpc
+```
+
+## Performance Tuning
+
+### Batch Processing
+
+```yaml
+indexer:
+  batch_size: 100        # Blocks per batch
+  max_concurrent: 4      # Parallel batch processing
+  rate_limit: 100        # RPC calls per second
+```
+
+### Database Optimization
+
+```yaml
+storage:
+  pool_size: 10          # Connection pool size
+  max_idle: 5            # Max idle connections
+  conn_lifetime: 3600    # Connection lifetime (seconds)
+```
+
+## Logging
+
+```yaml
+logging:
+  level: info            # debug, info, warn, error
+  format: json           # json or text
+  output: stdout         # stdout, stderr, or file path
+```

@@ -1,5 +1,5 @@
 import "./global.css"
-import { RootProvider } from "fumadocs-ui/provider/next"
+import { RootProvider } from "@hanzo/ui"
 import { Inter } from "next/font/google"
 import type { ReactNode } from "react"
 
@@ -20,7 +20,7 @@ export const metadata = {
     default: "Lux Indexer Documentation",
     template: "%s | Lux Indexer",
   },
-  description: "Go-based blockchain indexers for LUX Network native chains",
+  description: "Unified blockchain indexer for Lux Network - Full Blockscout replacement",
 }
 
 export default function Layout({ children }: { children: ReactNode }) {

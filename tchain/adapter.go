@@ -8,7 +8,6 @@ package tchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,15 +15,14 @@ import (
 	"time"
 
 	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/indexer/storage"
 )
 
 const (
 	// DefaultRPCEndpoint for T-Chain on port 4700
-	DefaultRPCEndpoint = "http://localhost:9630/ext/bc/T/rpc"
+	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/T/rpc"
 	// DefaultHTTPPort for T-Chain indexer API
 	DefaultHTTPPort = 4700
-	// DefaultDatabaseURL for T-Chain explorer
-	DefaultDatabaseURL = "postgres://blockscout:blockscout@localhost:5432/explorer_tchain?sslmode=disable"
 )
 
 // SessionStatus for MPC signing sessions
@@ -141,7 +139,6 @@ func DefaultConfig() dag.Config {
 		ChainName:    "T-Chain (Teleport)",
 		RPCEndpoint:  DefaultRPCEndpoint,
 		RPCMethod:    "tvm",
-		DatabaseURL:  DefaultDatabaseURL,
 		HTTPPort:     DefaultHTTPPort,
 		PollInterval: 2 * time.Second,
 	}
@@ -350,105 +347,129 @@ func (a *Adapter) GetActiveKeyShares(ctx context.Context, publicKey string) ([]K
 }
 
 // InitSchema creates T-Chain specific database tables
-func (a *Adapter) InitSchema(db *sql.DB) error {
-	schema := `
-		-- Signing sessions table
+func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
+	// Create signing sessions table
+	err := store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_sessions (
 			id TEXT PRIMARY KEY,
-			threshold INT NOT NULL,
-			total_shares INT NOT NULL,
+			threshold INTEGER NOT NULL,
+			total_shares INTEGER NOT NULL,
 			message_hash TEXT NOT NULL,
-			participants JSONB DEFAULT '[]',
-			signatures JSONB DEFAULT '[]',
+			participants TEXT DEFAULT '[]',
+			signatures TEXT DEFAULT '[]',
 			final_sig TEXT,
 			status TEXT DEFAULT 'pending',
 			source_chain TEXT,
 			dest_chain TEXT,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			completed_at TIMESTAMPTZ,
-			expires_at TIMESTAMPTZ NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_tchain_sessions_status ON tchain_sessions(status);
-		CREATE INDEX IF NOT EXISTS idx_tchain_sessions_message ON tchain_sessions(message_hash);
-		CREATE INDEX IF NOT EXISTS idx_tchain_sessions_created ON tchain_sessions(created_at DESC);
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			completed_at TIMESTAMP,
+			expires_at TIMESTAMP NOT NULL
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create sessions table: %w", err)
+	}
 
-		-- Key shares table
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_sessions_status ON tchain_sessions(status)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_sessions_message ON tchain_sessions(message_hash)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_sessions_created ON tchain_sessions(created_at DESC)`)
+
+	// Create key shares table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_key_shares (
 			id TEXT PRIMARY KEY,
 			public_key TEXT NOT NULL,
-			share_index INT NOT NULL,
+			share_index INTEGER NOT NULL,
 			node_id TEXT NOT NULL,
 			keygen_id TEXT NOT NULL,
 			status TEXT DEFAULT 'pending',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			rotated_at TIMESTAMPTZ,
-			expires_at TIMESTAMPTZ
-		);
-		CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_pubkey ON tchain_key_shares(public_key);
-		CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_node ON tchain_key_shares(node_id);
-		CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_status ON tchain_key_shares(status);
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			rotated_at TIMESTAMP,
+			expires_at TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create key shares table: %w", err)
+	}
 
-		-- Key generation ceremonies table
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_pubkey ON tchain_key_shares(public_key)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_node ON tchain_key_shares(node_id)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_status ON tchain_key_shares(status)`)
+
+	// Create key generation ceremonies table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_key_generations (
 			id TEXT PRIMARY KEY,
-			threshold INT NOT NULL,
-			total_shares INT NOT NULL,
+			threshold INTEGER NOT NULL,
+			total_shares INTEGER NOT NULL,
 			public_key TEXT,
-			participants JSONB DEFAULT '[]',
+			participants TEXT DEFAULT '[]',
 			status TEXT DEFAULT 'pending',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			completed_at TIMESTAMPTZ
-		);
-		CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_status ON tchain_key_generations(status);
-		CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_pubkey ON tchain_key_generations(public_key);
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			completed_at TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create key generations table: %w", err)
+	}
 
-		-- Teleport messages table
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_status ON tchain_key_generations(status)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_pubkey ON tchain_key_generations(public_key)`)
+
+	// Create teleport messages table
+	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_messages (
 			id TEXT PRIMARY KEY,
 			source_chain TEXT NOT NULL,
 			dest_chain TEXT NOT NULL,
 			sender TEXT NOT NULL,
 			receiver TEXT NOT NULL,
-			payload JSONB,
-			nonce BIGINT NOT NULL,
+			payload TEXT,
+			nonce INTEGER NOT NULL,
 			session_id TEXT,
 			status TEXT DEFAULT 'pending',
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			signed_at TIMESTAMPTZ,
-			delivered_at TIMESTAMPTZ
-		);
-		CREATE INDEX IF NOT EXISTS idx_tchain_messages_source ON tchain_messages(source_chain);
-		CREATE INDEX IF NOT EXISTS idx_tchain_messages_dest ON tchain_messages(dest_chain);
-		CREATE INDEX IF NOT EXISTS idx_tchain_messages_status ON tchain_messages(status);
-		CREATE INDEX IF NOT EXISTS idx_tchain_messages_session ON tchain_messages(session_id);
-
-		-- MPC statistics table
-		CREATE TABLE IF NOT EXISTS tchain_mpc_stats (
-			id INT PRIMARY KEY DEFAULT 1,
-			total_sessions BIGINT DEFAULT 0,
-			active_sessions BIGINT DEFAULT 0,
-			completed_sessions BIGINT DEFAULT 0,
-			failed_sessions BIGINT DEFAULT 0,
-			total_key_shares BIGINT DEFAULT 0,
-			active_key_shares BIGINT DEFAULT 0,
-			total_key_gens BIGINT DEFAULT 0,
-			total_messages BIGINT DEFAULT 0,
-			pending_messages BIGINT DEFAULT 0,
-			delivered_messages BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		INSERT INTO tchain_mpc_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
-	`
-
-	if _, err := db.Exec(schema); err != nil {
-		return fmt.Errorf("init tchain schema: %w", err)
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			signed_at TIMESTAMP,
+			delivered_at TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create messages table: %w", err)
 	}
+
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_source ON tchain_messages(source_chain)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_dest ON tchain_messages(dest_chain)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_status ON tchain_messages(status)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_session ON tchain_messages(session_id)`)
+
+	// Create MPC statistics table
+	err = store.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS tchain_mpc_stats (
+			id INTEGER PRIMARY KEY DEFAULT 1,
+			total_sessions INTEGER DEFAULT 0,
+			active_sessions INTEGER DEFAULT 0,
+			completed_sessions INTEGER DEFAULT 0,
+			failed_sessions INTEGER DEFAULT 0,
+			total_key_shares INTEGER DEFAULT 0,
+			active_key_shares INTEGER DEFAULT 0,
+			total_key_gens INTEGER DEFAULT 0,
+			total_messages INTEGER DEFAULT 0,
+			pending_messages INTEGER DEFAULT 0,
+			delivered_messages INTEGER DEFAULT 0,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create mpc stats table: %w", err)
+	}
+
+	_ = store.Exec(ctx, `INSERT OR IGNORE INTO tchain_mpc_stats (id) VALUES (1)`)
 
 	return nil
 }
 
 // GetStats returns T-Chain specific statistics
-func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error) {
+func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Get MPC stats
@@ -456,16 +477,71 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	var totalKeyShares, activeKeyShares, totalKeyGens int64
 	var totalMessages, pendingMessages, deliveredMessages int64
 
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions").Scan(&totalSessions)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='active'").Scan(&activeSessions)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='completed'").Scan(&completedSessions)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_sessions WHERE status='failed'").Scan(&failedSessions)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares").Scan(&totalKeyShares)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_shares WHERE status='active'").Scan(&activeKeyShares)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_key_generations").Scan(&totalKeyGens)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages").Scan(&totalMessages)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='pending'").Scan(&pendingMessages)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tchain_messages WHERE status='delivered'").Scan(&deliveredMessages)
+	// Query sessions
+	rows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_sessions")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			totalSessions = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_sessions WHERE status='active'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			activeSessions = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_sessions WHERE status='completed'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			completedSessions = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_sessions WHERE status='failed'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			failedSessions = v
+		}
+	}
+
+	// Query key shares
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_key_shares")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			totalKeyShares = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_key_shares WHERE status='active'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			activeKeyShares = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_key_generations")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			totalKeyGens = v
+		}
+	}
+
+	// Query messages
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_messages")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			totalMessages = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_messages WHERE status='pending'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			pendingMessages = v
+		}
+	}
+	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_messages WHERE status='delivered'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["cnt"].(int64); ok {
+			deliveredMessages = v
+		}
+	}
 
 	stats["mpc_stats"] = map[string]interface{}{
 		"total_sessions":     totalSessions,
@@ -492,73 +568,51 @@ func (a *Adapter) GetStats(ctx context.Context, db *sql.DB) (map[string]interfac
 	}
 
 	// Get average threshold
-	var avgThreshold float64
-	_ = db.QueryRowContext(ctx, "SELECT COALESCE(AVG(threshold), 0) FROM tchain_key_generations WHERE status='completed'").Scan(&avgThreshold)
-	stats["avg_threshold"] = avgThreshold
+	rows, _ = store.Query(ctx, "SELECT COALESCE(AVG(threshold), 0) as avg_threshold FROM tchain_key_generations WHERE status='completed'")
+	if len(rows) > 0 {
+		if v, ok := rows[0]["avg_threshold"].(float64); ok {
+			stats["avg_threshold"] = v
+		}
+	}
 
 	return stats, nil
 }
 
 // StoreSession stores a signing session
-func (a *Adapter) StoreSession(ctx context.Context, db *sql.DB, s *SigningSession) error {
+func (a *Adapter) StoreSession(ctx context.Context, store storage.Store, s *SigningSession) error {
 	participants, _ := json.Marshal(s.Participants)
 	signatures, _ := json.Marshal(s.Signatures)
 
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO tchain_sessions (id, threshold, total_shares, message_hash, participants, signatures, final_sig, status, source_chain, dest_chain, created_at, completed_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		ON CONFLICT (id) DO UPDATE SET 
-			signatures = EXCLUDED.signatures,
-			final_sig = EXCLUDED.final_sig,
-			status = EXCLUDED.status,
-			completed_at = EXCLUDED.completed_at
-	`, s.ID, s.Threshold, s.TotalShares, s.MessageHash, participants, signatures, s.FinalSig, s.Status, s.SourceChain, s.DestChain, s.CreatedAt, s.CompletedAt, s.ExpiresAt)
-
-	return err
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO tchain_sessions (id, threshold, total_shares, message_hash, participants, signatures, final_sig, status, source_chain, dest_chain, created_at, completed_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, s.ID, s.Threshold, s.TotalShares, s.MessageHash, string(participants), string(signatures), s.FinalSig, s.Status, s.SourceChain, s.DestChain, s.CreatedAt, s.CompletedAt, s.ExpiresAt)
 }
 
 // StoreKeyShare stores a key share
-func (a *Adapter) StoreKeyShare(ctx context.Context, db *sql.DB, k *KeyShare) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO tchain_key_shares (id, public_key, share_index, node_id, keygen_id, status, created_at, rotated_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (id) DO UPDATE SET 
-			status = EXCLUDED.status,
-			rotated_at = EXCLUDED.rotated_at
+func (a *Adapter) StoreKeyShare(ctx context.Context, store storage.Store, k *KeyShare) error {
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO tchain_key_shares (id, public_key, share_index, node_id, keygen_id, status, created_at, rotated_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, k.ID, k.PublicKey, k.ShareIndex, k.NodeID, k.KeyGenID, k.Status, k.CreatedAt, k.RotatedAt, k.ExpiresAt)
-
-	return err
 }
 
 // StoreKeyGeneration stores a key generation ceremony
-func (a *Adapter) StoreKeyGeneration(ctx context.Context, db *sql.DB, kg *KeyGeneration) error {
+func (a *Adapter) StoreKeyGeneration(ctx context.Context, store storage.Store, kg *KeyGeneration) error {
 	participants, _ := json.Marshal(kg.Participants)
 
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO tchain_key_generations (id, threshold, total_shares, public_key, participants, status, created_at, completed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (id) DO UPDATE SET 
-			public_key = EXCLUDED.public_key,
-			status = EXCLUDED.status,
-			completed_at = EXCLUDED.completed_at
-	`, kg.ID, kg.Threshold, kg.TotalShares, kg.PublicKey, participants, kg.Status, kg.CreatedAt, kg.CompletedAt)
-
-	return err
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO tchain_key_generations (id, threshold, total_shares, public_key, participants, status, created_at, completed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, kg.ID, kg.Threshold, kg.TotalShares, kg.PublicKey, string(participants), kg.Status, kg.CreatedAt, kg.CompletedAt)
 }
 
 // StoreMessage stores a teleport message
-func (a *Adapter) StoreMessage(ctx context.Context, db *sql.DB, m *TeleportMessage) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO tchain_messages (id, source_chain, dest_chain, sender, receiver, payload, nonce, session_id, status, created_at, signed_at, delivered_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (id) DO UPDATE SET 
-			session_id = EXCLUDED.session_id,
-			status = EXCLUDED.status,
-			signed_at = EXCLUDED.signed_at,
-			delivered_at = EXCLUDED.delivered_at
-	`, m.ID, m.SourceChain, m.DestChain, m.Sender, m.Receiver, m.Payload, m.Nonce, m.SessionID, m.Status, m.CreatedAt, m.SignedAt, m.DeliveredAt)
-
-	return err
+func (a *Adapter) StoreMessage(ctx context.Context, store storage.Store, m *TeleportMessage) error {
+	return store.Exec(ctx, `
+		INSERT OR REPLACE INTO tchain_messages (id, source_chain, dest_chain, sender, receiver, payload, nonce, session_id, status, created_at, signed_at, delivered_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, m.ID, m.SourceChain, m.DestChain, m.Sender, m.Receiver, string(m.Payload), m.Nonce, m.SessionID, m.Status, m.CreatedAt, m.SignedAt, m.DeliveredAt)
 }
 
 // rpcCall makes an RPC call to T-Chain

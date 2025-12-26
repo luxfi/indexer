@@ -1,8 +1,7 @@
 import { source } from "@/lib/source"
 import type { Metadata } from "next"
-import { DocsPage, DocsBody, DocsTitle, DocsDescription } from "fumadocs-ui/page"
+import { DocsPage, DocsBody, DocsTitle, DocsDescription, defaultMdxComponents } from "@hanzo/ui"
 import { notFound } from "next/navigation"
-import defaultMdxComponents from "fumadocs-ui/mdx"
 
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>

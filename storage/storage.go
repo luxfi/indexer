@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package storage provides a pluggable storage interface for the LUX indexer.
-// Supported backends: PostgreSQL (default), BadgerDB, Dgraph
+// Supported backends: PostgreSQL, MySQL, SQLite, MongoDB, BadgerDB, Dgraph
 package storage
 
 import (
@@ -17,20 +17,27 @@ type Backend string
 
 const (
 	BackendPostgres Backend = "postgres"
+	BackendMySQL    Backend = "mysql"
+	BackendSQLite   Backend = "sqlite"
+	BackendMongo    Backend = "mongo"
 	BackendBadger   Backend = "badger"
 	BackendDgraph   Backend = "dgraph"
 )
 
 // Config for storage backend
 type Config struct {
-	Backend Backend
-	URL     string            // Connection URL (postgres://, badger://, dgraph://)
-	Options map[string]string // Backend-specific options
-	DataDir string            // For file-based backends (BadgerDB)
+	Backend  Backend
+	URL      string            // Connection URL (postgres://, mysql://, mongo://, etc.)
+	Database string            // Database name (for MongoDB)
+	Options  map[string]string // Backend-specific options
+	DataDir  string            // For file-based backends (BadgerDB, SQLite)
 }
 
 // Store is the main storage interface for indexed data
 type Store interface {
+	// Backend returns the query backend type (sqlite, postgres, etc.)
+	Backend() Backend
+
 	// Lifecycle
 	Init(ctx context.Context) error
 	Close() error
@@ -63,6 +70,7 @@ type Store interface {
 	// Stats
 	UpdateStats(ctx context.Context, table string, stats map[string]interface{}) error
 	GetStats(ctx context.Context, table string) (map[string]interface{}, error)
+	Count(ctx context.Context, table string, where string, args ...interface{}) (int64, error)
 
 	// Queries
 	Query(ctx context.Context, query string, args ...interface{}) ([]map[string]interface{}, error)
@@ -174,18 +182,35 @@ var (
 	ErrClosed        = fmt.Errorf("store is closed")
 )
 
-// New creates a new storage backend based on config
+// New creates a new unified storage backend based on config
+// The unified storage uses a KV layer (BadgerDB) + Query layer (SQLite/PostgreSQL)
 func New(cfg Config) (Store, error) {
+	// Determine data directory
+	dataDir := cfg.DataDir
+	if dataDir == "" {
+		dataDir = "/tmp/indexer-data"
+	}
+
+	// Map legacy backend config to unified config
+	ucfg := DefaultUnifiedConfig(dataDir)
+
 	switch cfg.Backend {
 	case BackendPostgres:
-		return NewPostgres(cfg)
-	case BackendBadger:
-		return NewBadger(cfg)
-	case BackendDgraph:
-		return NewDgraph(cfg)
+		ucfg.Query.Backend = "postgres"
+		ucfg.Query.URL = cfg.URL
+	case BackendMySQL:
+		// MySQL not yet supported in unified, fall back to SQLite
+		ucfg.Query.Backend = "sqlite"
+	case BackendSQLite:
+		ucfg.Query.Backend = "sqlite"
+	case BackendMongo, BackendBadger, BackendDgraph:
+		// These are KV-style backends, use SQLite as query layer
+		ucfg.Query.Backend = "sqlite"
 	default:
 		return nil, fmt.Errorf("unknown storage backend: %s", cfg.Backend)
 	}
+
+	return NewUnified(ucfg)
 }
 
 // ParseBackend parses a backend string
@@ -193,6 +218,12 @@ func ParseBackend(s string) (Backend, error) {
 	switch s {
 	case "postgres", "postgresql", "pg":
 		return BackendPostgres, nil
+	case "mysql", "mariadb":
+		return BackendMySQL, nil
+	case "sqlite", "sqlite3":
+		return BackendSQLite, nil
+	case "mongo", "mongodb":
+		return BackendMongo, nil
 	case "badger", "badgerdb":
 		return BackendBadger, nil
 	case "dgraph":
