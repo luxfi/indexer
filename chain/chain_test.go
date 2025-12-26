@@ -147,7 +147,7 @@ func TestConfigValidation(t *testing.T) {
 		ChainName:   "P-Chain",
 		RPCEndpoint: "http://localhost:9630/ext/bc/P",
 		RPCMethod:   "pvm",
-		DatabaseURL: "postgres://localhost/test",
+		DataDir:     "/tmp/test-indexer/pchain",
 		HTTPPort:    4100,
 	}
 

@@ -135,7 +135,7 @@ func TestConfigDefaults(t *testing.T) {
 		ChainType:   ChainX,
 		ChainName:   "X-Chain",
 		RPCEndpoint: "http://localhost:9630/ext/bc/X",
-		DatabaseURL: "postgres://localhost/test",
+		DataDir:     "/tmp/test-indexer/xchain",
 		HTTPPort:    4200,
 	}
 

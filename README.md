@@ -17,9 +17,9 @@ Go-based indexers for LUX Network's native chains (DAG and linear). Works alongs
 │   Blockscout        │               │   LUX Indexer (this repo)     │
 │   (Elixir)          │               │   (Go)                        │
 │                     │               │                               │
-│   C-Chain (EVM)     │               │   DAG: X, A, B, Q, T, Z       │
-│   Port 4000         │               │   Linear: P                   │
-│                     │               │   Ports 4100-4700             │
+│   C-Chain (EVM)     │               │   DAG: X, A, B, Q, T, Z, K    │
+│   Port 4000         │               │   Linear: P, C                │
+│                     │               │   Ports 4000-4900             │
 └─────────┬───────────┘               └───────────────┬───────────────┘
           │                                           │
           └─────────────────────┬─────────────────────┘
@@ -33,7 +33,7 @@ Go-based indexers for LUX Network's native chains (DAG and linear). Works alongs
 ┌──────────────────────────────────────────────────────────────────────┐
 │                          LUX Node (luxd)                              │
 │                            Port 9630                                  │
-│  RPC: xvm.* │ pvm.* │ avm.* │ bvm.* │ qvm.* │ tvm.* │ zvm.*         │
+│  RPC: xvm.* │ pvm.* │ avm.* │ bvm.* │ qvm.* │ tvm.* │ zvm.* │ kvm.* │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,6 +51,7 @@ DAG enables fast consensus convergence through parallel vertex processing.
 | Q-Chain | 4300 | explorer_qchain | Quantum finality proofs |
 | T-Chain | 4700 | explorer_tchain | MPC threshold signatures |
 | Z-Chain | 4400 | explorer_zchain | Privacy, ZK transactions (DAG for fast finality) |
+| K-Chain | 4900 | explorer_kchain | Key management, post-quantum cryptography |
 
 ### Linear Chains (Block/Parent model)
 Uses `luxfi/consensus/engine/chain/block` - single parent per block.
@@ -59,11 +60,17 @@ Platform chain requires strict ordering for validator/staking operations.
 | Chain | Port | Database | Description |
 |-------|------|----------|-------------|
 | P-Chain | 4100 | explorer_pchain | Platform, validators, staking |
+| C-Chain | 4000 | explorer_cchain | EVM smart contracts (Go native) |
 
-### EVM (Blockscout)
+### EVM Options
+The C-Chain can be indexed using either:
+- **Blockscout (Elixir)** - Full-featured block explorer with UI
+- **LUX Indexer (Go)** - Lightweight Go indexer for API-only use
+
 | Chain | Port | Database | Description |
 |-------|------|----------|-------------|
-| C-Chain | 4000 | explorer_cchain | Smart contracts (Blockscout/Elixir) |
+| C-Chain (Blockscout) | 4000 | explorer_cchain | Smart contracts (Blockscout/Elixir) |
+| C-Chain (Go) | 4001 | explorer_cchain | Smart contracts (Go native indexer) |
 
 ## Directory Structure
 
@@ -76,12 +83,14 @@ indexer/
 ├── chain/             # Shared linear chain library
 │   ├── chain.go       # Block types
 │   └── http.go        # REST API handlers
+├── cchain/            # C-Chain (EVM) - Linear
 ├── xchain/            # X-Chain (Exchange) - DAG
 ├── achain/            # A-Chain (AI) - DAG
 ├── bchain/            # B-Chain (Bridge) - DAG
 ├── qchain/            # Q-Chain (Quantum) - DAG
-├── tchain/            # T-Chain (Teleport) - DAG
+├── tchain/            # T-Chain (Threshold/MPC) - DAG
 ├── zchain/            # Z-Chain (Privacy) - DAG
+├── kchain/            # K-Chain (KMS) - DAG
 ├── pchain/            # P-Chain (Platform) - Linear
 ├── cmd/               # CLI entry points
 │   └── indexer/       # Multi-chain indexer CLI
@@ -144,7 +153,7 @@ docker run -d \
 
 All indexers expose Blockscout-compatible `/api/v2/` endpoints:
 
-### DAG Chains (X, A, B, Q, T, Z)
+### DAG Chains (X, A, B, Q, T, Z, K)
 
 ```
 GET  /api/v2/stats                    # Chain statistics
@@ -302,7 +311,7 @@ chains:
 - [LUX Consensus](https://github.com/luxfi/consensus) - DAG/Chain data structures
 - [LUX Node](https://github.com/luxfi/node) - Blockchain node
 - [LUX Explorer](https://github.com/luxfi/explore) - Frontend
-- [LP-0038: Explorer Architecture](https://github.com/luxfi/LPs/blob/main/LPs/lp-0038-explorer-indexer-architecture.md)
+- [LP-0038: Native Chain Indexer Architecture](https://github.com/luxfi/lps/blob/main/LPs/lp-0038-native-chain-indexer-architecture.md)
 
 ## License
 

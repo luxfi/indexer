@@ -1,0 +1,304 @@
+---
+title: Storage Backends
+description: Configure storage backends for the Lux Indexer
+---
+
+# Storage Backends
+
+The Lux Indexer supports multiple storage backends through a two-layer architecture.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────┐
+│           Unified Store                  │
+│  (Combines KV + Query layers)           │
+├────────────────────┬────────────────────┤
+│     KV Layer       │    Query Layer     │
+│  (luxfi/database)  │    (SQL/Graph)     │
+├────────────────────┼────────────────────┤
+│    BadgerDB v4     │  SQLite/Postgres   │
+└────────────────────┴────────────────────┘
+```
+
+## KV Layer
+
+Fast key-value storage using `github.com/luxfi/database` (BadgerDB v4):
+
+```go
+import "github.com/luxfi/indexer/storage/kv"
+
+// Standalone mode
+store, err := kv.New(kv.Config{
+    Path: "/path/to/data",
+})
+
+// In-process mode (share node's database)
+store, err := kv.New(kv.Config{
+    InProcess: true,
+    NodeDB:    nodeDatabase,
+    Prefix:    []byte("indexer:"),
+})
+```
+
+### Prefixed Databases
+
+Data is isolated using prefixes:
+
+| Prefix | Database | Use Case |
+|--------|----------|----------|
+| `blk:` | Blocks | Block headers and bodies |
+| `vtx:` | Vertices | DAG chain vertices |
+| `edg:` | Edges | DAG relationships |
+| `tx:` | Transactions | Transaction data |
+| `st:` | State | Account states |
+| `meta:` | Metadata | Indexer metadata |
+
+### Performance
+
+- ~500K+ ops/sec for single key lookups
+- Zero-allocation hot paths
+- Efficient range scans with iterators
+
+## Query Layer
+
+SQL/Graph interface for complex queries:
+
+```go
+import "github.com/luxfi/indexer/storage/query"
+
+engine, err := query.New(query.Config{
+    Backend: query.BackendSQLite,
+    DataDir: "/path/to/query",
+})
+```
+
+### SQLite (Default)
+
+Best for development and single-node deployments:
+
+```yaml
+storage:
+  backend: sqlite
+  url: ./indexer.db
+```
+
+Features:
+- WAL mode for concurrent reads
+- Prepared statements
+- Automatic index optimization
+
+### PostgreSQL
+
+Recommended for production:
+
+```yaml
+storage:
+  backend: postgres
+  url: postgres://user:pass@localhost:5432/indexer
+```
+
+Build with PostgreSQL support:
+
+```bash
+go build -tags postgres ./...
+```
+
+## Unified Store
+
+Combines both layers with dual-write support:
+
+```go
+import "github.com/luxfi/indexer/storage"
+
+// Create unified store
+store, err := storage.NewUnified(storage.DefaultUnifiedConfig("/path/to/data"))
+
+// Initialize
+store.Init(ctx)
+
+// Store block (writes to both KV and Query)
+store.StoreBlock(ctx, "blocks", block)
+
+// Get block (tries KV first, falls back to Query)
+block, err := store.GetBlock(ctx, "blocks", blockID)
+
+// SQL queries
+results, err := store.QuerySQL(ctx, "SELECT * FROM blocks LIMIT 10")
+```
+
+## Database Schema
+
+### Core Tables
+
+```sql
+-- Blocks
+CREATE TABLE blocks (
+    id TEXT PRIMARY KEY,
+    height INTEGER NOT NULL,
+    hash TEXT NOT NULL,
+    parent_hash TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    tx_count INTEGER DEFAULT 0,
+    gas_used INTEGER DEFAULT 0,
+    gas_limit INTEGER DEFAULT 0,
+    data BLOB
+);
+
+-- Transactions
+CREATE TABLE transactions (
+    hash TEXT PRIMARY KEY,
+    block_id TEXT NOT NULL,
+    block_height INTEGER NOT NULL,
+    tx_index INTEGER NOT NULL,
+    from_addr TEXT NOT NULL,
+    to_addr TEXT,
+    value TEXT NOT NULL,
+    gas_price TEXT NOT NULL,
+    gas_limit INTEGER NOT NULL,
+    gas_used INTEGER,
+    input_data BLOB,
+    status INTEGER,
+    tx_type INTEGER DEFAULT 0
+);
+
+-- Logs
+CREATE TABLE logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    topics TEXT NOT NULL,
+    data BLOB,
+    block_height INTEGER NOT NULL
+);
+```
+
+### Token Tables
+
+```sql
+-- Tokens (ERC20/721/1155)
+CREATE TABLE tokens (
+    address TEXT PRIMARY KEY,
+    name TEXT,
+    symbol TEXT,
+    decimals INTEGER,
+    total_supply TEXT,
+    token_type TEXT NOT NULL,
+    holder_count INTEGER DEFAULT 0
+);
+
+-- Token Transfers
+CREATE TABLE token_transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    token_address TEXT NOT NULL,
+    from_addr TEXT NOT NULL,
+    to_addr TEXT NOT NULL,
+    value TEXT NOT NULL,
+    token_id TEXT,
+    block_height INTEGER NOT NULL
+);
+
+-- Token Balances
+CREATE TABLE token_balances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL,
+    token_address TEXT NOT NULL,
+    balance TEXT NOT NULL,
+    block_height INTEGER NOT NULL,
+    UNIQUE(address, token_address, block_height)
+);
+```
+
+### DeFi Tables
+
+```sql
+-- DeFi Pools
+CREATE TABLE defi_pools (
+    address TEXT PRIMARY KEY,
+    protocol TEXT NOT NULL,
+    token0 TEXT NOT NULL,
+    token1 TEXT NOT NULL,
+    fee INTEGER,
+    tvl TEXT,
+    volume_24h TEXT
+);
+
+-- DeFi Swaps
+CREATE TABLE defi_swaps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_hash TEXT NOT NULL,
+    pool_address TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    amount0_in TEXT,
+    amount1_in TEXT,
+    amount0_out TEXT,
+    amount1_out TEXT,
+    block_height INTEGER NOT NULL
+);
+```
+
+## Migrations
+
+The indexer automatically applies migrations on startup:
+
+```go
+store, err := storage.New(cfg)
+if err != nil {
+    return err
+}
+
+// Init applies all pending migrations
+err = store.Init(ctx)
+```
+
+## Backup and Recovery
+
+### SQLite Backup
+
+```bash
+# Online backup using SQLite backup API
+sqlite3 indexer.db ".backup 'indexer_backup.db'"
+
+# Or use the indexer CLI
+lux-indexer backup --output ./backup/
+```
+
+### PostgreSQL Backup
+
+```bash
+pg_dump -h localhost -U indexer indexer > backup.sql
+```
+
+## Performance Tuning
+
+### Connection Pool
+
+```yaml
+storage:
+  pool_size: 10
+  max_idle: 5
+  conn_lifetime: 3600
+```
+
+### Cache Settings
+
+```yaml
+storage:
+  cache_size: 1000      # Number of cached items
+  cache_ttl: 300        # TTL in seconds
+```
+
+### Partitioning
+
+For large datasets, enable table partitioning:
+
+```yaml
+storage:
+  partitioning:
+    enabled: true
+    interval: monthly    # daily, weekly, monthly
+```

@@ -1,13 +1,12 @@
 // Copyright (c) 2025 Lux Partners Limited
 // SPDX-License-Identifier: MIT
 
-// Package dag provides shared DAG indexing for LUX chains (X, A, B, Q, T).
+// Package dag provides shared DAG indexing for LUX chains (X, A, B, Q, T, Z).
 // Based on luxfi/consensus/engine/dag/vertex - multiple parents per vertex.
 package dag
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,6 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+
+	"github.com/luxfi/indexer/storage"
 )
 
 // ChainType identifies the DAG chain
@@ -37,9 +38,9 @@ type Config struct {
 	ChainName    string
 	RPCEndpoint  string
 	RPCMethod    string // xvm, avm, bvm, qvm, tvm
-	DatabaseURL  string
 	HTTPPort     int
 	PollInterval time.Duration
+	DataDir      string // For default storage, defaults to ~/.lux/indexer/<chain>
 }
 
 // Vertex represents a DAG vertex (from luxfi/consensus)
@@ -98,35 +99,33 @@ type Adapter interface {
 	ParseVertex(data json.RawMessage) (*Vertex, error)
 	GetRecentVertices(ctx context.Context, limit int) ([]json.RawMessage, error)
 	GetVertexByID(ctx context.Context, id string) (json.RawMessage, error)
-	InitSchema(db *sql.DB) error
-	GetStats(ctx context.Context, db *sql.DB) (map[string]interface{}, error)
+	InitSchema(ctx context.Context, store storage.Store) error
+	GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error)
 }
 
 // Indexer for DAG-based chains
 type Indexer struct {
 	config     Config
-	db         *sql.DB
+	store      storage.Store
 	httpClient *http.Client
 	subscriber *Subscriber
 	poller     *Poller
 	adapter    Adapter
+	tableName  string
 }
 
-// New creates a new DAG indexer
-func New(cfg Config, adapter Adapter) (*Indexer, error) {
-	db, err := sql.Open("postgres", cfg.DatabaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("db connect: %w", err)
-	}
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("db ping: %w", err)
+// New creates a new DAG indexer with the given storage
+func New(cfg Config, store storage.Store, adapter Adapter) (*Indexer, error) {
+	if store == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
 	}
 
 	idx := &Indexer{
 		config:     cfg,
-		db:         db,
+		store:      store,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		adapter:    adapter,
+		tableName:  string(cfg.ChainType),
 	}
 
 	idx.subscriber = NewSubscriber(cfg.ChainType)
@@ -136,97 +135,99 @@ func New(cfg Config, adapter Adapter) (*Indexer, error) {
 }
 
 // Init creates database schema
-func (idx *Indexer) Init() error {
-	schema := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s_vertices (
-			id TEXT PRIMARY KEY,
-			type TEXT NOT NULL,
-			parent_ids JSONB DEFAULT '[]',
-			height BIGINT,
-			epoch INT,
-			tx_ids JSONB DEFAULT '[]',
-			timestamp TIMESTAMPTZ NOT NULL,
-			status TEXT DEFAULT 'pending',
-			data JSONB,
-			metadata JSONB,
-			created_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		CREATE INDEX IF NOT EXISTS idx_%s_vertices_status ON %s_vertices(status);
-		CREATE INDEX IF NOT EXISTS idx_%s_vertices_timestamp ON %s_vertices(timestamp DESC);
-		CREATE INDEX IF NOT EXISTS idx_%s_vertices_height ON %s_vertices(height DESC);
+func (idx *Indexer) Init(ctx context.Context) error {
+	schema := storage.Schema{
+		Name: idx.tableName,
+		Tables: []storage.Table{
+			{
+				Name: idx.tableName + "_vertices",
+				Columns: []storage.Column{
+					{Name: "id", Type: storage.TypeText, Primary: true},
+					{Name: "type", Type: storage.TypeText, Nullable: false},
+					{Name: "parent_ids", Type: storage.TypeJSON, Default: "'[]'"},
+					{Name: "height", Type: storage.TypeBigInt},
+					{Name: "epoch", Type: storage.TypeInt},
+					{Name: "tx_ids", Type: storage.TypeJSON, Default: "'[]'"},
+					{Name: "timestamp", Type: storage.TypeTimestamp, Nullable: false},
+					{Name: "status", Type: storage.TypeText, Default: "'pending'"},
+					{Name: "data", Type: storage.TypeJSON},
+					{Name: "metadata", Type: storage.TypeJSON},
+					{Name: "created_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
+				},
+			},
+			{
+				Name: idx.tableName + "_edges",
+				Columns: []storage.Column{
+					{Name: "source", Type: storage.TypeText, Nullable: false},
+					{Name: "target", Type: storage.TypeText, Nullable: false},
+					{Name: "type", Type: storage.TypeText, Nullable: false},
+					{Name: "created_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
+				},
+			},
+		},
+		Indexes: []storage.Index{
+			{Name: "idx_" + idx.tableName + "_vertices_status", Table: idx.tableName + "_vertices", Columns: []string{"status"}},
+			{Name: "idx_" + idx.tableName + "_vertices_timestamp", Table: idx.tableName + "_vertices", Columns: []string{"timestamp"}},
+			{Name: "idx_" + idx.tableName + "_vertices_height", Table: idx.tableName + "_vertices", Columns: []string{"height"}},
+			{Name: "idx_" + idx.tableName + "_edges_source", Table: idx.tableName + "_edges", Columns: []string{"source"}},
+			{Name: "idx_" + idx.tableName + "_edges_target", Table: idx.tableName + "_edges", Columns: []string{"target"}},
+		},
+	}
 
-		CREATE TABLE IF NOT EXISTS %s_edges (
-			source TEXT NOT NULL,
-			target TEXT NOT NULL,
-			type TEXT NOT NULL,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			PRIMARY KEY (source, target, type)
-		);
-		CREATE INDEX IF NOT EXISTS idx_%s_edges_source ON %s_edges(source);
-		CREATE INDEX IF NOT EXISTS idx_%s_edges_target ON %s_edges(target);
-
-		CREATE TABLE IF NOT EXISTS %s_stats (
-			id INT PRIMARY KEY DEFAULT 1,
-			total_vertices BIGINT DEFAULT 0,
-			pending_vertices BIGINT DEFAULT 0,
-			accepted_vertices BIGINT DEFAULT 0,
-			total_edges BIGINT DEFAULT 0,
-			updated_at TIMESTAMPTZ DEFAULT NOW()
-		);
-		INSERT INTO %s_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
-	`,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType, idx.config.ChainType,
-		idx.config.ChainType, idx.config.ChainType,
-	)
-
-	if _, err := idx.db.Exec(schema); err != nil {
+	if err := idx.store.InitSchema(ctx, schema); err != nil {
 		return fmt.Errorf("schema: %w", err)
 	}
 
 	if idx.adapter != nil {
-		return idx.adapter.InitSchema(idx.db)
+		return idx.adapter.InitSchema(ctx, idx.store)
 	}
 	return nil
 }
 
 // StoreVertex stores a vertex and broadcasts to subscribers
 func (idx *Indexer) StoreVertex(ctx context.Context, v *Vertex) error {
-	parentJSON, _ := json.Marshal(v.ParentIDs)
-	txJSON, _ := json.Marshal(v.TxIDs)
 	metaJSON, _ := json.Marshal(v.Metadata)
 
-	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO %s_vertices (id, type, parent_ids, height, epoch, tx_ids, timestamp, status, data, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, metadata = EXCLUDED.metadata
-	`, idx.config.ChainType),
-		v.ID, v.Type, parentJSON, v.Height, v.Epoch, txJSON, v.Timestamp, v.Status, v.Data, metaJSON,
-	)
-
-	if err == nil {
-		// Store parent edges
-		for _, pid := range v.ParentIDs {
-			_ = idx.StoreEdge(ctx, Edge{Source: pid, Target: v.ID, Type: EdgeParent})
-		}
-		idx.subscriber.BroadcastVertex(v)
+	sv := &storage.Vertex{
+		ID:        v.ID,
+		Type:      v.Type,
+		ParentIDs: v.ParentIDs,
+		Height:    v.Height,
+		Epoch:     v.Epoch,
+		TxIDs:     v.TxIDs,
+		Timestamp: v.Timestamp,
+		Status:    string(v.Status),
+		Data:      v.Data,
+		Metadata:  metaJSON,
+		CreatedAt: time.Now(),
 	}
-	return err
+
+	if err := idx.store.StoreVertex(ctx, idx.tableName+"_vertices", sv); err != nil {
+		return err
+	}
+
+	// Store parent edges
+	for _, pid := range v.ParentIDs {
+		_ = idx.StoreEdge(ctx, Edge{Source: pid, Target: v.ID, Type: EdgeParent})
+	}
+	idx.subscriber.BroadcastVertex(v)
+	return nil
 }
 
 // StoreEdge stores an edge
 func (idx *Indexer) StoreEdge(ctx context.Context, e Edge) error {
-	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO %s_edges (source, target, type) VALUES ($1, $2, $3)
-		ON CONFLICT DO NOTHING
-	`, idx.config.ChainType), e.Source, e.Target, e.Type)
-
-	if err == nil {
-		idx.subscriber.BroadcastEdge(e)
+	se := &storage.Edge{
+		Source:    e.Source,
+		Target:    e.Target,
+		Type:      string(e.Type),
+		CreatedAt: time.Now(),
 	}
-	return err
+
+	if err := idx.store.StoreEdge(ctx, idx.tableName+"_edges", se); err != nil {
+		return err
+	}
+	idx.subscriber.BroadcastEdge(e)
+	return nil
 }
 
 // UpdateStats updates statistics
@@ -234,21 +235,30 @@ func (idx *Indexer) UpdateStats(ctx context.Context) error {
 	var s Stats
 	s.ChainType = idx.config.ChainType
 
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices", idx.config.ChainType)).Scan(&s.TotalVertices)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='pending'", idx.config.ChainType)).Scan(&s.PendingVertices)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_vertices WHERE status='accepted'", idx.config.ChainType)).Scan(&s.AcceptedVertices)
-	_ = idx.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_edges", idx.config.ChainType)).Scan(&s.TotalEdges)
+	total, _ := idx.store.Count(ctx, idx.tableName+"_vertices", "1=1")
+	pending, _ := idx.store.Count(ctx, idx.tableName+"_vertices", "status='pending'")
+	accepted, _ := idx.store.Count(ctx, idx.tableName+"_vertices", "status='accepted'")
+	edges, _ := idx.store.Count(ctx, idx.tableName+"_edges", "1=1")
 
-	_, err := idx.db.ExecContext(ctx, fmt.Sprintf(`
-		UPDATE %s_stats SET total_vertices=$1, pending_vertices=$2, accepted_vertices=$3, total_edges=$4, updated_at=NOW() WHERE id=1
-	`, idx.config.ChainType), s.TotalVertices, s.PendingVertices, s.AcceptedVertices, s.TotalEdges)
+	s.TotalVertices = total
+	s.PendingVertices = pending
+	s.AcceptedVertices = accepted
+	s.TotalEdges = edges
+	s.LastUpdated = time.Now()
 
-	return err
+	statsMap := map[string]interface{}{
+		"total_vertices":    s.TotalVertices,
+		"pending_vertices":  s.PendingVertices,
+		"accepted_vertices": s.AcceptedVertices,
+		"total_edges":       s.TotalEdges,
+		"last_updated":      s.LastUpdated,
+	}
+	return idx.store.UpdateStats(ctx, idx.tableName, statsMap)
 }
 
 // Run starts the indexer
 func (idx *Indexer) Run(ctx context.Context) error {
-	if err := idx.Init(); err != nil {
+	if err := idx.Init(ctx); err != nil {
 		return err
 	}
 
@@ -314,16 +324,15 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
-	var s Stats
-	s.ChainType = idx.config.ChainType
-	s.LastUpdated = time.Now()
+	stats, _ := idx.store.GetStats(r.Context(), idx.tableName)
+	if stats == nil {
+		stats = make(map[string]interface{})
+	}
+	stats["chain_type"] = idx.config.ChainType
 
-	_ = idx.db.QueryRow(fmt.Sprintf("SELECT total_vertices, pending_vertices, accepted_vertices, total_edges FROM %s_stats WHERE id=1", idx.config.ChainType)).
-		Scan(&s.TotalVertices, &s.PendingVertices, &s.AcceptedVertices, &s.TotalEdges)
-
-	resp := map[string]interface{}{"dag_stats": s}
+	resp := map[string]interface{}{"dag_stats": stats}
 	if idx.adapter != nil {
-		if cs, _ := idx.adapter.GetStats(r.Context(), idx.db); cs != nil {
+		if cs, _ := idx.adapter.GetStats(r.Context(), idx.store); cs != nil {
 			resp["chain_stats"] = cs
 		}
 	}
@@ -331,22 +340,25 @@ func (idx *Indexer) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (idx *Indexer) handleVertices(w http.ResponseWriter, r *http.Request) {
-	rows, err := idx.db.Query(fmt.Sprintf(`
-		SELECT id, type, parent_ids, height, timestamp, status, data FROM %s_vertices ORDER BY timestamp DESC LIMIT 50
-	`, idx.config.ChainType))
+	svs, err := idx.store.GetRecentVertices(r.Context(), idx.tableName+"_vertices", 50)
 	if err != nil {
 		http.Error(w, "database error", 500)
 		return
 	}
-	defer rows.Close()
 
 	var vertices []Vertex
-	for rows.Next() {
-		var v Vertex
-		var pids, data []byte
-		_ = rows.Scan(&v.ID, &v.Type, &pids, &v.Height, &v.Timestamp, &v.Status, &data)
-		_ = json.Unmarshal(pids, &v.ParentIDs)
-		v.Data = data
+	for _, sv := range svs {
+		v := Vertex{
+			ID:        sv.ID,
+			Type:      sv.Type,
+			ParentIDs: sv.ParentIDs,
+			Height:    sv.Height,
+			Epoch:     sv.Epoch,
+			TxIDs:     sv.TxIDs,
+			Timestamp: sv.Timestamp,
+			Status:    Status(sv.Status),
+			Data:      sv.Data,
+		}
 		vertices = append(vertices, v)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": vertices})
@@ -354,42 +366,65 @@ func (idx *Indexer) handleVertices(w http.ResponseWriter, r *http.Request) {
 
 func (idx *Indexer) handleVertex(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	var v Vertex
-	var pids, data []byte
-	err := idx.db.QueryRow(fmt.Sprintf(`
-		SELECT id, type, parent_ids, height, timestamp, status, data FROM %s_vertices WHERE id=$1
-	`, idx.config.ChainType), id).Scan(&v.ID, &v.Type, &pids, &v.Height, &v.Timestamp, &v.Status, &data)
+	sv, err := idx.store.GetVertex(r.Context(), idx.tableName+"_vertices", id)
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
-	_ = json.Unmarshal(pids, &v.ParentIDs)
-	v.Data = data
+
+	v := Vertex{
+		ID:        sv.ID,
+		Type:      sv.Type,
+		ParentIDs: sv.ParentIDs,
+		Height:    sv.Height,
+		Epoch:     sv.Epoch,
+		TxIDs:     sv.TxIDs,
+		Timestamp: sv.Timestamp,
+		Status:    Status(sv.Status),
+		Data:      sv.Data,
+	}
 	_ = json.NewEncoder(w).Encode(v)
 }
 
 func (idx *Indexer) handleEdges(w http.ResponseWriter, r *http.Request) {
 	vid := r.URL.Query().Get("vertex")
-	var rows *sql.Rows
-	var err error
-	if vid != "" {
-		rows, err = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges WHERE source=$1 OR target=$1", idx.config.ChainType), vid)
-	} else {
-		rows, err = idx.db.Query(fmt.Sprintf("SELECT source, target, type FROM %s_edges ORDER BY created_at DESC LIMIT 100", idx.config.ChainType))
-	}
-	if err != nil {
-		http.Error(w, "database error", 500)
-		return
-	}
-	defer rows.Close()
-
 	var edges []Edge
-	for rows.Next() {
-		var e Edge
-		_ = rows.Scan(&e.Source, &e.Target, &e.Type)
-		edges = append(edges, e)
+
+	if vid != "" {
+		ses, err := idx.store.GetEdges(r.Context(), idx.tableName+"_edges", vid)
+		if err != nil {
+			http.Error(w, "database error", 500)
+			return
+		}
+		for _, se := range ses {
+			edges = append(edges, Edge{
+				Source: se.Source,
+				Target: se.Target,
+				Type:   EdgeType(se.Type),
+			})
+		}
+	} else {
+		// List recent edges via query
+		rows, err := idx.store.Query(r.Context(),
+			fmt.Sprintf("SELECT source, target, type FROM %s_edges ORDER BY created_at DESC LIMIT 100", idx.tableName))
+		if err != nil {
+			http.Error(w, "database error", 500)
+			return
+		}
+		for _, row := range rows {
+			edges = append(edges, Edge{
+				Source: row["source"].(string),
+				Target: row["target"].(string),
+				Type:   EdgeType(row["type"].(string)),
+			})
+		}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"items": edges})
+}
+
+// Store returns the underlying storage for adapters
+func (idx *Indexer) Store() storage.Store {
+	return idx.store
 }
 
 // Subscriber handles WebSocket for live DAG streaming

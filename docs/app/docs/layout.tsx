@@ -1,6 +1,6 @@
 import { source } from "@/lib/source"
 import type { ReactNode } from "react"
-import { DocsLayout } from "fumadocs-ui/layouts/docs"
+import { DocsLayout } from "@hanzo/ui"
 
 export default async function Layout({ children }: { children: ReactNode }) {
   return (

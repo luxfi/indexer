@@ -9,7 +9,8 @@ export default function HomePage() {
             Lux Indexer
           </h1>
           <p className="max-w-2xl text-lg text-muted-foreground">
-            Go-based blockchain indexers for LUX Network native chains
+            Unified blockchain indexer for all Lux Network chains.
+            Complete Blockscout replacement with full API compatibility.
           </p>
         </div>
         <div className="flex gap-4">
@@ -18,6 +19,12 @@ export default function HomePage() {
             className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
           >
             Get Started
+          </Link>
+          <Link
+            href="/docs/api"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background px-8 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            API Reference
           </Link>
         </div>
       </div>
