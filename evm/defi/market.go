@@ -24,38 +24,38 @@ const (
 
 // OHLCV represents Open-High-Low-Close-Volume candle data
 type OHLCV struct {
-	Market     string         `json:"market"`
-	Interval   CandleInterval `json:"interval"`
-	OpenTime   time.Time      `json:"openTime"`
-	CloseTime  time.Time      `json:"closeTime"`
-	Open       *big.Int       `json:"open"`
-	High       *big.Int       `json:"high"`
-	Low        *big.Int       `json:"low"`
-	Close      *big.Int       `json:"close"`
-	Volume     *big.Int       `json:"volume"`      // Base asset volume
-	QuoteVolume *big.Int      `json:"quoteVolume"` // Quote asset volume
-	Trades     uint64         `json:"trades"`
-	BuyVolume  *big.Int       `json:"buyVolume"`
-	SellVolume *big.Int       `json:"sellVolume"`
-	VWAP       *big.Int       `json:"vwap"`        // Volume-weighted average price
-	Finalized  bool           `json:"finalized"`
+	Market      string         `json:"market"`
+	Interval    CandleInterval `json:"interval"`
+	OpenTime    time.Time      `json:"openTime"`
+	CloseTime   time.Time      `json:"closeTime"`
+	Open        *big.Int       `json:"open"`
+	High        *big.Int       `json:"high"`
+	Low         *big.Int       `json:"low"`
+	Close       *big.Int       `json:"close"`
+	Volume      *big.Int       `json:"volume"`      // Base asset volume
+	QuoteVolume *big.Int       `json:"quoteVolume"` // Quote asset volume
+	Trades      uint64         `json:"trades"`
+	BuyVolume   *big.Int       `json:"buyVolume"`
+	SellVolume  *big.Int       `json:"sellVolume"`
+	VWAP        *big.Int       `json:"vwap"` // Volume-weighted average price
+	Finalized   bool           `json:"finalized"`
 }
 
 // MarketTicker represents current market ticker data
 type MarketTicker struct {
-	Market        string    `json:"market"`
-	LastPrice     *big.Int  `json:"lastPrice"`
-	BidPrice      *big.Int  `json:"bidPrice"`
-	AskPrice      *big.Int  `json:"askPrice"`
-	High24h       *big.Int  `json:"high24h"`
-	Low24h        *big.Int  `json:"low24h"`
-	Volume24h     *big.Int  `json:"volume24h"`
-	QuoteVolume24h *big.Int `json:"quoteVolume24h"`
-	OpenPrice24h  *big.Int  `json:"openPrice24h"`
-	PriceChange   *big.Int  `json:"priceChange"`
-	PriceChangePercent float64 `json:"priceChangePercent"`
-	Trades24h     uint64    `json:"trades24h"`
-	LastUpdated   time.Time `json:"lastUpdated"`
+	Market             string    `json:"market"`
+	LastPrice          *big.Int  `json:"lastPrice"`
+	BidPrice           *big.Int  `json:"bidPrice"`
+	AskPrice           *big.Int  `json:"askPrice"`
+	High24h            *big.Int  `json:"high24h"`
+	Low24h             *big.Int  `json:"low24h"`
+	Volume24h          *big.Int  `json:"volume24h"`
+	QuoteVolume24h     *big.Int  `json:"quoteVolume24h"`
+	OpenPrice24h       *big.Int  `json:"openPrice24h"`
+	PriceChange        *big.Int  `json:"priceChange"`
+	PriceChangePercent float64   `json:"priceChangePercent"`
+	Trades24h          uint64    `json:"trades24h"`
+	LastUpdated        time.Time `json:"lastUpdated"`
 }
 
 // TradeHistory represents a historical trade record
@@ -75,29 +75,29 @@ type TradeHistory struct {
 
 // LiquiditySnapshot represents a point-in-time liquidity snapshot
 type LiquiditySnapshot struct {
-	Market       string    `json:"market"`
-	Timestamp    time.Time `json:"timestamp"`
-	TotalLiquidity *big.Int `json:"totalLiquidity"`
-	Token0Locked *big.Int  `json:"token0Locked"`
-	Token1Locked *big.Int  `json:"token1Locked"`
-	LPTokens     *big.Int  `json:"lpTokens"`
-	TVL          *big.Int  `json:"tvl"` // USD value
+	Market         string    `json:"market"`
+	Timestamp      time.Time `json:"timestamp"`
+	TotalLiquidity *big.Int  `json:"totalLiquidity"`
+	Token0Locked   *big.Int  `json:"token0Locked"`
+	Token1Locked   *big.Int  `json:"token1Locked"`
+	LPTokens       *big.Int  `json:"lpTokens"`
+	TVL            *big.Int  `json:"tvl"` // USD value
 }
 
 // VolumeStats represents volume statistics
 type VolumeStats struct {
-	Market       string              `json:"market"`
-	Period       string              `json:"period"` // "1h", "24h", "7d", "30d"
-	Volume       *big.Int            `json:"volume"`
-	QuoteVolume  *big.Int            `json:"quoteVolume"`
-	Trades       uint64              `json:"trades"`
-	BuyVolume    *big.Int            `json:"buyVolume"`
-	SellVolume   *big.Int            `json:"sellVolume"`
-	UniqueTraders uint64             `json:"uniqueTraders"`
-	AverageTradeSize *big.Int        `json:"averageTradeSize"`
-	VolumeByHour map[int]*big.Int    `json:"volumeByHour,omitempty"`
-	StartTime    time.Time           `json:"startTime"`
-	EndTime      time.Time           `json:"endTime"`
+	Market           string           `json:"market"`
+	Period           string           `json:"period"` // "1h", "24h", "7d", "30d"
+	Volume           *big.Int         `json:"volume"`
+	QuoteVolume      *big.Int         `json:"quoteVolume"`
+	Trades           uint64           `json:"trades"`
+	BuyVolume        *big.Int         `json:"buyVolume"`
+	SellVolume       *big.Int         `json:"sellVolume"`
+	UniqueTraders    uint64           `json:"uniqueTraders"`
+	AverageTradeSize *big.Int         `json:"averageTradeSize"`
+	VolumeByHour     map[int]*big.Int `json:"volumeByHour,omitempty"`
+	StartTime        time.Time        `json:"startTime"`
+	EndTime          time.Time        `json:"endTime"`
 }
 
 // PricePoint represents a simple price-time point
@@ -108,14 +108,14 @@ type PricePoint struct {
 
 // MarketDepth represents order book depth
 type MarketDepth struct {
-	Market    string            `json:"market"`
-	Bids      [][2]*big.Int     `json:"bids"`  // [price, size]
-	Asks      [][2]*big.Int     `json:"asks"`  // [price, size]
-	BidDepth  *big.Int          `json:"bidDepth"`
-	AskDepth  *big.Int          `json:"askDepth"`
-	Spread    *big.Int          `json:"spread"`
+	Market        string        `json:"market"`
+	Bids          [][2]*big.Int `json:"bids"` // [price, size]
+	Asks          [][2]*big.Int `json:"asks"` // [price, size]
+	BidDepth      *big.Int      `json:"bidDepth"`
+	AskDepth      *big.Int      `json:"askDepth"`
+	Spread        *big.Int      `json:"spread"`
 	SpreadPercent float64       `json:"spreadPercent"`
-	Timestamp time.Time         `json:"timestamp"`
+	Timestamp     time.Time     `json:"timestamp"`
 }
 
 // MarketHistoryIndexer manages market history data
@@ -251,10 +251,10 @@ func (m *MarketHistoryIndexer) updateTicker(market string, trade *TradeHistory) 
 	ticker, ok := m.tickers[market]
 	if !ok {
 		ticker = &MarketTicker{
-			Market:    market,
-			High24h:   big.NewInt(0),
-			Low24h:    big.NewInt(0),
-			Volume24h: big.NewInt(0),
+			Market:         market,
+			High24h:        big.NewInt(0),
+			Low24h:         big.NewInt(0),
+			Volume24h:      big.NewInt(0),
 			QuoteVolume24h: big.NewInt(0),
 		}
 		m.tickers[market] = ticker
@@ -324,15 +324,15 @@ func (m *MarketHistoryIndexer) updateVolumeStats(market string, trade *TradeHist
 		stats, ok := m.volumeStats[market][period]
 		if !ok {
 			stats = &VolumeStats{
-				Market:      market,
-				Period:      period,
-				Volume:      big.NewInt(0),
-				QuoteVolume: big.NewInt(0),
-				BuyVolume:   big.NewInt(0),
-				SellVolume:  big.NewInt(0),
+				Market:           market,
+				Period:           period,
+				Volume:           big.NewInt(0),
+				QuoteVolume:      big.NewInt(0),
+				BuyVolume:        big.NewInt(0),
+				SellVolume:       big.NewInt(0),
 				AverageTradeSize: big.NewInt(0),
-				StartTime:   trade.Timestamp.Add(-durations[i]),
-				EndTime:     trade.Timestamp,
+				StartTime:        trade.Timestamp.Add(-durations[i]),
+				EndTime:          trade.Timestamp,
 			}
 			m.volumeStats[market][period] = stats
 		}
@@ -667,14 +667,14 @@ func (m *MarketHistoryIndexer) GetTopLosers(limit int) []*MarketTicker {
 
 // MarketSummary provides a comprehensive market overview
 type MarketSummary struct {
-	Market    string              `json:"market"`
-	Ticker    *MarketTicker       `json:"ticker"`
-	Volume24h *VolumeStats        `json:"volume24h"`
-	Depth     *MarketDepth        `json:"depth"`
-	Candle1h  *OHLCV              `json:"candle1h"`
-	Candle1d  *OHLCV              `json:"candle1d"`
-	Liquidity *LiquiditySnapshot  `json:"liquidity"`
-	Timestamp time.Time           `json:"timestamp"`
+	Market    string             `json:"market"`
+	Ticker    *MarketTicker      `json:"ticker"`
+	Volume24h *VolumeStats       `json:"volume24h"`
+	Depth     *MarketDepth       `json:"depth"`
+	Candle1h  *OHLCV             `json:"candle1h"`
+	Candle1d  *OHLCV             `json:"candle1d"`
+	Liquidity *LiquiditySnapshot `json:"liquidity"`
+	Timestamp time.Time          `json:"timestamp"`
 }
 
 // Helper functions

@@ -70,14 +70,14 @@ func TestAdapterImplementsInterface(t *testing.T) {
 // TestParseVertex tests vertex parsing
 func TestParseVertex(t *testing.T) {
 	tests := []struct {
-		name       string
-		data       string
-		wantID     string
-		wantType   string
-		wantErr    bool
-		checkMeta  bool
-		metaKey    string
-		metaValue  interface{}
+		name      string
+		data      string
+		wantID    string
+		wantType  string
+		wantErr   bool
+		checkMeta bool
+		metaKey   string
+		metaValue interface{}
 	}{
 		{
 			name: "basic vertex",

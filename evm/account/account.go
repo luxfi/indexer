@@ -20,38 +20,38 @@ import (
 
 // Common errors
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrInvalidAPIKey     = errors.New("invalid API key")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrInvalidAPIKey      = errors.New("invalid API key")
 	ErrAPIKeyLimitReached = errors.New("maximum API keys limit reached")
-	ErrWatchlistNotFound = errors.New("watchlist not found")
-	ErrAddressExists     = errors.New("address already in watchlist")
-	ErrRateLimited       = errors.New("rate limit exceeded")
+	ErrWatchlistNotFound  = errors.New("watchlist not found")
+	ErrAddressExists      = errors.New("address already in watchlist")
+	ErrRateLimited        = errors.New("rate limit exceeded")
 )
 
 // User represents an authenticated user account
 type User struct {
-	ID                 int64     `json:"id"`
-	UID                string    `json:"uid"`                   // OAuth provider UID
-	Email              string    `json:"email"`
-	Name               string    `json:"name,omitempty"`
-	Nickname           string    `json:"nickname,omitempty"`
-	Avatar             string    `json:"avatar,omitempty"`
-	AddressHash        string    `json:"address_hash,omitempty"` // Associated wallet address
-	EmailVerified      bool      `json:"email_verified"`
-	PlanID             *int64    `json:"plan_id,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	ID            int64     `json:"id"`
+	UID           string    `json:"uid"` // OAuth provider UID
+	Email         string    `json:"email"`
+	Name          string    `json:"name,omitempty"`
+	Nickname      string    `json:"nickname,omitempty"`
+	Avatar        string    `json:"avatar,omitempty"`
+	AddressHash   string    `json:"address_hash,omitempty"` // Associated wallet address
+	EmailVerified bool      `json:"email_verified"`
+	PlanID        *int64    `json:"plan_id,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // APIKey represents a user's API key for rate-limited access
 type APIKey struct {
-	Value      string    `json:"value"`      // UUID value
-	Name       string    `json:"name"`
-	UserID     int64     `json:"user_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	RequestCount int64   `json:"request_count"`
+	Value        string     `json:"value"` // UUID value
+	Name         string     `json:"name"`
+	UserID       int64      `json:"user_id"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
+	RequestCount int64      `json:"request_count"`
 }
 
 // Watchlist represents a collection of watched addresses
@@ -65,14 +65,14 @@ type Watchlist struct {
 
 // WatchlistAddress represents an address in a watchlist
 type WatchlistAddress struct {
-	ID            int64     `json:"id"`
-	WatchlistID   int64     `json:"watchlist_id"`
-	AddressHash   string    `json:"address_hash"`
-	Name          string    `json:"name,omitempty"`
-	NotifyIncoming bool     `json:"notify_incoming"`
-	NotifyOutgoing bool     `json:"notify_outgoing"`
-	NotifyERC20    bool     `json:"notify_erc20"`
-	NotifyNFT      bool     `json:"notify_nft"`
+	ID             int64     `json:"id"`
+	WatchlistID    int64     `json:"watchlist_id"`
+	AddressHash    string    `json:"address_hash"`
+	Name           string    `json:"name,omitempty"`
+	NotifyIncoming bool      `json:"notify_incoming"`
+	NotifyOutgoing bool      `json:"notify_outgoing"`
+	NotifyERC20    bool      `json:"notify_erc20"`
+	NotifyNFT      bool      `json:"notify_nft"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -89,13 +89,13 @@ type TagAddress struct {
 
 // CustomABI represents a user-defined ABI for a contract
 type CustomABI struct {
-	ID            int64     `json:"id"`
-	UserID        int64     `json:"user_id"`
-	ContractHash  string    `json:"contract_hash"`
-	Name          string    `json:"name"`
-	ABI           string    `json:"abi"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	UserID       int64     `json:"user_id"`
+	ContractHash string    `json:"contract_hash"`
+	Name         string    `json:"name"`
+	ABI          string    `json:"abi"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Plan represents an API access plan with rate limits

@@ -30,9 +30,9 @@ var (
 	CompoundComptroller = "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b"
 
 	// Event signatures
-	TopicSwap     = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822" // Swap(address,uint256,uint256,uint256,uint256,address)
-	TopicSwapV3   = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67" // Swap(address,address,int256,int256,uint160,uint128,int24)
-	TopicSync     = "0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1" // Sync(uint112,uint112)
+	TopicSwap        = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822" // Swap(address,uint256,uint256,uint256,uint256,address)
+	TopicSwapV3      = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67" // Swap(address,address,int256,int256,uint160,uint128,int24)
+	TopicSync        = "0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1" // Sync(uint112,uint112)
 	TopicLiquidation = "0xe413a321e8681d831f4dbccbca790d2952b56f977908e45be37335533e005286" // LiquidationCall
 )
 

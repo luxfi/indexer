@@ -263,7 +263,7 @@ func TestShieldUnshieldTransfers(t *testing.T) {
 		txType       ZKTransactionType
 		valueBalance int64
 	}{
-		{"shield (deposit)", TxShield, 1000000},    // Positive: transparent -> shielded
+		{"shield (deposit)", TxShield, 1000000},      // Positive: transparent -> shielded
 		{"unshield (withdraw)", TxUnshield, -500000}, // Negative: shielded -> transparent
 		{"shielded transfer", TxShieldedTransfer, 0}, // Zero: fully shielded
 	}
@@ -379,8 +379,8 @@ func TestParseVertexStatusMapping(t *testing.T) {
 	adapter := New("")
 
 	tests := []struct {
-		inputStatus  string
-		wantStatus   dag.Status
+		inputStatus string
+		wantStatus  dag.Status
 	}{
 		{"accepted", dag.StatusAccepted},
 		{"Accepted", dag.StatusAccepted},
@@ -590,8 +590,8 @@ func TestGetMerkleRoot(t *testing.T) {
 // TestVerifyProof tests proof verification
 func TestVerifyProof(t *testing.T) {
 	tests := []struct {
-		name      string
-		valid     bool
+		name  string
+		valid bool
 	}{
 		{"valid proof", true},
 		{"invalid proof", false},

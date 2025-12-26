@@ -26,15 +26,15 @@ func TestE2E(t *testing.T) {
 
 // NodeConfig holds luxd configuration for E2E tests
 type NodeConfig struct {
-	NetworkID         string
-	HTTPPort          int
-	StakingPort       int
-	DataDir           string
-	Mnemonic          string
-	LogLevel          string
-	PluginDir         string
-	BootstrapTimeout  time.Duration
-	NodeReadyTimeout  time.Duration
+	NetworkID        string
+	HTTPPort         int
+	StakingPort      int
+	DataDir          string
+	Mnemonic         string
+	LogLevel         string
+	PluginDir        string
+	BootstrapTimeout time.Duration
+	NodeReadyTimeout time.Duration
 }
 
 // DefaultNodeConfig returns configuration for dev mode testing
@@ -101,7 +101,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	args := []string{
-		"--dev",               // Single-node K=1 consensus (implies --network-id=1337)
+		"--dev", // Single-node K=1 consensus (implies --network-id=1337)
 		fmt.Sprintf("--http-port=%d", nodeConfig.HTTPPort),
 		fmt.Sprintf("--staking-port=%d", nodeConfig.StakingPort),
 		fmt.Sprintf("--db-dir=%s", filepath.Join(nodeConfig.DataDir, "db")),

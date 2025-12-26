@@ -17,7 +17,7 @@ import (
 
 // GasPrice represents gas price for a fee tier
 type GasPrice struct {
-	Price       float64 `json:"price"`       // Gas price in Gwei
+	Price       float64 `json:"price"`        // Gas price in Gwei
 	PriorityFee float64 `json:"priority_fee"` // Priority fee in Gwei
 	BaseFee     float64 `json:"base_fee"`     // Base fee in Gwei
 	Time        float64 `json:"time"`         // Estimated confirmation time in ms
@@ -31,7 +31,7 @@ type GasPrices struct {
 	Average      *GasPrice `json:"average"`
 	Fast         *GasPrice `json:"fast"`
 	UpdatedAt    time.Time `json:"updated_at"`
-	BaseFee      string    `json:"base_fee"`      // Current base fee
+	BaseFee      string    `json:"base_fee"`       // Current base fee
 	GasUsedRatio float64   `json:"gas_used_ratio"` // Recent block gas usage
 }
 
@@ -44,16 +44,16 @@ type Counter struct {
 
 // Counters holds all aggregate statistics
 type Counters struct {
-	TotalBlocks         int64   `json:"total_blocks"`
-	TotalTransactions   int64   `json:"total_transactions"`
-	TotalAddresses      int64   `json:"total_addresses"`
-	TotalContracts      int64   `json:"total_contracts"`
-	TotalTokens         int64   `json:"total_tokens"`
-	TotalTokenTransfers int64   `json:"total_token_transfers"`
-	VerifiedContracts   int64   `json:"verified_contracts"`
-	AverageBlockTime    float64 `json:"average_block_time_seconds"`
-	TPS24h              float64 `json:"tps_24h"`
-	GasUsed24h          int64   `json:"gas_used_24h"`
+	TotalBlocks         int64     `json:"total_blocks"`
+	TotalTransactions   int64     `json:"total_transactions"`
+	TotalAddresses      int64     `json:"total_addresses"`
+	TotalContracts      int64     `json:"total_contracts"`
+	TotalTokens         int64     `json:"total_tokens"`
+	TotalTokenTransfers int64     `json:"total_token_transfers"`
+	VerifiedContracts   int64     `json:"verified_contracts"`
+	AverageBlockTime    float64   `json:"average_block_time_seconds"`
+	TPS24h              float64   `json:"tps_24h"`
+	GasUsed24h          int64     `json:"gas_used_24h"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
@@ -68,40 +68,40 @@ type BlockTimeStats struct {
 
 // TokenStats contains token-specific statistics
 type TokenStats struct {
-	Address      string    `json:"address"`
-	HolderCount  int64     `json:"holder_count"`
-	TransferCount int64    `json:"transfer_count"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Address       string    `json:"address"`
+	HolderCount   int64     `json:"holder_count"`
+	TransferCount int64     `json:"transfer_count"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // AddressStats contains address-specific statistics
 type AddressStats struct {
-	Address       string `json:"address"`
-	TransactionCount int64 `json:"transaction_count"`
-	TokenTransferCount int64 `json:"token_transfer_count"`
-	InternalTxCount int64 `json:"internal_tx_count"`
-	GasUsed       int64 `json:"gas_used"`
-	Balance       string `json:"balance"`
+	Address            string `json:"address"`
+	TransactionCount   int64  `json:"transaction_count"`
+	TokenTransferCount int64  `json:"token_transfer_count"`
+	InternalTxCount    int64  `json:"internal_tx_count"`
+	GasUsed            int64  `json:"gas_used"`
+	Balance            string `json:"balance"`
 }
 
 // Service provides statistics and caching functionality
 type Service struct {
-	db            *sql.DB
-	cache         *Cache
-	updateMutex   sync.Mutex
-	config        Config
+	db          *sql.DB
+	cache       *Cache
+	updateMutex sync.Mutex
+	config      Config
 }
 
 // Config holds statistics service configuration
 type Config struct {
-	CacheTTL             time.Duration
-	GasPriceBlocks       int     // Number of blocks to analyze for gas prices
-	SlowPercentile       float64 // Percentile for slow gas price
-	AveragePercentile    float64 // Percentile for average gas price
-	FastPercentile       float64 // Percentile for fast gas price
-	SimpleTransactionGas int64   // Gas for simple ETH transfer
+	CacheTTL              time.Duration
+	GasPriceBlocks        int     // Number of blocks to analyze for gas prices
+	SlowPercentile        float64 // Percentile for slow gas price
+	AveragePercentile     float64 // Percentile for average gas price
+	FastPercentile        float64 // Percentile for fast gas price
+	SimpleTransactionGas  int64   // Gas for simple ETH transfer
 	CounterUpdateInterval time.Duration
-	BlockTimeBlocks      int     // Number of blocks for block time calculation
+	BlockTimeBlocks       int // Number of blocks for block time calculation
 }
 
 // DefaultConfig returns sensible defaults
@@ -120,13 +120,13 @@ func DefaultConfig() Config {
 
 // Cache provides in-memory caching for statistics
 type Cache struct {
-	mu           sync.RWMutex
-	gasPrices    *GasPrices
-	counters     *Counters
-	blockTime    *BlockTimeStats
-	tokenStats   map[string]*TokenStats
-	lastUpdated  time.Time
-	ttl          time.Duration
+	mu          sync.RWMutex
+	gasPrices   *GasPrices
+	counters    *Counters
+	blockTime   *BlockTimeStats
+	tokenStats  map[string]*TokenStats
+	lastUpdated time.Time
+	ttl         time.Duration
 }
 
 // NewCache creates a new cache with specified TTL

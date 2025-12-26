@@ -22,10 +22,10 @@ import (
 
 // Verifier handles smart contract verification.
 type Verifier struct {
-	rpcClient    *http.Client
-	rpcEndpoint  string
-	solcDir      string
-	solcListURL  string
+	rpcClient   *http.Client
+	rpcEndpoint string
+	solcDir     string
+	solcListURL string
 }
 
 // VerifierConfig for Verifier initialization.
@@ -284,23 +284,23 @@ func (v *Verifier) matchContract(output *CompilerOutput, req VerificationRequest
 			}
 
 			return &SmartContract{
-				Address:           strings.ToLower(req.Address),
-				Name:              contractName,
-				CompilerVersion:   req.CompilerVersion,
-				EVMVersion:        req.EVMVersion,
-				Optimization:      req.Optimization,
-				OptimizationRuns:  req.OptimizationRuns,
-				SourceCode:        req.SourceCode,
-				ABI:               contractOutput.ABI,
-				Bytecode:          compiledCreation,
-				DeployedBytecode:  compiledDeployed,
-				ConstructorArgs:   constructorArgs,
-				Libraries:         req.Libraries,
+				Address:            strings.ToLower(req.Address),
+				Name:               contractName,
+				CompilerVersion:    req.CompilerVersion,
+				EVMVersion:         req.EVMVersion,
+				Optimization:       req.Optimization,
+				OptimizationRuns:   req.OptimizationRuns,
+				SourceCode:         req.SourceCode,
+				ABI:                contractOutput.ABI,
+				Bytecode:           compiledCreation,
+				DeployedBytecode:   compiledDeployed,
+				ConstructorArgs:    constructorArgs,
+				Libraries:          req.Libraries,
 				VerificationStatus: StatusVerified,
-				FilePath:          fileName,
-				VerifiedAt:        time.Now(),
-				CreatedAt:         time.Now(),
-				UpdatedAt:         time.Now(),
+				FilePath:           fileName,
+				VerifiedAt:         time.Now(),
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
 			}, nil
 		}
 	}
@@ -347,24 +347,24 @@ func (v *Verifier) matchContractStandardJSON(output *CompilerOutput, address, na
 			settingsJSON, _ := json.Marshal(input.Settings)
 
 			return &SmartContract{
-				Address:           strings.ToLower(address),
-				Name:              contractName,
-				CompilerVersion:   "", // Set by caller
-				EVMVersion:        input.Settings.EVMVersion,
-				Optimization:      input.Settings.Optimizer.Enabled,
-				OptimizationRuns:  input.Settings.Optimizer.Runs,
-				SourceCode:        mainSource,
-				ABI:               contractOutput.ABI,
-				Bytecode:          compiledCreation,
-				DeployedBytecode:  compiledDeployed,
-				ConstructorArgs:   constructorArgs,
+				Address:            strings.ToLower(address),
+				Name:               contractName,
+				CompilerVersion:    "", // Set by caller
+				EVMVersion:         input.Settings.EVMVersion,
+				Optimization:       input.Settings.Optimizer.Enabled,
+				OptimizationRuns:   input.Settings.Optimizer.Runs,
+				SourceCode:         mainSource,
+				ABI:                contractOutput.ABI,
+				Bytecode:           compiledCreation,
+				DeployedBytecode:   compiledDeployed,
+				ConstructorArgs:    constructorArgs,
 				VerificationStatus: StatusVerified,
-				FilePath:          fileName,
-				SecondarySources:  secondarySources,
-				CompilerSettings:  settingsJSON,
-				VerifiedAt:        time.Now(),
-				CreatedAt:         time.Now(),
-				UpdatedAt:         time.Now(),
+				FilePath:           fileName,
+				SecondarySources:   secondarySources,
+				CompilerSettings:   settingsJSON,
+				VerifiedAt:         time.Now(),
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
 			}, nil
 		}
 	}
@@ -477,8 +477,8 @@ func (v *Verifier) ensureSolc(ctx context.Context, version string) (string, erro
 
 	var solcList struct {
 		Builds []struct {
-			Path       string `json:"path"`
-			Version    string `json:"version"`
+			Path        string `json:"path"`
+			Version     string `json:"version"`
 			LongVersion string `json:"longVersion"`
 		} `json:"builds"`
 	}

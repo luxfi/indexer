@@ -619,7 +619,6 @@ func (u *Unified) Query(ctx context.Context, q string, args ...interface{}) ([]m
 	return u.QuerySQL(ctx, q, args...)
 }
 
-
 func (u *Unified) Exec(ctx context.Context, q string, args ...interface{}) error {
 	return u.ExecSQL(ctx, q, args...)
 }
