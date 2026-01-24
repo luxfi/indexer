@@ -33,6 +33,7 @@ type DeFiIndexer struct {
 	bridge        *BridgeIndexer
 	orderbook     *OrderBookIndexer
 	marketHistory *MarketHistoryIndexer
+	nftMarketplace *NFTMarketplaceIndexer
 
 	// Event routing
 	eventHandlers map[string]func(*LogEntry) error
@@ -54,16 +55,17 @@ type DeFiStats struct {
 // NewDeFiIndexer creates a new unified DeFi indexer
 func NewDeFiIndexer(chainID ChainID) *DeFiIndexer {
 	idx := &DeFiIndexer{
-		chainID:       chainID,
-		amm:           NewAMMIndexer(),
-		lssvm:         NewLSSVMIndexer(),
-		perps:         NewPerpsIndexer(),
-		synths:        NewSynthsIndexer(),
-		staking:       NewStakingIndexer(),
-		bridge:        NewBridgeIndexer(chainID),
-		orderbook:     NewOrderBookIndexer(),
-		marketHistory: NewMarketHistoryIndexer(),
-		eventHandlers: make(map[string]func(*LogEntry) error),
+		chainID:        chainID,
+		amm:            NewAMMIndexer(),
+		lssvm:          NewLSSVMIndexer(),
+		perps:          NewPerpsIndexer(),
+		synths:         NewSynthsIndexer(),
+		staking:        NewStakingIndexer(),
+		bridge:         NewBridgeIndexer(chainID),
+		orderbook:      NewOrderBookIndexer(),
+		marketHistory:  NewMarketHistoryIndexer(),
+		nftMarketplace: NewNFTMarketplaceIndexer(),
+		eventHandlers:  make(map[string]func(*LogEntry) error),
 		stats: &DeFiStats{
 			EventsByType: make(map[string]uint64),
 			StartTime:    time.Now(),
@@ -182,6 +184,26 @@ func (d *DeFiIndexer) registerEventHandlers() {
 	d.eventHandlers[LendingRepaySig] = d.orderbook.IndexLog
 	d.eventHandlers[FundingRateSig] = d.orderbook.IndexLog
 	d.eventHandlers[FundingPaymentSig] = d.orderbook.IndexLog
+
+	// NFT Marketplace events (OpenSea Seaport, LooksRare, Blur, Rarible, X2Y2, Zora)
+	d.eventHandlers[SeaportOrderFulfilledSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[SeaportOrderCancelledSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[SeaportCounterIncrementSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[LooksRareTakerBidSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[LooksRareTakerAskSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[LooksRareCancelAllSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[LooksRareV2TakerBidSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[LooksRareV2TakerAskSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[BlurOrdersMatchedSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[BlurOrderCancelledSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[BlurNonceIncrementedSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[RaribleMatchSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[RaribleCancelSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[X2Y2InventorySig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[X2Y2CancelSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[ZoraAskFilledSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[ZoraAskCreatedSig] = d.nftMarketplace.IndexLog
+	d.eventHandlers[ZoraAskCancelledSig] = d.nftMarketplace.IndexLog
 }
 
 // IndexLog processes a single log entry
@@ -435,6 +457,11 @@ func (d *DeFiIndexer) MarketHistory() *MarketHistoryIndexer {
 	return d.marketHistory
 }
 
+// NFTMarketplace returns the NFT marketplace indexer
+func (d *DeFiIndexer) NFTMarketplace() *NFTMarketplaceIndexer {
+	return d.nftMarketplace
+}
+
 // Stats returns indexer statistics
 func (d *DeFiIndexer) Stats() *DeFiStats {
 	d.mu.RLock()
@@ -469,31 +496,35 @@ func (d *DeFiIndexer) startCleanup(ctx context.Context) {
 // GetOverview returns a comprehensive DeFi overview
 func (d *DeFiIndexer) GetOverview() *DeFiOverview {
 	return &DeFiOverview{
-		ChainID:      d.chainID,
-		Stats:        d.Stats(),
-		AMMStats:     d.amm.GetStats(),
-		LSSVMStats:   d.lssvm.GetStats(),
-		PerpsStats:   d.perps.GetStats(),
-		SynthsStats:  d.synths.GetStats(),
-		StakingStats: d.staking.GetStats(),
-		BridgeStats:  d.bridge.GetStats(),
-		MarketStats:  d.marketHistory.Stats(),
-		TopMarkets:   d.marketHistory.GetTopMarkets(10),
-		Timestamp:    time.Now(),
+		ChainID:           d.chainID,
+		Stats:             d.Stats(),
+		AMMStats:          d.amm.GetStats(),
+		LSSVMStats:        d.lssvm.GetStats(),
+		PerpsStats:        d.perps.GetStats(),
+		SynthsStats:       d.synths.GetStats(),
+		StakingStats:      d.staking.GetStats(),
+		BridgeStats:       d.bridge.GetStats(),
+		MarketStats:       d.marketHistory.Stats(),
+		TopMarkets:        d.marketHistory.GetTopMarkets(10),
+		NFTMarketStats:    d.nftMarketplace.GetStats(),
+		TopNFTCollections: d.nftMarketplace.GetTopCollections(10),
+		Timestamp:         time.Now(),
 	}
 }
 
 // DeFiOverview provides a comprehensive DeFi summary
 type DeFiOverview struct {
-	ChainID      ChainID                `json:"chainId"`
-	Stats        *DeFiStats             `json:"stats"`
-	AMMStats     *AMMStats              `json:"ammStats"`
-	LSSVMStats   *LSSVMStats            `json:"lssvmStats"`
-	PerpsStats   *PerpsStats            `json:"perpsStats"`
-	SynthsStats  *SynthsStats           `json:"synthsStats"`
-	StakingStats *StakingStats          `json:"stakingStats"`
-	BridgeStats  *BridgeStats           `json:"bridgeStats"`
-	MarketStats  map[string]interface{} `json:"marketStats"`
-	TopMarkets   []*MarketTicker        `json:"topMarkets"`
-	Timestamp    time.Time              `json:"timestamp"`
+	ChainID           ChainID                `json:"chainId"`
+	Stats             *DeFiStats             `json:"stats"`
+	AMMStats          *AMMStats              `json:"ammStats"`
+	LSSVMStats        *LSSVMStats            `json:"lssvmStats"`
+	PerpsStats        *PerpsStats            `json:"perpsStats"`
+	SynthsStats       *SynthsStats           `json:"synthsStats"`
+	StakingStats      *StakingStats          `json:"stakingStats"`
+	BridgeStats       *BridgeStats           `json:"bridgeStats"`
+	MarketStats       map[string]interface{} `json:"marketStats"`
+	TopMarkets        []*MarketTicker        `json:"topMarkets"`
+	NFTMarketStats    *NFTMarketplaceStats   `json:"nftMarketStats"`
+	TopNFTCollections []*NFTCollection       `json:"topNftCollections"`
+	Timestamp         time.Time              `json:"timestamp"`
 }
