@@ -1118,3 +1118,136 @@ func hexCharToByte(c byte) byte {
 	}
 	return 0
 }
+
+// =============================================================================
+// ABI Decoding Helpers
+// =============================================================================
+
+// abiDecodeAddress extracts an address from ABI-encoded data at the given offset
+// Addresses are right-padded to 32 bytes in ABI encoding
+func abiDecodeAddress(data []byte, offset int) (string, error) {
+	if offset+32 > len(data) {
+		return "", fmt.Errorf("offset %d out of bounds for data length %d", offset, len(data))
+	}
+	// Address is in the last 20 bytes of the 32-byte slot
+	return fmt.Sprintf("0x%x", data[offset+12:offset+32]), nil
+}
+
+// abiDecodeUint256 extracts a uint256 from ABI-encoded data at the given offset
+func abiDecodeUint256(data []byte, offset int) (*big.Int, error) {
+	if offset+32 > len(data) {
+		return nil, fmt.Errorf("offset %d out of bounds for data length %d", offset, len(data))
+	}
+	return new(big.Int).SetBytes(data[offset : offset+32]), nil
+}
+
+// abiDecodeBytes32 extracts a bytes32 from ABI-encoded data at the given offset
+func abiDecodeBytes32(data []byte, offset int) ([32]byte, error) {
+	var result [32]byte
+	if offset+32 > len(data) {
+		return result, fmt.Errorf("offset %d out of bounds for data length %d", offset, len(data))
+	}
+	copy(result[:], data[offset:offset+32])
+	return result, nil
+}
+
+// abiDecodeDynamicOffset reads the offset pointer for a dynamic type
+func abiDecodeDynamicOffset(data []byte, offset int) (int, error) {
+	if offset+32 > len(data) {
+		return 0, fmt.Errorf("offset %d out of bounds for data length %d", offset, len(data))
+	}
+	// Dynamic offset is stored as uint256
+	offsetVal := new(big.Int).SetBytes(data[offset : offset+32])
+	return int(offsetVal.Int64()), nil
+}
+
+// abiDecodeUint256Array decodes a dynamic array of uint256 values
+func abiDecodeUint256Array(data []byte, arrayOffset int) ([]*big.Int, error) {
+	if arrayOffset+32 > len(data) {
+		return nil, fmt.Errorf("array offset %d out of bounds", arrayOffset)
+	}
+	// First 32 bytes at array offset is the length
+	length := new(big.Int).SetBytes(data[arrayOffset : arrayOffset+32]).Int64()
+	if length < 0 || length > 10000 { // Sanity check
+		return nil, fmt.Errorf("invalid array length: %d", length)
+	}
+
+	result := make([]*big.Int, length)
+	elemOffset := arrayOffset + 32
+	for i := int64(0); i < length; i++ {
+		if elemOffset+32 > len(data) {
+			return nil, fmt.Errorf("array element %d out of bounds", i)
+		}
+		result[i] = new(big.Int).SetBytes(data[elemOffset : elemOffset+32])
+		elemOffset += 32
+	}
+	return result, nil
+}
+
+// abiDecodeAddressArray decodes a dynamic array of addresses
+func abiDecodeAddressArray(data []byte, arrayOffset int) ([]string, error) {
+	if arrayOffset+32 > len(data) {
+		return nil, fmt.Errorf("array offset %d out of bounds", arrayOffset)
+	}
+	length := new(big.Int).SetBytes(data[arrayOffset : arrayOffset+32]).Int64()
+	if length < 0 || length > 10000 {
+		return nil, fmt.Errorf("invalid array length: %d", length)
+	}
+
+	result := make([]string, length)
+	elemOffset := arrayOffset + 32
+	for i := int64(0); i < length; i++ {
+		if elemOffset+32 > len(data) {
+			return nil, fmt.Errorf("array element %d out of bounds", i)
+		}
+		result[i] = fmt.Sprintf("0x%x", data[elemOffset+12:elemOffset+32])
+		elemOffset += 32
+	}
+	return result, nil
+}
+
+// SeaportOfferItem represents an item in a Seaport offer
+type SeaportOfferItem struct {
+	ItemType   uint8    // 0=NATIVE, 1=ERC20, 2=ERC721, 3=ERC1155, 4=ERC721_CRITERIA, 5=ERC1155_CRITERIA
+	Token      string   // Token contract address
+	Identifier *big.Int // Token ID for ERC721/1155
+	Amount     *big.Int // Amount (1 for ERC721)
+}
+
+// SeaportConsiderationItem represents an item in a Seaport consideration
+type SeaportConsiderationItem struct {
+	ItemType   uint8
+	Token      string
+	Identifier *big.Int
+	Amount     *big.Int
+	Recipient  string // Address to receive this item
+}
+
+// decodeSeaportOfferItem decodes a single offer item from ABI data
+func decodeSeaportOfferItem(data []byte, offset int) (*SeaportOfferItem, int, error) {
+	if offset+128 > len(data) { // 4 * 32 bytes minimum
+		return nil, 0, fmt.Errorf("insufficient data for offer item")
+	}
+	item := &SeaportOfferItem{
+		ItemType:   uint8(data[offset+31]),
+		Token:      fmt.Sprintf("0x%x", data[offset+44:offset+64]),
+		Identifier: new(big.Int).SetBytes(data[offset+64 : offset+96]),
+		Amount:     new(big.Int).SetBytes(data[offset+96 : offset+128]),
+	}
+	return item, offset + 128, nil
+}
+
+// decodeSeaportConsiderationItem decodes a single consideration item
+func decodeSeaportConsiderationItem(data []byte, offset int) (*SeaportConsiderationItem, int, error) {
+	if offset+160 > len(data) { // 5 * 32 bytes minimum
+		return nil, 0, fmt.Errorf("insufficient data for consideration item")
+	}
+	item := &SeaportConsiderationItem{
+		ItemType:   uint8(data[offset+31]),
+		Token:      fmt.Sprintf("0x%x", data[offset+44:offset+64]),
+		Identifier: new(big.Int).SetBytes(data[offset+64 : offset+96]),
+		Amount:     new(big.Int).SetBytes(data[offset+96 : offset+128]),
+		Recipient:  fmt.Sprintf("0x%x", data[offset+140:offset+160]),
+	}
+	return item, offset + 160, nil
+}
