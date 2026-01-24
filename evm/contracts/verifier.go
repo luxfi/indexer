@@ -713,7 +713,7 @@ func hexToInt(s string) int {
 }
 
 // Simple Keccak256 implementation using stdlib
-// In production, use golang.org/x/crypto/sha3
+// In production, use crypto/sha3
 
 type keccak256Hasher struct {
 	data []byte
@@ -736,7 +736,7 @@ func (h *keccak256Hasher) Sum(b []byte) []byte {
 }
 
 // sha3Keccak256 implements Keccak-256 hash.
-// This is a simplified version; use golang.org/x/crypto/sha3 in production.
+// This is a simplified version; use crypto/sha3 in production.
 func sha3Keccak256(data []byte) []byte {
 	// For now, use a placeholder that can be replaced with actual implementation
 	// In real code, import "golang.org/x/crypto/sha3"

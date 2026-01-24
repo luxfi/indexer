@@ -279,7 +279,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 
 		-- Staking rewards table
 		CREATE TABLE IF NOT EXISTS pchain_rewards (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id BIGSERIAL PRIMARY KEY,
 			tx_id TEXT NOT NULL,
 			node_id TEXT,
 			delegator_tx_id TEXT,
@@ -315,7 +315,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			total_chains INT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT OR IGNORE INTO pchain_extended_stats (id) VALUES (1);
+		INSERT INTO pchain_extended_stats (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 	`
 
 	if err := store.Exec(ctx, schema); err != nil {
