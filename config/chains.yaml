@@ -1,0 +1,1449 @@
+# Multi-Chain Universal Indexer Configuration
+# Covers: Lux Ecosystem, Top 100+ EVM chains, Solana, Bitcoin, Cosmos, Move, and more
+# Target: 99% DeFi TVL coverage, 99% NFT volume coverage
+
+# =============================================================================
+# LUX ECOSYSTEM (All Chains)
+# =============================================================================
+lux:
+  # Primary Network
+  cchain:
+    chain_id: 96369
+    name: "Lux C-Chain"
+    symbol: "LUX"
+    type: evm
+    rpc: "https://api.lux.network/ext/bc/C/rpc"
+    ws: "wss://api.lux.network/ext/bc/C/ws"
+    explorer: "https://explore.lux.network"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: uniswap_v3
+        enabled: true
+      - type: aave_v3
+        enabled: true
+
+  testnet:
+    chain_id: 96368
+    name: "Lux Testnet"
+    symbol: "LUX"
+    type: evm
+    rpc: "https://api.testnet.lux.network/ext/bc/C/rpc"
+    ws: "wss://api.testnet.lux.network/ext/bc/C/ws"
+    explorer: "https://explore.testnet.lux.network"
+    enabled: true
+
+  # Zoo Network (DeAI/DeSci)
+  zoo:
+    chain_id: 200200
+    name: "Zoo Mainnet"
+    symbol: "ZOO"
+    type: evm
+    rpc: "https://api.zoo.network/ext/bc/C/rpc"
+    ws: "wss://api.zoo.network/ext/bc/C/ws"
+    explorer: "https://explore.zoo.network"
+    enabled: true
+
+  zoo_testnet:
+    chain_id: 200201
+    name: "Zoo Testnet"
+    symbol: "ZOO"
+    type: evm
+    rpc: "https://api.testnet.zoo.network/ext/bc/C/rpc"
+    explorer: "https://explore.testnet.zoo.network"
+    enabled: true
+
+  # Hanzo AI Network
+  hanzo:
+    chain_id: 36963
+    name: "Hanzo AI"
+    symbol: "HANZO"
+    type: evm
+    rpc: "https://api.hanzo.ai/ext/bc/C/rpc"
+    ws: "wss://api.hanzo.ai/ext/bc/C/ws"
+    explorer: "https://explore.hanzo.ai"
+    enabled: true
+
+  hanzo_testnet:
+    chain_id: 36962
+    name: "Hanzo AI Testnet"
+    symbol: "HANZO"
+    type: evm
+    rpc: "https://api.testnet.hanzo.ai/ext/bc/C/rpc"
+    explorer: "https://explore.testnet.hanzo.ai"
+    enabled: true
+
+  # SPC Network (Sparkle Pony Club)
+  spc:
+    chain_id: 36943
+    name: "SPC Mainnet"
+    symbol: "SPC"
+    type: evm
+    rpc: "https://api.sparklepony.club/ext/bc/C/rpc"
+    ws: "wss://api.sparklepony.club/ext/bc/C/ws"
+    explorer: "https://explore.sparklepony.club"
+    enabled: true
+
+  spc_testnet:
+    chain_id: 36912
+    name: "SPC Testnet"
+    symbol: "SPC"
+    type: evm
+    rpc: "https://api.testnet.sparklepony.club/ext/bc/C/rpc"
+    explorer: "https://explore.testnet.sparklepony.club"
+    enabled: true
+
+  # PARS Network (Parallel Processing)
+  pars:
+    chain_id: 36921
+    name: "PARS Mainnet"
+    symbol: "PARS"
+    type: evm
+    rpc: "https://api.pars.network/ext/bc/C/rpc"
+    ws: "wss://api.pars.network/ext/bc/C/ws"
+    explorer: "https://explore.pars.network"
+    enabled: true
+
+  pars_testnet:
+    chain_id: 36920
+    name: "PARS Testnet"
+    symbol: "PARS"
+    type: evm
+    rpc: "https://api.testnet.pars.network/ext/bc/C/rpc"
+    explorer: "https://explore.testnet.pars.network"
+    enabled: true
+
+  # ==========================================================================
+  # LUX NATIVE CHAINS (Non-EVM VMs)
+  # ==========================================================================
+
+  # A-Chain (AI/Oracle VM) - AI compute attestation and oracles
+  achain:
+    chain_id: 0
+    name: "Lux A-Chain (AI)"
+    symbol: "LUX"
+    type: lux_ai
+    rpc: "https://api.lux.network/ext/bc/A/rpc"
+    ws: "wss://api.lux.network/ext/bc/A/ws"
+    explorer: "https://explore.lux.network/a-chain"
+    enabled: true
+
+  # B-Chain (Bridge VM) - Cross-chain interoperability
+  bchain:
+    chain_id: 0
+    name: "Lux B-Chain (Bridge)"
+    symbol: "LUX"
+    type: lux_bridge
+    rpc: "https://api.lux.network/ext/bc/B/rpc"
+    ws: "wss://api.lux.network/ext/bc/B/ws"
+    explorer: "https://explore.lux.network/b-chain"
+    enabled: true
+
+  # T-Chain (Threshold VM) - Threshold FHE cryptography
+  tchain:
+    chain_id: 0
+    name: "Lux T-Chain (Threshold)"
+    symbol: "LUX"
+    type: lux_threshold
+    rpc: "https://api.lux.network/ext/bc/T/rpc"
+    ws: "wss://api.lux.network/ext/bc/T/ws"
+    explorer: "https://explore.lux.network/t-chain"
+    enabled: true
+
+  # Z-Chain (ZK VM) - Zero-knowledge proofs and privacy
+  zchain:
+    chain_id: 0
+    name: "Lux Z-Chain (ZK)"
+    symbol: "LUX"
+    type: lux_zk
+    rpc: "https://api.lux.network/ext/bc/Z/rpc"
+    ws: "wss://api.lux.network/ext/bc/Z/ws"
+    explorer: "https://explore.lux.network/z-chain"
+    enabled: true
+
+  # G-Chain (Graph VM) - GraphQL indexing
+  gchain:
+    chain_id: 0
+    name: "Lux G-Chain (Graph)"
+    symbol: "LUX"
+    type: lux_graph
+    rpc: "https://api.lux.network/ext/bc/G/rpc"
+    ws: "wss://api.lux.network/ext/bc/G/ws"
+    explorer: "https://explore.lux.network/g-chain"
+    enabled: true
+
+  # I-Chain (Identity VM) - Decentralized identity
+  ichain:
+    chain_id: 0
+    name: "Lux I-Chain (Identity)"
+    symbol: "LUX"
+    type: lux_identity
+    rpc: "https://api.lux.network/ext/bc/I/rpc"
+    ws: "wss://api.lux.network/ext/bc/I/ws"
+    explorer: "https://explore.lux.network/i-chain"
+    enabled: true
+
+  # K-Chain (Key VM) - Key management service
+  kchain:
+    chain_id: 0
+    name: "Lux K-Chain (Key)"
+    symbol: "LUX"
+    type: lux_key
+    rpc: "https://api.lux.network/ext/bc/K/rpc"
+    ws: "wss://api.lux.network/ext/bc/K/ws"
+    explorer: "https://explore.lux.network/k-chain"
+    enabled: true
+
+  # D-Chain (DEX VM) - Native DEX with orderbook
+  dchain:
+    chain_id: 0
+    name: "Lux D-Chain (DEX)"
+    symbol: "LUX"
+    type: lux_dex
+    rpc: "https://api.lux.network/ext/bc/D/rpc"
+    ws: "wss://api.lux.network/ext/bc/D/ws"
+    explorer: "https://explore.lux.network/d-chain"
+    enabled: true
+
+# =============================================================================
+# ETHEREUM ECOSYSTEM - MAINNETS
+# =============================================================================
+ethereum:
+  # Layer 1
+  mainnet:
+    chain_id: 1
+    name: "Ethereum"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ETH_RPC_URL:-https://eth.llamarpc.com}"
+    ws: "${ETH_WS_URL:-wss://eth.llamarpc.com}"
+    explorer: "https://etherscan.io"
+    enabled: true
+    protocols:
+      - type: seaport
+        address: "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+        start_block: 14946474
+        enabled: true
+      - type: blur
+        address: "0x000000000000Ad05Ccc4F10045630fb830B95127"
+        start_block: 16163419
+        enabled: true
+      - type: looksrare
+        address: "0x0000000000E655fAe4d56241588680F86E3b2377"
+        enabled: true
+      - type: x2y2
+        address: "0x74312363e45DCaBA76c59ec49a7Aa8A65a67EeD3"
+        enabled: true
+      - type: uniswap_v2
+        factory: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
+        enabled: true
+      - type: uniswap_v3
+        factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+        enabled: true
+      - type: aave_v2
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: compound_v2
+        enabled: true
+      - type: compound_v3
+        enabled: true
+      - type: lido
+        enabled: true
+      - type: eigenlayer
+        enabled: true
+      - type: curve
+        enabled: true
+      - type: balancer
+        enabled: true
+      - type: makerdao
+        enabled: true
+      - type: yearn
+        enabled: true
+      - type: convex
+        enabled: true
+      - type: pendle
+        enabled: true
+
+  # Layer 2 - Optimistic Rollups
+  arbitrum:
+    chain_id: 42161
+    name: "Arbitrum One"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ARB_RPC_URL:-https://arb1.arbitrum.io/rpc}"
+    explorer: "https://arbiscan.io"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: gmx
+        enabled: true
+      - type: gmx_v2
+        enabled: true
+      - type: uniswap_v3
+        enabled: true
+      - type: camelot
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: radiant
+        enabled: true
+      - type: pendle
+        enabled: true
+      - type: dopex
+        enabled: true
+      - type: vela
+        enabled: true
+
+  arbitrum_nova:
+    chain_id: 42170
+    name: "Arbitrum Nova"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ARB_NOVA_RPC_URL:-https://nova.arbitrum.io/rpc}"
+    explorer: "https://nova.arbiscan.io"
+    enabled: true
+
+  optimism:
+    chain_id: 10
+    name: "Optimism"
+    symbol: "ETH"
+    type: evm
+    rpc: "${OP_RPC_URL:-https://mainnet.optimism.io}"
+    explorer: "https://optimistic.etherscan.io"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: uniswap_v3
+        enabled: true
+      - type: velodrome
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: synthetix
+        enabled: true
+      - type: kwenta
+        enabled: true
+      - type: lyra
+        enabled: true
+      - type: sonne
+        enabled: true
+
+  base:
+    chain_id: 8453
+    name: "Base"
+    symbol: "ETH"
+    type: evm
+    rpc: "${BASE_RPC_URL:-https://mainnet.base.org}"
+    explorer: "https://basescan.org"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: uniswap_v3
+        enabled: true
+      - type: aerodrome
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: compound_v3
+        enabled: true
+      - type: moonwell
+        enabled: true
+      - type: friend_tech
+        enabled: true
+
+  blast:
+    chain_id: 81457
+    name: "Blast"
+    symbol: "ETH"
+    type: evm
+    rpc: "${BLAST_RPC_URL:-https://rpc.blast.io}"
+    explorer: "https://blastscan.io"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: thruster
+        enabled: true
+      - type: hyperlock
+        enabled: true
+      - type: juice
+        enabled: true
+
+  mode:
+    chain_id: 34443
+    name: "Mode"
+    symbol: "ETH"
+    type: evm
+    rpc: "${MODE_RPC_URL:-https://mainnet.mode.network}"
+    explorer: "https://explorer.mode.network"
+    enabled: true
+    protocols:
+      - type: velodrome
+        enabled: true
+      - type: ionic
+        enabled: true
+
+  manta:
+    chain_id: 169
+    name: "Manta Pacific"
+    symbol: "ETH"
+    type: evm
+    rpc: "${MANTA_RPC_URL:-https://pacific-rpc.manta.network/http}"
+    explorer: "https://pacific-explorer.manta.network"
+    enabled: true
+
+  fraxtal:
+    chain_id: 252
+    name: "Fraxtal"
+    symbol: "frxETH"
+    type: evm
+    rpc: "${FRAXTAL_RPC_URL:-https://rpc.frax.com}"
+    explorer: "https://fraxscan.com"
+    enabled: true
+    protocols:
+      - type: frax
+        enabled: true
+
+  # Layer 2 - ZK Rollups
+  zksync:
+    chain_id: 324
+    name: "zkSync Era"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ZKSYNC_RPC_URL:-https://mainnet.era.zksync.io}"
+    explorer: "https://explorer.zksync.io"
+    enabled: true
+    protocols:
+      - type: syncswap
+        enabled: true
+      - type: mute
+        enabled: true
+      - type: maverick
+        enabled: true
+      - type: zerolend
+        enabled: true
+
+  linea:
+    chain_id: 59144
+    name: "Linea"
+    symbol: "ETH"
+    type: evm
+    rpc: "${LINEA_RPC_URL:-https://rpc.linea.build}"
+    explorer: "https://lineascan.build"
+    enabled: true
+    protocols:
+      - type: syncswap
+        enabled: true
+      - type: nile
+        enabled: true
+      - type: horizondex
+        enabled: true
+
+  scroll:
+    chain_id: 534352
+    name: "Scroll"
+    symbol: "ETH"
+    type: evm
+    rpc: "${SCROLL_RPC_URL:-https://rpc.scroll.io}"
+    explorer: "https://scrollscan.com"
+    enabled: true
+    protocols:
+      - type: syncswap
+        enabled: true
+      - type: ambient
+        enabled: true
+      - type: aave_v3
+        enabled: true
+
+  polygon_zkevm:
+    chain_id: 1101
+    name: "Polygon zkEVM"
+    symbol: "ETH"
+    type: evm
+    rpc: "${POLYGON_ZKEVM_RPC_URL:-https://zkevm-rpc.com}"
+    explorer: "https://zkevm.polygonscan.com"
+    enabled: true
+    protocols:
+      - type: quickswap
+        enabled: true
+
+  taiko:
+    chain_id: 167000
+    name: "Taiko"
+    symbol: "ETH"
+    type: evm
+    rpc: "${TAIKO_RPC_URL:-https://rpc.mainnet.taiko.xyz}"
+    explorer: "https://taikoscan.io"
+    enabled: true
+
+  starknet:
+    chain_id: 0
+    name: "StarkNet"
+    symbol: "ETH"
+    type: starknet
+    rpc: "${STARKNET_RPC_URL:-https://starknet-mainnet.public.blastapi.io}"
+    explorer: "https://starkscan.co"
+    enabled: true
+    protocols:
+      - type: jediswap
+        enabled: true
+      - type: 10kswap
+        enabled: true
+      - type: myswap
+        enabled: true
+      - type: avnu
+        enabled: true
+
+  # Other L2s/Sidechains
+  polygon:
+    chain_id: 137
+    name: "Polygon PoS"
+    symbol: "MATIC"
+    type: evm
+    rpc: "${POLYGON_RPC_URL:-https://polygon-rpc.com}"
+    explorer: "https://polygonscan.com"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: uniswap_v3
+        enabled: true
+      - type: quickswap
+        enabled: true
+      - type: aave_v2
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: balancer
+        enabled: true
+      - type: curve
+        enabled: true
+
+  mantle:
+    chain_id: 5000
+    name: "Mantle"
+    symbol: "MNT"
+    type: evm
+    rpc: "${MANTLE_RPC_URL:-https://rpc.mantle.xyz}"
+    explorer: "https://explorer.mantle.xyz"
+    enabled: true
+    protocols:
+      - type: agni
+        enabled: true
+      - type: fusionx
+        enabled: true
+      - type: lendle
+        enabled: true
+
+  zora:
+    chain_id: 7777777
+    name: "Zora"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ZORA_RPC_URL:-https://rpc.zora.energy}"
+    explorer: "https://explorer.zora.energy"
+    enabled: true
+    protocols:
+      - type: zora
+        enabled: true
+
+  # BSC Ecosystem
+  bsc:
+    chain_id: 56
+    name: "BNB Smart Chain"
+    symbol: "BNB"
+    type: evm
+    rpc: "${BSC_RPC_URL:-https://bsc-dataseed.binance.org}"
+    explorer: "https://bscscan.com"
+    enabled: true
+    protocols:
+      - type: pancakeswap
+        factory: "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73"
+        enabled: true
+      - type: venus
+        enabled: true
+      - type: alpaca
+        enabled: true
+      - type: biswap
+        enabled: true
+      - type: thena
+        enabled: true
+
+  opbnb:
+    chain_id: 204
+    name: "opBNB"
+    symbol: "BNB"
+    type: evm
+    rpc: "${OPBNB_RPC_URL:-https://opbnb-mainnet-rpc.bnbchain.org}"
+    explorer: "https://mainnet.opbnbscan.com"
+    enabled: true
+
+  # Avalanche
+  avalanche:
+    chain_id: 43114
+    name: "Avalanche C-Chain"
+    symbol: "AVAX"
+    type: evm
+    rpc: "${AVAX_RPC_URL:-https://api.avax.network/ext/bc/C/rpc}"
+    explorer: "https://snowtrace.io"
+    enabled: true
+    protocols:
+      - type: seaport
+        enabled: true
+      - type: trader_joe
+        enabled: true
+      - type: pangolin
+        enabled: true
+      - type: aave_v3
+        enabled: true
+      - type: benqi
+        enabled: true
+      - type: gmx
+        enabled: true
+      - type: platypus
+        enabled: true
+
+  # Other EVM L1s
+  fantom:
+    chain_id: 250
+    name: "Fantom"
+    symbol: "FTM"
+    type: evm
+    rpc: "${FTM_RPC_URL:-https://rpc.ftm.tools}"
+    explorer: "https://ftmscan.com"
+    enabled: true
+    protocols:
+      - type: spookyswap
+        enabled: true
+      - type: equalizer
+        enabled: true
+      - type: beethoven_x
+        enabled: true
+
+  cronos:
+    chain_id: 25
+    name: "Cronos"
+    symbol: "CRO"
+    type: evm
+    rpc: "${CRONOS_RPC_URL:-https://evm.cronos.org}"
+    explorer: "https://cronoscan.com"
+    enabled: true
+    protocols:
+      - type: vvs
+        enabled: true
+      - type: fulcrom
+        enabled: true
+
+  gnosis:
+    chain_id: 100
+    name: "Gnosis Chain"
+    symbol: "xDAI"
+    type: evm
+    rpc: "${GNOSIS_RPC_URL:-https://rpc.gnosischain.com}"
+    explorer: "https://gnosisscan.io"
+    enabled: true
+    protocols:
+      - type: sushiswap
+        enabled: true
+      - type: balancer
+        enabled: true
+      - type: curve
+        enabled: true
+      - type: spark
+        enabled: true
+
+  celo:
+    chain_id: 42220
+    name: "Celo"
+    symbol: "CELO"
+    type: evm
+    rpc: "${CELO_RPC_URL:-https://forno.celo.org}"
+    explorer: "https://celoscan.io"
+    enabled: true
+    protocols:
+      - type: ubeswap
+        enabled: true
+
+  moonbeam:
+    chain_id: 1284
+    name: "Moonbeam"
+    symbol: "GLMR"
+    type: evm
+    rpc: "${MOONBEAM_RPC_URL:-https://rpc.moonbeam.network}"
+    explorer: "https://moonscan.io"
+    enabled: true
+    protocols:
+      - type: stellaswap
+        enabled: true
+      - type: beamswap
+        enabled: true
+      - type: moonwell
+        enabled: true
+
+  moonriver:
+    chain_id: 1285
+    name: "Moonriver"
+    symbol: "MOVR"
+    type: evm
+    rpc: "${MOONRIVER_RPC_URL:-https://rpc.moonriver.moonbeam.network}"
+    explorer: "https://moonriver.moonscan.io"
+    enabled: true
+
+  aurora:
+    chain_id: 1313161554
+    name: "Aurora"
+    symbol: "ETH"
+    type: evm
+    rpc: "${AURORA_RPC_URL:-https://mainnet.aurora.dev}"
+    explorer: "https://aurorascan.dev"
+    enabled: true
+    protocols:
+      - type: trisolaris
+        enabled: true
+
+  metis:
+    chain_id: 1088
+    name: "Metis"
+    symbol: "METIS"
+    type: evm
+    rpc: "${METIS_RPC_URL:-https://andromeda.metis.io/?owner=1088}"
+    explorer: "https://andromeda-explorer.metis.io"
+    enabled: true
+    protocols:
+      - type: netswap
+        enabled: true
+      - type: hummus
+        enabled: true
+
+  kava:
+    chain_id: 2222
+    name: "Kava EVM"
+    symbol: "KAVA"
+    type: evm
+    rpc: "${KAVA_RPC_URL:-https://evm.kava.io}"
+    explorer: "https://kavascan.com"
+    enabled: true
+    protocols:
+      - type: kinetix
+        enabled: true
+      - type: equilibre
+        enabled: true
+
+  klaytn:
+    chain_id: 8217
+    name: "Klaytn"
+    symbol: "KLAY"
+    type: evm
+    rpc: "${KLAYTN_RPC_URL:-https://public-en-cypress.klaytn.net}"
+    explorer: "https://scope.klaytn.com"
+    enabled: true
+    protocols:
+      - type: klayswap
+        enabled: true
+
+  harmony:
+    chain_id: 1666600000
+    name: "Harmony"
+    symbol: "ONE"
+    type: evm
+    rpc: "${HARMONY_RPC_URL:-https://api.harmony.one}"
+    explorer: "https://explorer.harmony.one"
+    enabled: true
+
+  # Zetachain (cross-chain)
+  zetachain:
+    chain_id: 7000
+    name: "ZetaChain"
+    symbol: "ZETA"
+    type: evm
+    rpc: "${ZETA_RPC_URL:-https://zetachain-evm.blockpi.network/v1/rpc/public}"
+    explorer: "https://explorer.zetachain.com"
+    enabled: true
+
+  # Core (Bitcoin-aligned)
+  core:
+    chain_id: 1116
+    name: "Core"
+    symbol: "CORE"
+    type: evm
+    rpc: "${CORE_RPC_URL:-https://rpc.coredao.org}"
+    explorer: "https://scan.coredao.org"
+    enabled: true
+    protocols:
+      - type: shadowswap
+        enabled: true
+
+  # Immutable zkEVM
+  immutable_zkevm:
+    chain_id: 13371
+    name: "Immutable zkEVM"
+    symbol: "IMX"
+    type: evm
+    rpc: "${IMX_RPC_URL:-https://rpc.immutable.com}"
+    explorer: "https://explorer.immutable.com"
+    enabled: true
+    protocols:
+      - type: immutable_orderbook
+        enabled: true
+
+  # Bitcoin L2s
+  merlin:
+    chain_id: 4200
+    name: "Merlin Chain"
+    symbol: "BTC"
+    type: evm
+    rpc: "${MERLIN_RPC_URL:-https://rpc.merlinchain.io}"
+    explorer: "https://scan.merlinchain.io"
+    enabled: true
+
+  bob:
+    chain_id: 60808
+    name: "BOB (Build on Bitcoin)"
+    symbol: "ETH"
+    type: evm
+    rpc: "${BOB_RPC_URL:-https://rpc.gobob.xyz}"
+    explorer: "https://explorer.gobob.xyz"
+    enabled: true
+
+  bevm:
+    chain_id: 11501
+    name: "BEVM"
+    symbol: "BTC"
+    type: evm
+    rpc: "${BEVM_RPC_URL:-https://rpc-mainnet-1.bevm.io}"
+    explorer: "https://scan-mainnet.bevm.io"
+    enabled: true
+
+  b2:
+    chain_id: 223
+    name: "B² Network"
+    symbol: "BTC"
+    type: evm
+    rpc: "${B2_RPC_URL:-https://rpc.bsquared.network}"
+    explorer: "https://explorer.bsquared.network"
+    enabled: true
+
+  # Berachain (testnet for now, mainnet soon)
+  berachain:
+    chain_id: 80094
+    name: "Berachain"
+    symbol: "BERA"
+    type: evm
+    rpc: "${BERA_RPC_URL:-https://bartio.rpc.berachain.com}"
+    explorer: "https://bartio.beratrail.io"
+    enabled: true
+    protocols:
+      - type: kodiak
+        enabled: true
+      - type: bex
+        enabled: true
+
+# =============================================================================
+# ETHEREUM TESTNETS
+# =============================================================================
+testnets:
+  sepolia:
+    chain_id: 11155111
+    name: "Sepolia"
+    symbol: "ETH"
+    type: evm
+    rpc: "${SEPOLIA_RPC_URL:-https://rpc.sepolia.org}"
+    explorer: "https://sepolia.etherscan.io"
+    enabled: true
+
+  holesky:
+    chain_id: 17000
+    name: "Holesky"
+    symbol: "ETH"
+    type: evm
+    rpc: "${HOLESKY_RPC_URL:-https://ethereum-holesky-rpc.publicnode.com}"
+    explorer: "https://holesky.etherscan.io"
+    enabled: true
+
+  base_sepolia:
+    chain_id: 84532
+    name: "Base Sepolia"
+    symbol: "ETH"
+    type: evm
+    rpc: "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"
+    explorer: "https://sepolia.basescan.org"
+    enabled: true
+
+  arbitrum_sepolia:
+    chain_id: 421614
+    name: "Arbitrum Sepolia"
+    symbol: "ETH"
+    type: evm
+    rpc: "${ARB_SEPOLIA_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}"
+    explorer: "https://sepolia.arbiscan.io"
+    enabled: true
+
+# =============================================================================
+# SOLANA
+# =============================================================================
+solana:
+  mainnet:
+    name: "Solana"
+    symbol: "SOL"
+    type: solana
+    rpc: "${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}"
+    ws: "${SOLANA_WS_URL:-wss://api.mainnet-beta.solana.com}"
+    explorer: "https://solscan.io"
+    enabled: true
+    protocols:
+      # NFT Marketplaces
+      - type: magic_eden
+        program_id: "M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K"
+        enabled: true
+      - type: tensor
+        program_id: "TSWAPaqyCSx2KABk68Shruf4rp7CxcNi8hAsbdwmHbN"
+        enabled: true
+      - type: metaplex
+        program_id: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        enabled: true
+      # DEXs
+      - type: raydium
+        program_id: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
+        enabled: true
+      - type: orca
+        program_id: "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc"
+        enabled: true
+      - type: jupiter
+        program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+        enabled: true
+      - type: phoenix
+        program_id: "PhoeNiXZ8ByJGLkxNfZRnkUfjvmuYqLR89jjFHGqdXY"
+        enabled: true
+      # Perps
+      - type: drift
+        program_id: "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH"
+        enabled: true
+      - type: mango
+        program_id: "4MangoMjqJ2firMokCjjGgoK8d4MXcrgL7XJaL3w6fVg"
+        enabled: true
+      # Staking
+      - type: marinade
+        program_id: "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD"
+        enabled: true
+      - type: jito
+        program_id: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"
+        enabled: true
+      # Lending
+      - type: kamino
+        enabled: true
+      - type: marginfi
+        enabled: true
+      - type: solend
+        enabled: true
+
+  devnet:
+    name: "Solana Devnet"
+    symbol: "SOL"
+    type: solana
+    rpc: "${SOLANA_DEVNET_RPC_URL:-https://api.devnet.solana.com}"
+    explorer: "https://solscan.io/?cluster=devnet"
+    enabled: true
+
+# =============================================================================
+# BITCOIN
+# =============================================================================
+bitcoin:
+  mainnet:
+    name: "Bitcoin"
+    symbol: "BTC"
+    type: bitcoin
+    rpc: "${BTC_RPC_URL:-}"
+    api: "${BTC_API_URL:-https://mempool.space/api}"
+    ord_api: "${ORD_API_URL:-https://ordinals.com/api}"
+    explorer: "https://mempool.space"
+    enabled: true
+    protocols:
+      - type: ordinals
+        enabled: true
+      - type: runes
+        enabled: true
+      - type: brc20
+        enabled: true
+      - type: stamps
+        enabled: true
+      - type: atomicals
+        enabled: true
+      - type: rgb
+        enabled: true
+
+  testnet:
+    name: "Bitcoin Testnet"
+    symbol: "tBTC"
+    type: bitcoin
+    api: "${BTC_TESTNET_API_URL:-https://mempool.space/testnet/api}"
+    explorer: "https://mempool.space/testnet"
+    enabled: true
+
+# =============================================================================
+# COSMOS ECOSYSTEM
+# =============================================================================
+cosmos:
+  cosmoshub:
+    name: "Cosmos Hub"
+    symbol: "ATOM"
+    type: cosmos
+    rpc: "${COSMOS_RPC_URL:-https://cosmos-rpc.polkachu.com}"
+    rest: "${COSMOS_REST_URL:-https://cosmos-api.polkachu.com}"
+    explorer: "https://www.mintscan.io/cosmos"
+    enabled: true
+
+  osmosis:
+    name: "Osmosis"
+    symbol: "OSMO"
+    type: cosmos
+    rpc: "${OSMOSIS_RPC_URL:-https://osmosis-rpc.polkachu.com}"
+    rest: "${OSMOSIS_REST_URL:-https://osmosis-api.polkachu.com}"
+    explorer: "https://www.mintscan.io/osmosis"
+    enabled: true
+    protocols:
+      - type: osmosis_amm
+        enabled: true
+      - type: osmosis_cl
+        enabled: true
+
+  injective:
+    name: "Injective"
+    symbol: "INJ"
+    type: cosmos
+    rpc: "${INJ_RPC_URL:-https://injective-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/injective"
+    enabled: true
+    protocols:
+      - type: helix
+        enabled: true
+      - type: astroport
+        enabled: true
+
+  dydx:
+    name: "dYdX"
+    symbol: "DYDX"
+    type: cosmos
+    rpc: "${DYDX_RPC_URL:-https://dydx-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/dydx"
+    enabled: true
+    protocols:
+      - type: dydx
+        enabled: true
+
+  celestia:
+    name: "Celestia"
+    symbol: "TIA"
+    type: cosmos
+    rpc: "${CELESTIA_RPC_URL:-https://celestia-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/celestia"
+    enabled: true
+
+  sei:
+    name: "Sei"
+    symbol: "SEI"
+    type: cosmos
+    rpc: "${SEI_RPC_URL:-https://sei-rpc.polkachu.com}"
+    evm_rpc: "${SEI_EVM_RPC:-https://evm-rpc.sei-apis.com}"
+    explorer: "https://www.seiscan.app"
+    enabled: true
+    protocols:
+      - type: pallet
+        enabled: true
+      - type: astroport
+        enabled: true
+
+  neutron:
+    name: "Neutron"
+    symbol: "NTRN"
+    type: cosmos
+    rpc: "${NEUTRON_RPC_URL:-https://neutron-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/neutron"
+    enabled: true
+    protocols:
+      - type: astroport
+        enabled: true
+      - type: mars
+        enabled: true
+
+  kujira:
+    name: "Kujira"
+    symbol: "KUJI"
+    type: cosmos
+    rpc: "${KUJIRA_RPC_URL:-https://kujira-rpc.polkachu.com}"
+    explorer: "https://finder.kujira.network"
+    enabled: true
+    protocols:
+      - type: fin
+        enabled: true
+      - type: bow
+        enabled: true
+      - type: ghost
+        enabled: true
+
+  stride:
+    name: "Stride"
+    symbol: "STRD"
+    type: cosmos
+    rpc: "${STRIDE_RPC_URL:-https://stride-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/stride"
+    enabled: true
+    protocols:
+      - type: stride_staking
+        enabled: true
+
+  akash:
+    name: "Akash"
+    symbol: "AKT"
+    type: cosmos
+    rpc: "${AKASH_RPC_URL:-https://akash-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/akash"
+    enabled: true
+
+  terra:
+    name: "Terra"
+    symbol: "LUNA"
+    type: cosmos
+    rpc: "${TERRA_RPC_URL:-https://terra-rpc.polkachu.com}"
+    explorer: "https://finder.terra.money"
+    enabled: true
+    protocols:
+      - type: astroport
+        enabled: true
+
+  secret:
+    name: "Secret Network"
+    symbol: "SCRT"
+    type: cosmos
+    rpc: "${SECRET_RPC_URL:-https://secret-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/secret"
+    enabled: true
+    protocols:
+      - type: shade
+        enabled: true
+      - type: sienna
+        enabled: true
+
+  stargaze:
+    name: "Stargaze"
+    symbol: "STARS"
+    type: cosmos
+    rpc: "${STARGAZE_RPC_URL:-https://stargaze-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/stargaze"
+    enabled: true
+    protocols:
+      - type: stargaze_marketplace
+        enabled: true
+
+  axelar:
+    name: "Axelar"
+    symbol: "AXL"
+    type: cosmos
+    rpc: "${AXELAR_RPC_URL:-https://axelar-rpc.polkachu.com}"
+    explorer: "https://axelarscan.io"
+    enabled: true
+    protocols:
+      - type: axelar
+        enabled: true
+
+  persistence:
+    name: "Persistence"
+    symbol: "XPRT"
+    type: cosmos
+    rpc: "${PERSISTENCE_RPC_URL:-https://persistence-rpc.polkachu.com}"
+    explorer: "https://www.mintscan.io/persistence"
+    enabled: true
+    protocols:
+      - type: pstake
+        enabled: true
+      - type: dexter
+        enabled: true
+
+# =============================================================================
+# MOVE CHAINS (Aptos, Sui)
+# =============================================================================
+move:
+  aptos:
+    name: "Aptos"
+    symbol: "APT"
+    type: move
+    rpc: "${APTOS_RPC_URL:-https://fullnode.mainnet.aptoslabs.com/v1}"
+    explorer: "https://explorer.aptoslabs.com"
+    enabled: true
+    protocols:
+      - type: liquidswap
+        enabled: true
+      - type: pancakeswap
+        enabled: true
+      - type: econia
+        enabled: true
+      - type: thala
+        enabled: true
+      - type: aries
+        enabled: true
+      - type: topaz
+        enabled: true
+      - type: bluemove
+        enabled: true
+
+  sui:
+    name: "Sui"
+    symbol: "SUI"
+    type: move
+    rpc: "${SUI_RPC_URL:-https://fullnode.mainnet.sui.io}"
+    explorer: "https://suiexplorer.com"
+    enabled: true
+    protocols:
+      - type: cetus
+        enabled: true
+      - type: turbos
+        enabled: true
+      - type: deepbook
+        enabled: true
+      - type: kriya
+        enabled: true
+      - type: scallop
+        enabled: true
+      - type: navi
+        enabled: true
+      - type: bluemove
+        enabled: true
+
+# =============================================================================
+# OTHER L1s
+# =============================================================================
+other:
+  near:
+    name: "NEAR"
+    symbol: "NEAR"
+    type: near
+    rpc: "${NEAR_RPC_URL:-https://rpc.mainnet.near.org}"
+    explorer: "https://nearblocks.io"
+    enabled: true
+    protocols:
+      - type: ref_finance
+        enabled: true
+      - type: burrow
+        enabled: true
+      - type: mintbase
+        enabled: true
+      - type: paras
+        enabled: true
+
+  tron:
+    name: "TRON"
+    symbol: "TRX"
+    type: tron
+    rpc: "${TRON_RPC_URL:-https://api.trongrid.io}"
+    explorer: "https://tronscan.org"
+    enabled: true
+    protocols:
+      - type: sunswap
+        enabled: true
+      - type: justlend
+        enabled: true
+
+  ton:
+    name: "TON"
+    symbol: "TON"
+    type: ton
+    rpc: "${TON_RPC_URL:-https://toncenter.com/api/v2}"
+    explorer: "https://tonscan.org"
+    enabled: true
+    protocols:
+      - type: stonfi
+        enabled: true
+      - type: dedust
+        enabled: true
+      - type: getgems
+        enabled: true
+      - type: evaa
+        enabled: true
+
+  flow:
+    name: "Flow"
+    symbol: "FLOW"
+    type: flow
+    rpc: "${FLOW_RPC_URL:-https://access.mainnet.nodes.onflow.org}"
+    explorer: "https://flowscan.org"
+    enabled: true
+    protocols:
+      - type: increment
+        enabled: true
+      - type: nba_topshot
+        enabled: true
+
+  tezos:
+    name: "Tezos"
+    symbol: "XTZ"
+    type: tezos
+    rpc: "${TEZOS_RPC_URL:-https://mainnet.api.tez.ie}"
+    explorer: "https://tzkt.io"
+    enabled: true
+    protocols:
+      - type: plenty
+        enabled: true
+      - type: quipuswap
+        enabled: true
+      - type: objkt
+        enabled: true
+      - type: teia
+        enabled: true
+
+  algorand:
+    name: "Algorand"
+    symbol: "ALGO"
+    type: algorand
+    rpc: "${ALGO_RPC_URL:-https://mainnet-api.algonode.cloud}"
+    indexer: "${ALGO_INDEXER_URL:-https://mainnet-idx.algonode.cloud}"
+    explorer: "https://allo.info"
+    enabled: true
+    protocols:
+      - type: tinyman
+        enabled: true
+      - type: pact
+        enabled: true
+      - type: folks
+        enabled: true
+
+  cardano:
+    name: "Cardano"
+    symbol: "ADA"
+    type: cardano
+    api: "${CARDANO_API_URL:-https://cardano-mainnet.blockfrost.io/api/v0}"
+    explorer: "https://cardanoscan.io"
+    enabled: true
+    protocols:
+      - type: minswap
+        enabled: true
+      - type: sundaeswap
+        enabled: true
+      - type: jpg_store
+        enabled: true
+      - type: liqwid
+        enabled: true
+
+  icp:
+    name: "Internet Computer"
+    symbol: "ICP"
+    type: icp
+    rpc: "${ICP_RPC_URL:-https://ic0.app}"
+    explorer: "https://dashboard.internetcomputer.org"
+    enabled: true
+    protocols:
+      - type: icpswap
+        enabled: true
+      - type: sonic
+        enabled: true
+
+  stacks:
+    name: "Stacks"
+    symbol: "STX"
+    type: stacks
+    rpc: "${STACKS_RPC_URL:-https://stacks-node-api.mainnet.stacks.co}"
+    explorer: "https://explorer.stacks.co"
+    enabled: true
+    protocols:
+      - type: alex
+        enabled: true
+      - type: velar
+        enabled: true
+      - type: gamma
+        enabled: true
+
+  hedera:
+    name: "Hedera"
+    symbol: "HBAR"
+    type: hedera
+    rpc: "${HEDERA_RPC_URL:-https://mainnet-public.mirrornode.hedera.com}"
+    explorer: "https://hashscan.io"
+    enabled: true
+    protocols:
+      - type: saucerswap
+        enabled: true
+
+  multiversx:
+    name: "MultiversX"
+    symbol: "EGLD"
+    type: multiversx
+    rpc: "${EGLD_RPC_URL:-https://gateway.multiversx.com}"
+    api: "${EGLD_API_URL:-https://api.multiversx.com}"
+    explorer: "https://explorer.multiversx.com"
+    enabled: true
+    protocols:
+      - type: xexchange
+        enabled: true
+      - type: hatom
+        enabled: true
+      - type: xoxno
+        enabled: true
+      - type: frameit
+        enabled: true
+
+  polkadot:
+    name: "Polkadot"
+    symbol: "DOT"
+    type: substrate
+    rpc: "${DOT_RPC_URL:-wss://rpc.polkadot.io}"
+    explorer: "https://polkadot.subscan.io"
+    enabled: true
+    protocols:
+      - type: hydradx
+        enabled: true
+      - type: interlay
+        enabled: true
+
+  kusama:
+    name: "Kusama"
+    symbol: "KSM"
+    type: substrate
+    rpc: "${KSM_RPC_URL:-wss://kusama-rpc.polkadot.io}"
+    explorer: "https://kusama.subscan.io"
+    enabled: true
+
+  filecoin:
+    name: "Filecoin"
+    symbol: "FIL"
+    type: filecoin
+    rpc: "${FIL_RPC_URL:-https://api.node.glif.io}"
+    explorer: "https://filfox.info"
+    enabled: true
+
+  hyperliquid:
+    name: "Hyperliquid"
+    symbol: "HYPE"
+    type: hyperliquid
+    api: "${HYPERLIQUID_API_URL:-https://api.hyperliquid.xyz}"
+    explorer: "https://app.hyperliquid.xyz"
+    enabled: true
+    protocols:
+      - type: hyperliquid
+        enabled: true
+
+# =============================================================================
+# INDEXER SETTINGS
+# =============================================================================
+indexer:
+  database:
+    url: "${DATABASE_URL:-postgresql://blockscout:blockscout@localhost:5432/nft_indexer}"
+    max_connections: 200
+
+  redis:
+    url: "${REDIS_URL:-redis://localhost:6379}"
+
+  elasticsearch:
+    url: "${ELASTICSEARCH_URL:-http://localhost:9200}"
+
+  settings:
+    batch_size: 1000
+    poll_interval: "3s"
+    backfill_batch_size: 10000
+    max_concurrent_chains: 100
+    retry_attempts: 5
+    retry_delay: "5s"
+    enable_metrics: true
+    metrics_port: 9090
