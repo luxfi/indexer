@@ -300,11 +300,11 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			total_addresses BIGINT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT OR IGNORE INTO xchain_chain_stats (id) VALUES (1);
+		INSERT INTO xchain_chain_stats (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 		-- Insert LUX as default asset if not exists
-		INSERT OR IGNORE INTO xchain_assets (id, name, symbol, denomination, total_supply)
-		VALUES ('LUX', 'Lux', 'LUX', 9, 0);
+		INSERT INTO xchain_assets (id, name, symbol, denomination, total_supply)
+		VALUES ('LUX', 'Lux', 'LUX', 9, 0) ON CONFLICT (id) DO NOTHING;
 	`
 
 	if err := store.Exec(ctx, schema); err != nil {

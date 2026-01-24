@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/luxfi/database"
@@ -728,8 +729,9 @@ func (t *unifiedStoreTx) Count(ctx context.Context, table string, where string, 
 var _ Transaction = (*unifiedStoreTx)(nil)
 
 // DefaultUnifiedConfig returns the default configuration
+// If DATABASE_URL environment variable is set, uses PostgreSQL backend
 func DefaultUnifiedConfig(dataDir string) UnifiedConfig {
-	return UnifiedConfig{
+	cfg := UnifiedConfig{
 		KV: kv.Config{
 			Path: dataDir + "/kv",
 		},
@@ -739,6 +741,15 @@ func DefaultUnifiedConfig(dataDir string) UnifiedConfig {
 		},
 		DualWrite: true,
 	}
+
+	// Check for DATABASE_URL environment variable for PostgreSQL
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		cfg.Query.Backend = query.BackendPostgres
+		cfg.Query.URL = dbURL
+		cfg.Query.DataDir = "" // Not needed for postgres
+	}
+
+	return cfg
 }
 
 // InProcessConfig returns config for in-process mode with a node database
