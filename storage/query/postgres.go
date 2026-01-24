@@ -659,3 +659,76 @@ func (t *postgresTx) Sum(ctx context.Context, table string, column, where string
 
 var _ Engine = (*Postgres)(nil)
 var _ Tx = (*postgresTx)(nil)
+
+// BlocksSchema returns the default blocks table schema
+func BlocksSchema() Table {
+	return Table{
+		Name: "blocks",
+		Columns: []Column{
+			{Name: "id", Type: TypeText, Primary: true},
+			{Name: "parent_id", Type: TypeText},
+			{Name: "height", Type: TypeBigInt},
+			{Name: "timestamp", Type: TypeTimestamp},
+			{Name: "status", Type: TypeText},
+			{Name: "tx_count", Type: TypeInt},
+			{Name: "tx_ids", Type: TypeJSON},
+			{Name: "data", Type: TypeJSON},
+			{Name: "metadata", Type: TypeJSON},
+			{Name: "created_at", Type: TypeTimestamp},
+		},
+	}
+}
+
+// VerticesSchema returns the default vertices table schema
+func VerticesSchema() Table {
+	return Table{
+		Name: "vertices",
+		Columns: []Column{
+			{Name: "id", Type: TypeText, Primary: true},
+			{Name: "type", Type: TypeText},
+			{Name: "parent_ids", Type: TypeJSON},
+			{Name: "height", Type: TypeBigInt},
+			{Name: "epoch", Type: TypeInt},
+			{Name: "tx_ids", Type: TypeJSON},
+			{Name: "timestamp", Type: TypeTimestamp},
+			{Name: "status", Type: TypeText},
+			{Name: "data", Type: TypeJSON},
+			{Name: "metadata", Type: TypeJSON},
+			{Name: "created_at", Type: TypeTimestamp},
+		},
+	}
+}
+
+// EdgesSchema returns the default edges table schema
+func EdgesSchema() Table {
+	return Table{
+		Name: "edges",
+		Columns: []Column{
+			{Name: "source", Type: TypeText},
+			{Name: "target", Type: TypeText},
+			{Name: "type", Type: TypeText},
+			{Name: "created_at", Type: TypeTimestamp},
+		},
+	}
+}
+
+// DefaultIndexes returns the default index definitions
+func DefaultIndexes() []Index {
+	return []Index{
+		{Name: "idx_blocks_height", Table: "blocks", Columns: []string{"height"}},
+		{Name: "idx_blocks_timestamp", Table: "blocks", Columns: []string{"timestamp"}},
+		{Name: "idx_vertices_epoch", Table: "vertices", Columns: []string{"epoch"}},
+		{Name: "idx_vertices_height", Table: "vertices", Columns: []string{"height"}},
+		{Name: "idx_edges_source", Table: "edges", Columns: []string{"source"}},
+		{Name: "idx_edges_target", Table: "edges", Columns: []string{"target"}},
+	}
+}
+
+// DefaultSchema returns the default schema for the indexer
+func DefaultSchema() Schema {
+	return Schema{
+		Name:    "indexer",
+		Tables:  []Table{BlocksSchema(), VerticesSchema(), EdgesSchema()},
+		Indexes: DefaultIndexes(),
+	}
+}
