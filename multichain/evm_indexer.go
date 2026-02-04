@@ -19,14 +19,14 @@ import (
 type EVMIndexer struct {
 	mu sync.RWMutex
 
-	config  ChainConfig
-	db      Database
-	client  *http.Client
+	config ChainConfig
+	db     Database
+	client *http.Client
 
 	// State
-	running       int32
-	indexedBlock  uint64
-	latestBlock   uint64
+	running      int32
+	indexedBlock uint64
+	latestBlock  uint64
 
 	// Protocol indexers
 	protocols map[ProtocolType]ProtocolIndexer
@@ -60,15 +60,15 @@ type EVMLog struct {
 
 // EVMBlock represents an EVM block
 type EVMBlock struct {
-	Number       uint64         `json:"number"`
-	Hash         string         `json:"hash"`
-	ParentHash   string         `json:"parentHash"`
-	Timestamp    uint64         `json:"timestamp"`
-	Miner        string         `json:"miner"`
-	GasLimit     uint64         `json:"gasLimit"`
-	GasUsed      uint64         `json:"gasUsed"`
-	BaseFee      *big.Int       `json:"baseFeePerGas,omitempty"`
-	Transactions []EVMTx        `json:"transactions"`
+	Number       uint64   `json:"number"`
+	Hash         string   `json:"hash"`
+	ParentHash   string   `json:"parentHash"`
+	Timestamp    uint64   `json:"timestamp"`
+	Miner        string   `json:"miner"`
+	GasLimit     uint64   `json:"gasLimit"`
+	GasUsed      uint64   `json:"gasUsed"`
+	BaseFee      *big.Int `json:"baseFeePerGas,omitempty"`
+	Transactions []EVMTx  `json:"transactions"`
 }
 
 // EVMTx represents an EVM transaction
@@ -493,69 +493,98 @@ func (e *EVMIndexer) Stats() *IndexerStats {
 // =============================================================================
 
 type GenericEVMIndexer struct{ config ProtocolConfig }
-func NewGenericEVMIndexer(config ProtocolConfig) *GenericEVMIndexer { return &GenericEVMIndexer{config: config} }
-func (g *GenericEVMIndexer) Name() string { return "generic" }
-func (g *GenericEVMIndexer) EventSignatures() []string { return nil }
+
+func NewGenericEVMIndexer(config ProtocolConfig) *GenericEVMIndexer {
+	return &GenericEVMIndexer{config: config}
+}
+func (g *GenericEVMIndexer) Name() string                                    { return "generic" }
+func (g *GenericEVMIndexer) EventSignatures() []string                       { return nil }
 func (g *GenericEVMIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type UniswapV2Indexer struct{ config ProtocolConfig }
-func NewUniswapV2Indexer(config ProtocolConfig) *UniswapV2Indexer { return &UniswapV2Indexer{config: config} }
+
+func NewUniswapV2Indexer(config ProtocolConfig) *UniswapV2Indexer {
+	return &UniswapV2Indexer{config: config}
+}
 func (u *UniswapV2Indexer) Name() string { return "uniswap_v2" }
-func (u *UniswapV2Indexer) EventSignatures() []string { return []string{"0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"} }
+func (u *UniswapV2Indexer) EventSignatures() []string {
+	return []string{"0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"}
+}
 func (u *UniswapV2Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type UniswapV3Indexer struct{ config ProtocolConfig }
-func NewUniswapV3Indexer(config ProtocolConfig) *UniswapV3Indexer { return &UniswapV3Indexer{config: config} }
+
+func NewUniswapV3Indexer(config ProtocolConfig) *UniswapV3Indexer {
+	return &UniswapV3Indexer{config: config}
+}
 func (u *UniswapV3Indexer) Name() string { return "uniswap_v3" }
-func (u *UniswapV3Indexer) EventSignatures() []string { return []string{"0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"} }
+func (u *UniswapV3Indexer) EventSignatures() []string {
+	return []string{"0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67"}
+}
 func (u *UniswapV3Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type CurveIndexer struct{ config ProtocolConfig }
-func NewCurveIndexer(config ProtocolConfig) *CurveIndexer { return &CurveIndexer{config: config} }
-func (c *CurveIndexer) Name() string { return "curve" }
-func (c *CurveIndexer) EventSignatures() []string { return nil }
+
+func NewCurveIndexer(config ProtocolConfig) *CurveIndexer               { return &CurveIndexer{config: config} }
+func (c *CurveIndexer) Name() string                                    { return "curve" }
+func (c *CurveIndexer) EventSignatures() []string                       { return nil }
 func (c *CurveIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type BalancerIndexer struct{ config ProtocolConfig }
-func NewBalancerIndexer(config ProtocolConfig) *BalancerIndexer { return &BalancerIndexer{config: config} }
-func (b *BalancerIndexer) Name() string { return "balancer" }
-func (b *BalancerIndexer) EventSignatures() []string { return nil }
+
+func NewBalancerIndexer(config ProtocolConfig) *BalancerIndexer {
+	return &BalancerIndexer{config: config}
+}
+func (b *BalancerIndexer) Name() string                                    { return "balancer" }
+func (b *BalancerIndexer) EventSignatures() []string                       { return nil }
 func (b *BalancerIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type AaveV2Indexer struct{ config ProtocolConfig }
-func NewAaveV2Indexer(config ProtocolConfig) *AaveV2Indexer { return &AaveV2Indexer{config: config} }
-func (a *AaveV2Indexer) Name() string { return "aave_v2" }
-func (a *AaveV2Indexer) EventSignatures() []string { return nil }
+
+func NewAaveV2Indexer(config ProtocolConfig) *AaveV2Indexer              { return &AaveV2Indexer{config: config} }
+func (a *AaveV2Indexer) Name() string                                    { return "aave_v2" }
+func (a *AaveV2Indexer) EventSignatures() []string                       { return nil }
 func (a *AaveV2Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type AaveV3Indexer struct{ config ProtocolConfig }
-func NewAaveV3Indexer(config ProtocolConfig) *AaveV3Indexer { return &AaveV3Indexer{config: config} }
-func (a *AaveV3Indexer) Name() string { return "aave_v3" }
-func (a *AaveV3Indexer) EventSignatures() []string { return nil }
+
+func NewAaveV3Indexer(config ProtocolConfig) *AaveV3Indexer              { return &AaveV3Indexer{config: config} }
+func (a *AaveV3Indexer) Name() string                                    { return "aave_v3" }
+func (a *AaveV3Indexer) EventSignatures() []string                       { return nil }
 func (a *AaveV3Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type CompoundV2Indexer struct{ config ProtocolConfig }
-func NewCompoundV2Indexer(config ProtocolConfig) *CompoundV2Indexer { return &CompoundV2Indexer{config: config} }
-func (c *CompoundV2Indexer) Name() string { return "compound_v2" }
-func (c *CompoundV2Indexer) EventSignatures() []string { return nil }
+
+func NewCompoundV2Indexer(config ProtocolConfig) *CompoundV2Indexer {
+	return &CompoundV2Indexer{config: config}
+}
+func (c *CompoundV2Indexer) Name() string                                    { return "compound_v2" }
+func (c *CompoundV2Indexer) EventSignatures() []string                       { return nil }
 func (c *CompoundV2Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type CompoundV3Indexer struct{ config ProtocolConfig }
-func NewCompoundV3Indexer(config ProtocolConfig) *CompoundV3Indexer { return &CompoundV3Indexer{config: config} }
-func (c *CompoundV3Indexer) Name() string { return "compound_v3" }
-func (c *CompoundV3Indexer) EventSignatures() []string { return nil }
+
+func NewCompoundV3Indexer(config ProtocolConfig) *CompoundV3Indexer {
+	return &CompoundV3Indexer{config: config}
+}
+func (c *CompoundV3Indexer) Name() string                                    { return "compound_v3" }
+func (c *CompoundV3Indexer) EventSignatures() []string                       { return nil }
 func (c *CompoundV3Indexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type GMXIndexer struct{ config ProtocolConfig }
-func NewGMXIndexer(config ProtocolConfig) *GMXIndexer { return &GMXIndexer{config: config} }
-func (g *GMXIndexer) Name() string { return "gmx" }
-func (g *GMXIndexer) EventSignatures() []string { return nil }
+
+func NewGMXIndexer(config ProtocolConfig) *GMXIndexer                 { return &GMXIndexer{config: config} }
+func (g *GMXIndexer) Name() string                                    { return "gmx" }
+func (g *GMXIndexer) EventSignatures() []string                       { return nil }
 func (g *GMXIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type SynthetixIndexer struct{ config ProtocolConfig }
-func NewSynthetixIndexer(config ProtocolConfig) *SynthetixIndexer { return &SynthetixIndexer{config: config} }
-func (s *SynthetixIndexer) Name() string { return "synthetix" }
-func (s *SynthetixIndexer) EventSignatures() []string { return nil }
+
+func NewSynthetixIndexer(config ProtocolConfig) *SynthetixIndexer {
+	return &SynthetixIndexer{config: config}
+}
+func (s *SynthetixIndexer) Name() string                                    { return "synthetix" }
+func (s *SynthetixIndexer) EventSignatures() []string                       { return nil }
 func (s *SynthetixIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 // =============================================================================
@@ -565,8 +594,8 @@ func (s *SynthetixIndexer) IndexLog(ctx context.Context, log *EVMLog) error { re
 // NFT Marketplace Event Signatures
 const (
 	// Seaport (OpenSea) v1.1-1.6
-	SeaportOrderFulfilledSig  = "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
-	SeaportOrderCancelledSig  = "0x6bacc01dbe442496068f7d234edd811f1a5f833243e0aec824f86ab861f3c90d"
+	SeaportOrderFulfilledSig   = "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31"
+	SeaportOrderCancelledSig   = "0x6bacc01dbe442496068f7d234edd811f1a5f833243e0aec824f86ab861f3c90d"
 	SeaportCounterIncrementSig = "0x721c20121297512b72821b97f5326877ea8ecf4bb9948fea5bfcb6453074d37f"
 
 	// LooksRare v1
@@ -579,9 +608,9 @@ const (
 	LooksRareV2TakerAskSig = "0x9aaa45d6db2ef74ead0751ea9113263d1dec1b50cea05f0ca2002cb8063564a4"
 
 	// Blur
-	BlurOrdersMatchedSig     = "0x61cbb2a3dee0b6064c2e681aadd61677fb4ef319f0b547508d495626f5a62f64"
-	BlurOrderCancelledSig    = "0x5152abf959f6564662358c2e52b702c3fd8a1dead7a7e0efe0f0e3a8c2146a34"
-	BlurNonceIncrementedSig  = "0xa82a649bbd060c5c3e04c50b8f455d7a4ec1b99bd6f7e71ac1eb19a0a5c1c8f4"
+	BlurOrdersMatchedSig    = "0x61cbb2a3dee0b6064c2e681aadd61677fb4ef319f0b547508d495626f5a62f64"
+	BlurOrderCancelledSig   = "0x5152abf959f6564662358c2e52b702c3fd8a1dead7a7e0efe0f0e3a8c2146a34"
+	BlurNonceIncrementedSig = "0xa82a649bbd060c5c3e04c50b8f455d7a4ec1b99bd6f7e71ac1eb19a0a5c1c8f4"
 
 	// X2Y2
 	X2Y2InventorySig = "0x3cbb63f144840e5b1b0a38a7c19211d2e89de4d7c5faf8b2d3c1776c302d1d33"
@@ -602,22 +631,22 @@ const (
 
 // NFTSale represents a completed NFT sale
 type NFTSale struct {
-	ID           string     `json:"id"`
-	OrderHash    string     `json:"orderHash,omitempty"`
-	Protocol     string     `json:"protocol"`
-	Collection   string     `json:"collection"`
-	TokenID      *big.Int   `json:"tokenId"`
-	Quantity     uint64     `json:"quantity"`
-	Seller       string     `json:"seller"`
-	Buyer        string     `json:"buyer"`
-	Price        *big.Int   `json:"price"`
-	PaymentToken string     `json:"paymentToken"`
-	FeeTotal     *big.Int   `json:"feeTotal"`
-	RoyaltyTotal *big.Int   `json:"royaltyTotal"`
-	BlockNumber  uint64     `json:"blockNumber"`
-	TxHash       string     `json:"txHash"`
-	LogIndex     uint64     `json:"logIndex"`
-	Timestamp    time.Time  `json:"timestamp"`
+	ID           string    `json:"id"`
+	OrderHash    string    `json:"orderHash,omitempty"`
+	Protocol     string    `json:"protocol"`
+	Collection   string    `json:"collection"`
+	TokenID      *big.Int  `json:"tokenId"`
+	Quantity     uint64    `json:"quantity"`
+	Seller       string    `json:"seller"`
+	Buyer        string    `json:"buyer"`
+	Price        *big.Int  `json:"price"`
+	PaymentToken string    `json:"paymentToken"`
+	FeeTotal     *big.Int  `json:"feeTotal"`
+	RoyaltyTotal *big.Int  `json:"royaltyTotal"`
+	BlockNumber  uint64    `json:"blockNumber"`
+	TxHash       string    `json:"txHash"`
+	LogIndex     uint64    `json:"logIndex"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // SeaportIndexer indexes OpenSea Seaport events
@@ -626,8 +655,8 @@ type SeaportIndexer struct {
 	mu     sync.RWMutex
 	sales  []*NFTSale
 	stats  struct {
-		TotalSales   uint64
-		TotalVolume  *big.Int
+		TotalSales  uint64
+		TotalVolume *big.Int
 	}
 }
 
@@ -635,9 +664,9 @@ func NewSeaportIndexer(config ProtocolConfig) *SeaportIndexer {
 	return &SeaportIndexer{
 		config: config,
 		sales:  make([]*NFTSale, 0),
-		stats:  struct {
-			TotalSales   uint64
-			TotalVolume  *big.Int
+		stats: struct {
+			TotalSales  uint64
+			TotalVolume *big.Int
 		}{TotalVolume: big.NewInt(0)},
 	}
 }
@@ -677,16 +706,16 @@ func (s *SeaportIndexer) indexOrderFulfilled(log *EVMLog) error {
 	offerer := "0x" + log.Topics[2][26:]
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   orderHash,
-		Protocol:    "seaport",
-		Seller:      offerer,
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    orderHash,
+		Protocol:     "seaport",
+		Seller:       offerer,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
 	}
 
@@ -730,7 +759,7 @@ func NewLooksRareIndexer(config ProtocolConfig) *LooksRareIndexer {
 	return &LooksRareIndexer{
 		config: config,
 		sales:  make([]*NFTSale, 0),
-		stats:  struct {
+		stats: struct {
 			TotalSales  uint64
 			TotalVolume *big.Int
 		}{TotalVolume: big.NewInt(0)},
@@ -828,7 +857,7 @@ func NewBlurIndexer(config ProtocolConfig) *BlurIndexer {
 	return &BlurIndexer{
 		config: config,
 		sales:  make([]*NFTSale, 0),
-		stats:  struct {
+		stats: struct {
 			TotalSales  uint64
 			TotalVolume *big.Int
 		}{TotalVolume: big.NewInt(0)},
@@ -867,17 +896,17 @@ func (b *BlurIndexer) indexOrdersMatched(log *EVMLog) error {
 	taker := "0x" + log.Topics[2][26:]
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		Protocol:    "blur",
-		Seller:      maker,
-		Buyer:       taker,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		Protocol:     "blur",
+		Seller:       maker,
+		Buyer:        taker,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	// Extract price from data
@@ -911,7 +940,7 @@ func NewX2Y2Indexer(config ProtocolConfig) *X2Y2Indexer {
 	return &X2Y2Indexer{
 		config: config,
 		sales:  make([]*NFTSale, 0),
-		stats:  struct {
+		stats: struct {
 			TotalSales  uint64
 			TotalVolume *big.Int
 		}{TotalVolume: big.NewInt(0)},
@@ -947,19 +976,19 @@ func (x *X2Y2Indexer) indexInventory(log *EVMLog) error {
 	price := new(big.Int).SetBytes(hexToBytes(log.Data[128:192]))
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   itemHash,
-		Protocol:    "x2y2",
-		Seller:      maker,
-		Buyer:       taker,
-		Price:       price,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    itemHash,
+		Protocol:     "x2y2",
+		Seller:       maker,
+		Buyer:        taker,
+		Price:        price,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	x.mu.Lock()
@@ -986,7 +1015,7 @@ func NewSudoswapIndexer(config ProtocolConfig) *SudoswapIndexer {
 	return &SudoswapIndexer{
 		config: config,
 		swaps:  make([]*NFTSale, 0),
-		stats:  struct {
+		stats: struct {
 			TotalSwaps  uint64
 			TotalVolume *big.Int
 		}{TotalVolume: big.NewInt(0)},
@@ -1014,16 +1043,16 @@ func (s *SudoswapIndexer) IndexLog(ctx context.Context, log *EVMLog) error {
 
 func (s *SudoswapIndexer) indexSwap(log *EVMLog) error {
 	swap := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		Protocol:    "sudoswap",
-		Collection:  log.Address,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		Protocol:     "sudoswap",
+		Collection:   log.Address,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	s.mu.Lock()
@@ -1035,57 +1064,76 @@ func (s *SudoswapIndexer) indexSwap(log *EVMLog) error {
 }
 
 type WormholeIndexer struct{ config ProtocolConfig }
-func NewWormholeIndexer(config ProtocolConfig) *WormholeIndexer { return &WormholeIndexer{config: config} }
-func (w *WormholeIndexer) Name() string { return "wormhole" }
-func (w *WormholeIndexer) EventSignatures() []string { return nil }
+
+func NewWormholeIndexer(config ProtocolConfig) *WormholeIndexer {
+	return &WormholeIndexer{config: config}
+}
+func (w *WormholeIndexer) Name() string                                    { return "wormhole" }
+func (w *WormholeIndexer) EventSignatures() []string                       { return nil }
 func (w *WormholeIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type LayerZeroIndexer struct{ config ProtocolConfig }
-func NewLayerZeroIndexer(config ProtocolConfig) *LayerZeroIndexer { return &LayerZeroIndexer{config: config} }
-func (l *LayerZeroIndexer) Name() string { return "layerzero" }
-func (l *LayerZeroIndexer) EventSignatures() []string { return nil }
+
+func NewLayerZeroIndexer(config ProtocolConfig) *LayerZeroIndexer {
+	return &LayerZeroIndexer{config: config}
+}
+func (l *LayerZeroIndexer) Name() string                                    { return "layerzero" }
+func (l *LayerZeroIndexer) EventSignatures() []string                       { return nil }
 func (l *LayerZeroIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type StargateIndexer struct{ config ProtocolConfig }
-func NewStargateIndexer(config ProtocolConfig) *StargateIndexer { return &StargateIndexer{config: config} }
-func (s *StargateIndexer) Name() string { return "stargate" }
-func (s *StargateIndexer) EventSignatures() []string { return nil }
+
+func NewStargateIndexer(config ProtocolConfig) *StargateIndexer {
+	return &StargateIndexer{config: config}
+}
+func (s *StargateIndexer) Name() string                                    { return "stargate" }
+func (s *StargateIndexer) EventSignatures() []string                       { return nil }
 func (s *StargateIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type LidoIndexer struct{ config ProtocolConfig }
-func NewLidoIndexer(config ProtocolConfig) *LidoIndexer { return &LidoIndexer{config: config} }
-func (l *LidoIndexer) Name() string { return "lido" }
-func (l *LidoIndexer) EventSignatures() []string { return nil }
+
+func NewLidoIndexer(config ProtocolConfig) *LidoIndexer                { return &LidoIndexer{config: config} }
+func (l *LidoIndexer) Name() string                                    { return "lido" }
+func (l *LidoIndexer) EventSignatures() []string                       { return nil }
 func (l *LidoIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type RocketPoolIndexer struct{ config ProtocolConfig }
-func NewRocketPoolIndexer(config ProtocolConfig) *RocketPoolIndexer { return &RocketPoolIndexer{config: config} }
-func (r *RocketPoolIndexer) Name() string { return "rocket_pool" }
-func (r *RocketPoolIndexer) EventSignatures() []string { return nil }
+
+func NewRocketPoolIndexer(config ProtocolConfig) *RocketPoolIndexer {
+	return &RocketPoolIndexer{config: config}
+}
+func (r *RocketPoolIndexer) Name() string                                    { return "rocket_pool" }
+func (r *RocketPoolIndexer) EventSignatures() []string                       { return nil }
 func (r *RocketPoolIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type EigenlayerIndexer struct{ config ProtocolConfig }
-func NewEigenlayerIndexer(config ProtocolConfig) *EigenlayerIndexer { return &EigenlayerIndexer{config: config} }
-func (e *EigenlayerIndexer) Name() string { return "eigenlayer" }
-func (e *EigenlayerIndexer) EventSignatures() []string { return nil }
+
+func NewEigenlayerIndexer(config ProtocolConfig) *EigenlayerIndexer {
+	return &EigenlayerIndexer{config: config}
+}
+func (e *EigenlayerIndexer) Name() string                                    { return "eigenlayer" }
+func (e *EigenlayerIndexer) EventSignatures() []string                       { return nil }
 func (e *EigenlayerIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type YearnIndexer struct{ config ProtocolConfig }
-func NewYearnIndexer(config ProtocolConfig) *YearnIndexer { return &YearnIndexer{config: config} }
-func (y *YearnIndexer) Name() string { return "yearn" }
-func (y *YearnIndexer) EventSignatures() []string { return nil }
+
+func NewYearnIndexer(config ProtocolConfig) *YearnIndexer               { return &YearnIndexer{config: config} }
+func (y *YearnIndexer) Name() string                                    { return "yearn" }
+func (y *YearnIndexer) EventSignatures() []string                       { return nil }
 func (y *YearnIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type ConvexIndexer struct{ config ProtocolConfig }
-func NewConvexIndexer(config ProtocolConfig) *ConvexIndexer { return &ConvexIndexer{config: config} }
-func (c *ConvexIndexer) Name() string { return "convex" }
-func (c *ConvexIndexer) EventSignatures() []string { return nil }
+
+func NewConvexIndexer(config ProtocolConfig) *ConvexIndexer              { return &ConvexIndexer{config: config} }
+func (c *ConvexIndexer) Name() string                                    { return "convex" }
+func (c *ConvexIndexer) EventSignatures() []string                       { return nil }
 func (c *ConvexIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 type PendleIndexer struct{ config ProtocolConfig }
-func NewPendleIndexer(config ProtocolConfig) *PendleIndexer { return &PendleIndexer{config: config} }
-func (p *PendleIndexer) Name() string { return "pendle" }
-func (p *PendleIndexer) EventSignatures() []string { return nil }
+
+func NewPendleIndexer(config ProtocolConfig) *PendleIndexer              { return &PendleIndexer{config: config} }
+func (p *PendleIndexer) Name() string                                    { return "pendle" }
+func (p *PendleIndexer) EventSignatures() []string                       { return nil }
 func (p *PendleIndexer) IndexLog(ctx context.Context, log *EVMLog) error { return nil }
 
 // =============================================================================

@@ -47,9 +47,9 @@ type CosmosProtocolIndexer interface {
 
 // CosmosBlock represents a Cosmos block
 type CosmosBlock struct {
-	BlockID BlockID       `json:"block_id"`
-	Block   BlockData     `json:"block"`
-	Txs     []CosmosTx    `json:"txs,omitempty"`
+	BlockID BlockID    `json:"block_id"`
+	Block   BlockData  `json:"block"`
+	Txs     []CosmosTx `json:"txs,omitempty"`
 }
 
 // BlockID represents block identification
@@ -95,8 +95,8 @@ type BlockHeader struct {
 
 // LastCommit represents last commit info
 type LastCommit struct {
-	Height     string `json:"height"`
-	Round      int    `json:"round"`
+	Height     string  `json:"height"`
+	Round      int     `json:"round"`
 	BlockID    BlockID `json:"block_id"`
 	Signatures []struct {
 		BlockIDFlag      int       `json:"block_id_flag"`
@@ -108,18 +108,18 @@ type LastCommit struct {
 
 // CosmosTx represents a Cosmos transaction
 type CosmosTx struct {
-	Hash     string          `json:"hash"`
-	Height   uint64          `json:"height"`
-	Index    uint32          `json:"index"`
-	Code     uint32          `json:"code"` // 0 = success
-	Data     string          `json:"data"`
-	RawLog   string          `json:"raw_log"`
-	Log      []TxLog         `json:"logs"`
-	GasWanted uint64         `json:"gas_wanted"`
-	GasUsed   uint64         `json:"gas_used"`
-	Tx       TxBody          `json:"tx"`
-	Timestamp time.Time      `json:"timestamp"`
-	Events   []CosmosEvent   `json:"events"`
+	Hash      string        `json:"hash"`
+	Height    uint64        `json:"height"`
+	Index     uint32        `json:"index"`
+	Code      uint32        `json:"code"` // 0 = success
+	Data      string        `json:"data"`
+	RawLog    string        `json:"raw_log"`
+	Log       []TxLog       `json:"logs"`
+	GasWanted uint64        `json:"gas_wanted"`
+	GasUsed   uint64        `json:"gas_used"`
+	Tx        TxBody        `json:"tx"`
+	Timestamp time.Time     `json:"timestamp"`
+	Events    []CosmosEvent `json:"events"`
 }
 
 // TxBody represents the transaction body
@@ -182,8 +182,8 @@ type TxLog struct {
 
 // CosmosEvent represents an event
 type CosmosEvent struct {
-	Type       string            `json:"type"`
-	Attributes []EventAttribute  `json:"attributes"`
+	Type       string           `json:"type"`
+	Attributes []EventAttribute `json:"attributes"`
 }
 
 // EventAttribute represents event attribute
@@ -386,8 +386,8 @@ func (c *CosmosIndexer) fetchBlockTxs(ctx context.Context, height uint64) ([]Cos
 	}
 
 	var result struct {
-		Txs         []CosmosTx `json:"tx_responses"`
-		Pagination  struct {
+		Txs        []CosmosTx `json:"tx_responses"`
+		Pagination struct {
 			NextKey string `json:"next_key"`
 			Total   string `json:"total"`
 		} `json:"pagination"`
@@ -454,15 +454,21 @@ func (c *CosmosIndexer) Stats() *IndexerStats {
 // =============================================================================
 
 type GenericCosmosIndexer struct{ config ProtocolConfig }
-func NewGenericCosmosIndexer(config ProtocolConfig) *GenericCosmosIndexer { return &GenericCosmosIndexer{config: config} }
-func (g *GenericCosmosIndexer) Name() string { return "generic_cosmos" }
+
+func NewGenericCosmosIndexer(config ProtocolConfig) *GenericCosmosIndexer {
+	return &GenericCosmosIndexer{config: config}
+}
+func (g *GenericCosmosIndexer) Name() string           { return "generic_cosmos" }
 func (g *GenericCosmosIndexer) MessageTypes() []string { return nil }
-func (g *GenericCosmosIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (g *GenericCosmosIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // Osmosis DEX
 type OsmosisIndexer struct{ config ProtocolConfig }
+
 func NewOsmosisIndexer(config ProtocolConfig) *OsmosisIndexer { return &OsmosisIndexer{config: config} }
-func (o *OsmosisIndexer) Name() string { return "osmosis" }
+func (o *OsmosisIndexer) Name() string                        { return "osmosis" }
 func (o *OsmosisIndexer) MessageTypes() []string {
 	return []string{
 		"/osmosis.gamm.v1beta1.MsgSwapExactAmountIn",
@@ -473,11 +479,16 @@ func (o *OsmosisIndexer) MessageTypes() []string {
 		"/osmosis.superfluid.MsgSuperfluidDelegate",
 	}
 }
-func (o *OsmosisIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (o *OsmosisIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // Injective DEX
 type InjectiveIndexer struct{ config ProtocolConfig }
-func NewInjectiveIndexer(config ProtocolConfig) *InjectiveIndexer { return &InjectiveIndexer{config: config} }
+
+func NewInjectiveIndexer(config ProtocolConfig) *InjectiveIndexer {
+	return &InjectiveIndexer{config: config}
+}
 func (i *InjectiveIndexer) Name() string { return "injective" }
 func (i *InjectiveIndexer) MessageTypes() []string {
 	return []string{
@@ -487,11 +498,16 @@ func (i *InjectiveIndexer) MessageTypes() []string {
 		"/injective.exchange.v1beta1.MsgDeposit",
 	}
 }
-func (i *InjectiveIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (i *InjectiveIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // dYdX Cosmos
 type DYDXCosmosIndexer struct{ config ProtocolConfig }
-func NewDYDXCosmosIndexer(config ProtocolConfig) *DYDXCosmosIndexer { return &DYDXCosmosIndexer{config: config} }
+
+func NewDYDXCosmosIndexer(config ProtocolConfig) *DYDXCosmosIndexer {
+	return &DYDXCosmosIndexer{config: config}
+}
 func (d *DYDXCosmosIndexer) Name() string { return "dydx_cosmos" }
 func (d *DYDXCosmosIndexer) MessageTypes() []string {
 	return []string{
@@ -501,39 +517,52 @@ func (d *DYDXCosmosIndexer) MessageTypes() []string {
 		"/dydxprotocol.subaccounts.MsgCreateSubaccount",
 	}
 }
-func (d *DYDXCosmosIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (d *DYDXCosmosIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // Celestia Data Availability
 type CelestiaIndexer struct{ config ProtocolConfig }
-func NewCelestiaIndexer(config ProtocolConfig) *CelestiaIndexer { return &CelestiaIndexer{config: config} }
+
+func NewCelestiaIndexer(config ProtocolConfig) *CelestiaIndexer {
+	return &CelestiaIndexer{config: config}
+}
 func (c *CelestiaIndexer) Name() string { return "celestia" }
 func (c *CelestiaIndexer) MessageTypes() []string {
 	return []string{
 		"/celestia.blob.v1.MsgPayForBlobs",
 	}
 }
-func (c *CelestiaIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (c *CelestiaIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // Sei
 type SeiIndexer struct{ config ProtocolConfig }
+
 func NewSeiIndexer(config ProtocolConfig) *SeiIndexer { return &SeiIndexer{config: config} }
-func (s *SeiIndexer) Name() string { return "sei" }
+func (s *SeiIndexer) Name() string                    { return "sei" }
 func (s *SeiIndexer) MessageTypes() []string {
 	return []string{
 		"/seiprotocol.seichain.dex.MsgPlaceOrders",
 		"/seiprotocol.seichain.dex.MsgCancelOrders",
 	}
 }
-func (s *SeiIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (s *SeiIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}
 
 // Neutron
 type NeutronIndexer struct{ config ProtocolConfig }
+
 func NewNeutronIndexer(config ProtocolConfig) *NeutronIndexer { return &NeutronIndexer{config: config} }
-func (n *NeutronIndexer) Name() string { return "neutron" }
+func (n *NeutronIndexer) Name() string                        { return "neutron" }
 func (n *NeutronIndexer) MessageTypes() []string {
 	return []string{
 		"/neutron.interchainqueries.MsgRegisterInterchainQuery",
 		"/neutron.interchaintxs.v1.MsgSubmitTx",
 	}
 }
-func (n *NeutronIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error { return nil }
+func (n *NeutronIndexer) IndexMessage(ctx context.Context, msg *CosmosMessage, tx *CosmosTx) error {
+	return nil
+}

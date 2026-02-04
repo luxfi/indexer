@@ -85,23 +85,23 @@ type rateLimiter struct {
 // NFTMetadataServiceConfig holds service configuration
 type NFTMetadataServiceConfig struct {
 	// HTTP client settings
-	Timeout            time.Duration
-	MaxRetries         int
-	RetryDelay         time.Duration
-	MaxResponseSize    int64
-	UserAgent          string
+	Timeout         time.Duration
+	MaxRetries      int
+	RetryDelay      time.Duration
+	MaxResponseSize int64
+	UserAgent       string
 
 	// IPFS settings
-	IPFSGateways       []string
-	ArweaveGateway     string
+	IPFSGateways   []string
+	ArweaveGateway string
 
 	// Cache settings
-	CacheTTL           time.Duration
-	MaxCacheSize       int
+	CacheTTL     time.Duration
+	MaxCacheSize int
 
 	// Rate limiting
-	RequestsPerSecond  float64
-	BurstSize          int
+	RequestsPerSecond float64
+	BurstSize         int
 }
 
 // DefaultNFTMetadataServiceConfig returns default configuration
@@ -123,10 +123,10 @@ func DefaultNFTMetadataServiceConfig() *NFTMetadataServiceConfig {
 
 // NFTMetadataService fetches and parses NFT metadata from various sources
 type NFTMetadataService struct {
-	mu     sync.RWMutex
-	config *NFTMetadataServiceConfig
-	client *http.Client
-	cache  map[string]*cacheEntry
+	mu      sync.RWMutex
+	config  *NFTMetadataServiceConfig
+	client  *http.Client
+	cache   map[string]*cacheEntry
 	limiter *rateLimiter
 
 	// Stats

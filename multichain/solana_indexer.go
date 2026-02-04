@@ -172,15 +172,15 @@ type SolanaBlock struct {
 
 // SolanaTransaction represents a Solana transaction
 type SolanaTransaction struct {
-	Signature         string                    `json:"signature"`
-	Slot              uint64                    `json:"slot"`
-	BlockTime         int64                     `json:"blockTime"`
-	Fee               uint64                    `json:"fee"`
-	Status            string                    `json:"status"` // "success" or "failed"
-	Err               interface{}               `json:"err"`
-	Message           SolanaMessage             `json:"message"`
-	Meta              SolanaMeta                `json:"meta"`
-	InnerInstructions []SolanaInnerInstruction  `json:"innerInstructions"`
+	Signature         string                   `json:"signature"`
+	Slot              uint64                   `json:"slot"`
+	BlockTime         int64                    `json:"blockTime"`
+	Fee               uint64                   `json:"fee"`
+	Status            string                   `json:"status"` // "success" or "failed"
+	Err               interface{}              `json:"err"`
+	Message           SolanaMessage            `json:"message"`
+	Meta              SolanaMeta               `json:"meta"`
+	InnerInstructions []SolanaInnerInstruction `json:"innerInstructions"`
 }
 
 // SolanaMessage represents transaction message
@@ -771,9 +771,11 @@ type GenericSolanaIndexer struct{ config ProtocolConfig }
 func NewGenericSolanaIndexer(config ProtocolConfig) *GenericSolanaIndexer {
 	return &GenericSolanaIndexer{config: config}
 }
-func (g *GenericSolanaIndexer) Name() string                                              { return "generic_solana" }
-func (g *GenericSolanaIndexer) ProgramIDs() []string                                      { return nil }
-func (g *GenericSolanaIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error { return nil }
+func (g *GenericSolanaIndexer) Name() string         { return "generic_solana" }
+func (g *GenericSolanaIndexer) ProgramIDs() []string { return nil }
+func (g *GenericSolanaIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error {
+	return nil
+}
 
 // Raydium AMM (largest Solana DEX)
 type RaydiumIndexer struct{ config ProtocolConfig }
@@ -787,7 +789,9 @@ func (r *RaydiumIndexer) ProgramIDs() []string {
 		"routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS",  // Router
 	}
 }
-func (r *RaydiumIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error { return nil }
+func (r *RaydiumIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error {
+	return nil
+}
 
 // Orca AMM
 type OrcaIndexer struct{ config ProtocolConfig }
@@ -814,7 +818,9 @@ func (m *MarinadeIndexer) ProgramIDs() []string {
 		"MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD", // Marinade Finance
 	}
 }
-func (m *MarinadeIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error { return nil }
+func (m *MarinadeIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error {
+	return nil
+}
 
 // Jito MEV/Staking
 type JitoIndexer struct{ config ProtocolConfig }
@@ -840,7 +846,9 @@ func (j *JupiterIndexer) ProgramIDs() []string {
 		"JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB", // Jupiter V4
 	}
 }
-func (j *JupiterIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error { return nil }
+func (j *JupiterIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error {
+	return nil
+}
 
 // Drift Perpetuals
 type DriftIndexer struct{ config ProtocolConfig }
@@ -876,7 +884,9 @@ func (p *PhoenixIndexer) ProgramIDs() []string {
 		"PhoeNiXZ8ByJGLkxNfZRnkUfjvmuYqLR89jjFHGqdXY", // Phoenix V1
 	}
 }
-func (p *PhoenixIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error { return nil }
+func (p *PhoenixIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransaction) error {
+	return nil
+}
 
 // =============================================================================
 // Metaplex NFT Indexer
@@ -885,19 +895,19 @@ func (p *PhoenixIndexer) IndexTransaction(ctx context.Context, tx *SolanaTransac
 // Metaplex instruction discriminators (first 8 bytes of instruction data)
 const (
 	// Token Metadata Program instructions
-	MetaplexCreateMetadataV3      uint8 = 33
-	MetaplexUpdateMetadataV2      uint8 = 15
-	MetaplexCreateMasterEditionV3 uint8 = 17
-	MetaplexVerifyCreator         uint8 = 8
+	MetaplexCreateMetadataV3       uint8 = 33
+	MetaplexUpdateMetadataV2       uint8 = 15
+	MetaplexCreateMasterEditionV3  uint8 = 17
+	MetaplexVerifyCreator          uint8 = 8
 	MetaplexSetAndVerifyCollection uint8 = 25
 
 	// Auction House instructions
-	MetaplexAHExecuteSale       uint8 = 0  // ExecuteSale
-	MetaplexAHExecuteSaleV2     uint8 = 1  // ExecuteSaleV2
-	MetaplexAHBuy               uint8 = 2  // Buy
-	MetaplexAHSell              uint8 = 3  // Sell
-	MetaplexAHCancel            uint8 = 4  // Cancel
-	MetaplexAHPublicBuy         uint8 = 6  // PublicBuy
+	MetaplexAHExecuteSale   uint8 = 0 // ExecuteSale
+	MetaplexAHExecuteSaleV2 uint8 = 1 // ExecuteSaleV2
+	MetaplexAHBuy           uint8 = 2 // Buy
+	MetaplexAHSell          uint8 = 3 // Sell
+	MetaplexAHCancel        uint8 = 4 // Cancel
+	MetaplexAHPublicBuy     uint8 = 6 // PublicBuy
 )
 
 // MetaplexIndexer indexes Metaplex NFT activity
@@ -915,8 +925,8 @@ func (m *MetaplexIndexer) Name() string { return "metaplex" }
 
 func (m *MetaplexIndexer) ProgramIDs() []string {
 	return []string{
-		"metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s", // Token Metadata
-		"p1exdMJcjVao65QdewkaZRUnU6VPSXhus9n2GzWfh98", // Auction House
+		"metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",  // Token Metadata
+		"p1exdMJcjVao65QdewkaZRUnU6VPSXhus9n2GzWfh98",  // Auction House
 		"CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d", // Core
 		"BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY", // Bubblegum (cNFTs)
 	}
@@ -1487,12 +1497,12 @@ func (m *MagicEdenSolanaIndexer) storeSale(ctx context.Context, sale *SolanaNFTS
 
 // Tensor instruction types
 const (
-	TensorBuyNft     uint8 = 0
-	TensorSellNft    uint8 = 1
+	TensorBuyNft           uint8 = 0
+	TensorSellNft          uint8 = 1
 	TensorBuySingleListing uint8 = 2
-	TensorList       uint8 = 3
-	TensorDelist     uint8 = 4
-	TensorEdit       uint8 = 5
+	TensorList             uint8 = 3
+	TensorDelist           uint8 = 4
+	TensorEdit             uint8 = 5
 )
 
 // TensorIndexer indexes Tensor NFT marketplace on Solana

@@ -29,9 +29,9 @@ const (
 
 // TON Marketplace addresses
 const (
-	GetGemsMarketplace    = "EQBYTuYbLf8INxFtD8tQeNk5ZLy-nAX9ahQbG_yl1qQ-GEMS"
+	GetGemsMarketplace     = "EQBYTuYbLf8INxFtD8tQeNk5ZLy-nAX9ahQbG_yl1qQ-GEMS"
 	TONDiamondsMarketplace = "EQA8gwSB3bP-VmzPLTQOIaW-8dFOH_kVVvz7eyVm8MAvPYv-"
-	FragmentMarketplace   = "EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT"
+	FragmentMarketplace    = "EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT"
 )
 
 // TONIndexer indexes TON blockchain
@@ -43,9 +43,9 @@ type TONIndexer struct {
 	client *http.Client
 
 	// State
-	running     int32
-	indexedLt   uint64
-	latestLt    uint64
+	running   int32
+	indexedLt uint64
+	latestLt  uint64
 
 	// NFT sale tracking
 	nftSales []*TONNFTSale
@@ -76,32 +76,32 @@ type TONNFTSale struct {
 
 // TONTransaction represents a TON transaction
 type TONTransaction struct {
-	Hash        string            `json:"hash"`
-	Lt          uint64            `json:"lt"`
-	Utime       int64             `json:"utime"`
-	Fee         string            `json:"fee"`
-	StorageFee  string            `json:"storage_fee"`
-	OtherFee    string            `json:"other_fee"`
-	InMsg       *TONMessage       `json:"in_msg"`
-	OutMsgs     []*TONMessage     `json:"out_msgs"`
-	Account     string            `json:"account"`
-	Success     bool              `json:"success"`
-	ExitCode    int               `json:"exit_code"`
-	Description json.RawMessage   `json:"description"`
+	Hash        string          `json:"hash"`
+	Lt          uint64          `json:"lt"`
+	Utime       int64           `json:"utime"`
+	Fee         string          `json:"fee"`
+	StorageFee  string          `json:"storage_fee"`
+	OtherFee    string          `json:"other_fee"`
+	InMsg       *TONMessage     `json:"in_msg"`
+	OutMsgs     []*TONMessage   `json:"out_msgs"`
+	Account     string          `json:"account"`
+	Success     bool            `json:"success"`
+	ExitCode    int             `json:"exit_code"`
+	Description json.RawMessage `json:"description"`
 }
 
 // TONMessage represents a TON message
 type TONMessage struct {
-	Hash        string `json:"hash"`
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	Value       string `json:"value"`
-	FwdFee      string `json:"fwd_fee"`
-	IhrFee      string `json:"ihr_fee"`
-	CreatedLt   uint64 `json:"created_lt"`
-	BodyHash    string `json:"body_hash"`
+	Hash        string      `json:"hash"`
+	Source      string      `json:"source"`
+	Destination string      `json:"destination"`
+	Value       string      `json:"value"`
+	FwdFee      string      `json:"fwd_fee"`
+	IhrFee      string      `json:"ihr_fee"`
+	CreatedLt   uint64      `json:"created_lt"`
+	BodyHash    string      `json:"body_hash"`
 	MsgData     *TONMsgData `json:"msg_data"`
-	OpCode      uint32 `json:"op_code,omitempty"`
+	OpCode      uint32      `json:"op_code,omitempty"`
 }
 
 // TONMsgData represents message data
@@ -473,9 +473,9 @@ func (t *TONIndexer) GetNFTSales(limit int) []*TONNFTSale {
 
 // TONCell represents a TON Cell
 type TONCell struct {
-	Data     []byte
-	BitLen   int
-	Refs     []*TONCell
+	Data   []byte
+	BitLen int
+	Refs   []*TONCell
 }
 
 // parseBOC parses a Bag of Cells from base64 encoded data
