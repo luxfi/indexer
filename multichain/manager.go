@@ -17,23 +17,23 @@ import (
 type ChainType string
 
 const (
-	ChainTypeEVM       ChainType = "evm"
-	ChainTypeSolana    ChainType = "solana"
-	ChainTypeBitcoin   ChainType = "bitcoin"
-	ChainTypeCosmos    ChainType = "cosmos"
-	ChainTypeMove      ChainType = "move"      // Aptos, Sui
-	ChainTypeNear      ChainType = "near"
-	ChainTypeTron      ChainType = "tron"
-	ChainTypeTon       ChainType = "ton"
-	ChainTypeFlow      ChainType = "flow"
-	ChainTypeTezos     ChainType = "tezos"
-	ChainTypeAlgorand  ChainType = "algorand"
-	ChainTypeCardano   ChainType = "cardano"
-	ChainTypeSubstrate ChainType = "substrate" // Polkadot, Kusama
-	ChainTypeStacks    ChainType = "stacks"
-	ChainTypeHedera    ChainType = "hedera"
-	ChainTypeFilecoin  ChainType = "filecoin"
-	ChainTypeICP       ChainType = "icp"
+	ChainTypeEVM        ChainType = "evm"
+	ChainTypeSolana     ChainType = "solana"
+	ChainTypeBitcoin    ChainType = "bitcoin"
+	ChainTypeCosmos     ChainType = "cosmos"
+	ChainTypeMove       ChainType = "move" // Aptos, Sui
+	ChainTypeNear       ChainType = "near"
+	ChainTypeTron       ChainType = "tron"
+	ChainTypeTon        ChainType = "ton"
+	ChainTypeFlow       ChainType = "flow"
+	ChainTypeTezos      ChainType = "tezos"
+	ChainTypeAlgorand   ChainType = "algorand"
+	ChainTypeCardano    ChainType = "cardano"
+	ChainTypeSubstrate  ChainType = "substrate" // Polkadot, Kusama
+	ChainTypeStacks     ChainType = "stacks"
+	ChainTypeHedera     ChainType = "hedera"
+	ChainTypeFilecoin   ChainType = "filecoin"
+	ChainTypeICP        ChainType = "icp"
 	ChainTypeMultiversX ChainType = "multiversx"
 
 	// Lux Native Chains (non-EVM)
@@ -52,63 +52,63 @@ type ProtocolType string
 
 const (
 	// DEX Protocols
-	ProtocolUniswapV2    ProtocolType = "uniswap_v2"
-	ProtocolUniswapV3    ProtocolType = "uniswap_v3"
-	ProtocolSushiswap    ProtocolType = "sushiswap"
-	ProtocolCurve        ProtocolType = "curve"
-	ProtocolBalancer     ProtocolType = "balancer"
-	ProtocolPancakeswap  ProtocolType = "pancakeswap"
-	ProtocolTraderJoe    ProtocolType = "trader_joe"
-	ProtocolCamelot      ProtocolType = "camelot"
-	Protocol1inch        ProtocolType = "1inch"
-	ProtocolParaswap     ProtocolType = "paraswap"
-	ProtocolKyberswap    ProtocolType = "kyberswap"
-	ProtocolDODO         ProtocolType = "dodo"
-	ProtocolBancor       ProtocolType = "bancor"
-	ProtocolVelodrome    ProtocolType = "velodrome"
-	ProtocolAerodrome    ProtocolType = "aerodrome"
-	ProtocolMaverick     ProtocolType = "maverick"
+	ProtocolUniswapV2   ProtocolType = "uniswap_v2"
+	ProtocolUniswapV3   ProtocolType = "uniswap_v3"
+	ProtocolSushiswap   ProtocolType = "sushiswap"
+	ProtocolCurve       ProtocolType = "curve"
+	ProtocolBalancer    ProtocolType = "balancer"
+	ProtocolPancakeswap ProtocolType = "pancakeswap"
+	ProtocolTraderJoe   ProtocolType = "trader_joe"
+	ProtocolCamelot     ProtocolType = "camelot"
+	Protocol1inch       ProtocolType = "1inch"
+	ProtocolParaswap    ProtocolType = "paraswap"
+	ProtocolKyberswap   ProtocolType = "kyberswap"
+	ProtocolDODO        ProtocolType = "dodo"
+	ProtocolBancor      ProtocolType = "bancor"
+	ProtocolVelodrome   ProtocolType = "velodrome"
+	ProtocolAerodrome   ProtocolType = "aerodrome"
+	ProtocolMaverick    ProtocolType = "maverick"
 
 	// Lending/Borrowing
-	ProtocolAaveV2       ProtocolType = "aave_v2"
-	ProtocolAaveV3       ProtocolType = "aave_v3"
-	ProtocolCompoundV2   ProtocolType = "compound_v2"
-	ProtocolCompoundV3   ProtocolType = "compound_v3"
-	ProtocolMakerDAO     ProtocolType = "makerdao"
-	ProtocolMorpho       ProtocolType = "morpho"
-	ProtocolEuler        ProtocolType = "euler"
-	ProtocolRadiant      ProtocolType = "radiant"
-	ProtocolBenqi        ProtocolType = "benqi"
-	ProtocolVenus        ProtocolType = "venus"
-	ProtocolSpark        ProtocolType = "spark"
+	ProtocolAaveV2     ProtocolType = "aave_v2"
+	ProtocolAaveV3     ProtocolType = "aave_v3"
+	ProtocolCompoundV2 ProtocolType = "compound_v2"
+	ProtocolCompoundV3 ProtocolType = "compound_v3"
+	ProtocolMakerDAO   ProtocolType = "makerdao"
+	ProtocolMorpho     ProtocolType = "morpho"
+	ProtocolEuler      ProtocolType = "euler"
+	ProtocolRadiant    ProtocolType = "radiant"
+	ProtocolBenqi      ProtocolType = "benqi"
+	ProtocolVenus      ProtocolType = "venus"
+	ProtocolSpark      ProtocolType = "spark"
 
 	// Perpetuals/Derivatives
-	ProtocolGMX          ProtocolType = "gmx"
-	ProtocolGMXV2        ProtocolType = "gmx_v2"
-	ProtocolGains        ProtocolType = "gains"
-	ProtocolSynthetix    ProtocolType = "synthetix"
-	ProtocolSynthetixV3  ProtocolType = "synthetix_v3"
-	ProtocolPerpetual    ProtocolType = "perpetual"
-	ProtocolDYDX         ProtocolType = "dydx"
-	ProtocolKwenta       ProtocolType = "kwenta"
-	ProtocolLevel        ProtocolType = "level"
-	ProtocolMux          ProtocolType = "mux"
-	ProtocolVela         ProtocolType = "vela"
-	ProtocolVertex       ProtocolType = "vertex"
-	ProtocolHyperliquid  ProtocolType = "hyperliquid"
+	ProtocolGMX         ProtocolType = "gmx"
+	ProtocolGMXV2       ProtocolType = "gmx_v2"
+	ProtocolGains       ProtocolType = "gains"
+	ProtocolSynthetix   ProtocolType = "synthetix"
+	ProtocolSynthetixV3 ProtocolType = "synthetix_v3"
+	ProtocolPerpetual   ProtocolType = "perpetual"
+	ProtocolDYDX        ProtocolType = "dydx"
+	ProtocolKwenta      ProtocolType = "kwenta"
+	ProtocolLevel       ProtocolType = "level"
+	ProtocolMux         ProtocolType = "mux"
+	ProtocolVela        ProtocolType = "vela"
+	ProtocolVertex      ProtocolType = "vertex"
+	ProtocolHyperliquid ProtocolType = "hyperliquid"
 
 	// Liquid Staking
-	ProtocolLido         ProtocolType = "lido"
-	ProtocolRocketPool   ProtocolType = "rocket_pool"
-	ProtocolFrax         ProtocolType = "frax"
-	ProtocolCoinbase     ProtocolType = "coinbase_staked"
-	ProtocolStakeWise    ProtocolType = "stakewise"
-	ProtocolSwell        ProtocolType = "swell"
-	ProtocolEtherFi      ProtocolType = "etherfi"
-	ProtocolKelp         ProtocolType = "kelp"
-	ProtocolRenzo        ProtocolType = "renzo"
-	ProtocolPuffer       ProtocolType = "puffer"
-	ProtocolEigenlayer   ProtocolType = "eigenlayer"
+	ProtocolLido       ProtocolType = "lido"
+	ProtocolRocketPool ProtocolType = "rocket_pool"
+	ProtocolFrax       ProtocolType = "frax"
+	ProtocolCoinbase   ProtocolType = "coinbase_staked"
+	ProtocolStakeWise  ProtocolType = "stakewise"
+	ProtocolSwell      ProtocolType = "swell"
+	ProtocolEtherFi    ProtocolType = "etherfi"
+	ProtocolKelp       ProtocolType = "kelp"
+	ProtocolRenzo      ProtocolType = "renzo"
+	ProtocolPuffer     ProtocolType = "puffer"
+	ProtocolEigenlayer ProtocolType = "eigenlayer"
 
 	// Yield/Vaults
 	ProtocolYearn        ProtocolType = "yearn"
@@ -121,98 +121,98 @@ const (
 	ProtocolConcentrator ProtocolType = "concentrator"
 
 	// NFT Marketplaces
-	ProtocolSeaport      ProtocolType = "seaport"
-	ProtocolLooksRare    ProtocolType = "looksrare"
-	ProtocolBlur         ProtocolType = "blur"
-	ProtocolX2Y2         ProtocolType = "x2y2"
-	ProtocolRarible      ProtocolType = "rarible"
-	ProtocolZora         ProtocolType = "zora"
-	ProtocolFoundation   ProtocolType = "foundation"
-	ProtocolSuperRare    ProtocolType = "superrare"
-	ProtocolMagicEden    ProtocolType = "magic_eden"
-	ProtocolTensor       ProtocolType = "tensor"
-	ProtocolSudoswap     ProtocolType = "sudoswap"
-	ProtocolNFTX         ProtocolType = "nftx"
-	ProtocolBendDAO      ProtocolType = "benddao"
+	ProtocolSeaport    ProtocolType = "seaport"
+	ProtocolLooksRare  ProtocolType = "looksrare"
+	ProtocolBlur       ProtocolType = "blur"
+	ProtocolX2Y2       ProtocolType = "x2y2"
+	ProtocolRarible    ProtocolType = "rarible"
+	ProtocolZora       ProtocolType = "zora"
+	ProtocolFoundation ProtocolType = "foundation"
+	ProtocolSuperRare  ProtocolType = "superrare"
+	ProtocolMagicEden  ProtocolType = "magic_eden"
+	ProtocolTensor     ProtocolType = "tensor"
+	ProtocolSudoswap   ProtocolType = "sudoswap"
+	ProtocolNFTX       ProtocolType = "nftx"
+	ProtocolBendDAO    ProtocolType = "benddao"
 
 	// Bridges
-	ProtocolWormhole     ProtocolType = "wormhole"
-	ProtocolLayerZero    ProtocolType = "layerzero"
-	ProtocolStargate     ProtocolType = "stargate"
-	ProtocolAxelar       ProtocolType = "axelar"
-	ProtocolCeler        ProtocolType = "celer"
-	ProtocolMultichain   ProtocolType = "multichain"
-	ProtocolHop          ProtocolType = "hop"
-	ProtocolAcross       ProtocolType = "across"
-	ProtocolSynapse      ProtocolType = "synapse"
-	ProtocolSocket       ProtocolType = "socket"
-	ProtocolLifi         ProtocolType = "lifi"
-	ProtocolDebridge     ProtocolType = "debridge"
-	ProtocolCCTP         ProtocolType = "cctp"
+	ProtocolWormhole   ProtocolType = "wormhole"
+	ProtocolLayerZero  ProtocolType = "layerzero"
+	ProtocolStargate   ProtocolType = "stargate"
+	ProtocolAxelar     ProtocolType = "axelar"
+	ProtocolCeler      ProtocolType = "celer"
+	ProtocolMultichain ProtocolType = "multichain"
+	ProtocolHop        ProtocolType = "hop"
+	ProtocolAcross     ProtocolType = "across"
+	ProtocolSynapse    ProtocolType = "synapse"
+	ProtocolSocket     ProtocolType = "socket"
+	ProtocolLifi       ProtocolType = "lifi"
+	ProtocolDebridge   ProtocolType = "debridge"
+	ProtocolCCTP       ProtocolType = "cctp"
 
 	// Options/Structured Products
-	ProtocolDopex        ProtocolType = "dopex"
-	ProtocolLyra         ProtocolType = "lyra"
-	ProtocolPremia       ProtocolType = "premia"
-	ProtocolRibbon       ProtocolType = "ribbon"
-	ProtocolThetanuts    ProtocolType = "thetanuts"
+	ProtocolDopex     ProtocolType = "dopex"
+	ProtocolLyra      ProtocolType = "lyra"
+	ProtocolPremia    ProtocolType = "premia"
+	ProtocolRibbon    ProtocolType = "ribbon"
+	ProtocolThetanuts ProtocolType = "thetanuts"
 
 	// CDP/Stablecoins
-	ProtocolLiquity      ProtocolType = "liquity"
-	ProtocolPrisma       ProtocolType = "prisma"
-	ProtocolGravita      ProtocolType = "gravita"
-	ProtocolAbracadabra  ProtocolType = "abracadabra"
-	ProtocolAngle        ProtocolType = "angle"
-	ProtocolReflexer     ProtocolType = "reflexer"
+	ProtocolLiquity     ProtocolType = "liquity"
+	ProtocolPrisma      ProtocolType = "prisma"
+	ProtocolGravita     ProtocolType = "gravita"
+	ProtocolAbracadabra ProtocolType = "abracadabra"
+	ProtocolAngle       ProtocolType = "angle"
+	ProtocolReflexer    ProtocolType = "reflexer"
 
 	// RWA
-	ProtocolCentrifuge   ProtocolType = "centrifuge"
-	ProtocolMaple        ProtocolType = "maple"
-	ProtocolGoldfinch    ProtocolType = "goldfinch"
-	ProtocolOndo         ProtocolType = "ondo"
+	ProtocolCentrifuge ProtocolType = "centrifuge"
+	ProtocolMaple      ProtocolType = "maple"
+	ProtocolGoldfinch  ProtocolType = "goldfinch"
+	ProtocolOndo       ProtocolType = "ondo"
 
 	// Insurance
-	ProtocolNexusMutual  ProtocolType = "nexus_mutual"
-	ProtocolInsurAce     ProtocolType = "insurace"
+	ProtocolNexusMutual ProtocolType = "nexus_mutual"
+	ProtocolInsurAce    ProtocolType = "insurace"
 
 	// Prediction Markets
-	ProtocolPolymarket   ProtocolType = "polymarket"
-	ProtocolAugur        ProtocolType = "augur"
+	ProtocolPolymarket ProtocolType = "polymarket"
+	ProtocolAugur      ProtocolType = "augur"
 
 	// Bitcoin Protocols
-	ProtocolOrdinals     ProtocolType = "ordinals"
-	ProtocolRunes        ProtocolType = "runes"
-	ProtocolBRC20        ProtocolType = "brc20"
-	ProtocolStamps       ProtocolType = "stamps"
-	ProtocolAtomicals    ProtocolType = "atomicals"
+	ProtocolOrdinals  ProtocolType = "ordinals"
+	ProtocolRunes     ProtocolType = "runes"
+	ProtocolBRC20     ProtocolType = "brc20"
+	ProtocolStamps    ProtocolType = "stamps"
+	ProtocolAtomicals ProtocolType = "atomicals"
 
 	// Solana Protocols
-	ProtocolRaydium      ProtocolType = "raydium"
-	ProtocolOrca         ProtocolType = "orca"
-	ProtocolMarinade     ProtocolType = "marinade"
-	ProtocolJito         ProtocolType = "jito"
-	ProtocolJupiter      ProtocolType = "jupiter"
-	ProtocolDrift        ProtocolType = "drift"
-	ProtocolMango        ProtocolType = "mango"
-	ProtocolPhoenix      ProtocolType = "phoenix"
-	ProtocolMetaplex     ProtocolType = "metaplex"
+	ProtocolRaydium  ProtocolType = "raydium"
+	ProtocolOrca     ProtocolType = "orca"
+	ProtocolMarinade ProtocolType = "marinade"
+	ProtocolJito     ProtocolType = "jito"
+	ProtocolJupiter  ProtocolType = "jupiter"
+	ProtocolDrift    ProtocolType = "drift"
+	ProtocolMango    ProtocolType = "mango"
+	ProtocolPhoenix  ProtocolType = "phoenix"
+	ProtocolMetaplex ProtocolType = "metaplex"
 )
 
 // ChainConfig holds configuration for a single chain
 type ChainConfig struct {
-	ID          string            `yaml:"id"`
-	ChainID     uint64            `yaml:"chain_id"`
-	Name        string            `yaml:"name"`
-	Symbol      string            `yaml:"symbol"`
-	Type        ChainType         `yaml:"type"`
-	RPC         string            `yaml:"rpc"`
-	WS          string            `yaml:"ws,omitempty"`
-	API         string            `yaml:"api,omitempty"`
-	Explorer    string            `yaml:"explorer,omitempty"`
-	Enabled     bool              `yaml:"enabled"`
-	Protocols   []ProtocolConfig  `yaml:"protocols,omitempty"`
-	StartBlock  uint64            `yaml:"start_block,omitempty"`
-	BatchSize   int               `yaml:"batch_size,omitempty"`
+	ID           string           `yaml:"id"`
+	ChainID      uint64           `yaml:"chain_id"`
+	Name         string           `yaml:"name"`
+	Symbol       string           `yaml:"symbol"`
+	Type         ChainType        `yaml:"type"`
+	RPC          string           `yaml:"rpc"`
+	WS           string           `yaml:"ws,omitempty"`
+	API          string           `yaml:"api,omitempty"`
+	Explorer     string           `yaml:"explorer,omitempty"`
+	Enabled      bool             `yaml:"enabled"`
+	Protocols    []ProtocolConfig `yaml:"protocols,omitempty"`
+	StartBlock   uint64           `yaml:"start_block,omitempty"`
+	BatchSize    int              `yaml:"batch_size,omitempty"`
 	PollInterval time.Duration    `yaml:"poll_interval,omitempty"`
 }
 
@@ -248,21 +248,21 @@ type ChainIndexer interface {
 
 // IndexerStats holds statistics for an indexer
 type IndexerStats struct {
-	ChainID          string        `json:"chainId"`
-	ChainName        string        `json:"chainName"`
-	IsRunning        bool          `json:"isRunning"`
-	LatestBlock      uint64        `json:"latestBlock"`
-	IndexedBlock     uint64        `json:"indexedBlock"`
-	BlocksBehind     uint64        `json:"blocksBehind"`
-	BlocksProcessed  uint64        `json:"blocksProcessed"`
-	TxsProcessed     uint64        `json:"txsProcessed"`
-	EventsProcessed  uint64        `json:"eventsProcessed"`
-	ErrorCount       uint64        `json:"errorCount"`
-	LastError        string        `json:"lastError,omitempty"`
-	LastBlockTime    time.Time     `json:"lastBlockTime"`
-	StartTime        time.Time     `json:"startTime"`
-	Uptime           time.Duration `json:"uptime"`
-	BlocksPerSecond  float64       `json:"blocksPerSecond"`
+	ChainID         string        `json:"chainId"`
+	ChainName       string        `json:"chainName"`
+	IsRunning       bool          `json:"isRunning"`
+	LatestBlock     uint64        `json:"latestBlock"`
+	IndexedBlock    uint64        `json:"indexedBlock"`
+	BlocksBehind    uint64        `json:"blocksBehind"`
+	BlocksProcessed uint64        `json:"blocksProcessed"`
+	TxsProcessed    uint64        `json:"txsProcessed"`
+	EventsProcessed uint64        `json:"eventsProcessed"`
+	ErrorCount      uint64        `json:"errorCount"`
+	LastError       string        `json:"lastError,omitempty"`
+	LastBlockTime   time.Time     `json:"lastBlockTime"`
+	StartTime       time.Time     `json:"startTime"`
+	Uptime          time.Duration `json:"uptime"`
+	BlocksPerSecond float64       `json:"blocksPerSecond"`
 }
 
 // Manager coordinates indexing across all chains
@@ -292,11 +292,11 @@ type Manager struct {
 // Config holds the manager configuration
 type Config struct {
 	// Database settings
-	DatabaseURL     string `yaml:"database_url"`
-	MaxConnections  int    `yaml:"max_connections"`
+	DatabaseURL    string `yaml:"database_url"`
+	MaxConnections int    `yaml:"max_connections"`
 
 	// Redis settings
-	RedisURL        string `yaml:"redis_url"`
+	RedisURL string `yaml:"redis_url"`
 
 	// Search settings
 	ElasticsearchURL string `yaml:"elasticsearch_url"`
@@ -316,13 +316,13 @@ type Config struct {
 type ManagerStats struct {
 	mu sync.RWMutex
 
-	TotalChains        int           `json:"totalChains"`
-	ActiveChains       int           `json:"activeChains"`
-	TotalBlocksIndexed uint64        `json:"totalBlocksIndexed"`
-	TotalTxsIndexed    uint64        `json:"totalTxsIndexed"`
-	TotalEventsIndexed uint64        `json:"totalEventsIndexed"`
-	StartTime          time.Time     `json:"startTime"`
-	Uptime             time.Duration `json:"uptime"`
+	TotalChains        int                      `json:"totalChains"`
+	ActiveChains       int                      `json:"activeChains"`
+	TotalBlocksIndexed uint64                   `json:"totalBlocksIndexed"`
+	TotalTxsIndexed    uint64                   `json:"totalTxsIndexed"`
+	TotalEventsIndexed uint64                   `json:"totalEventsIndexed"`
+	StartTime          time.Time                `json:"startTime"`
+	Uptime             time.Duration            `json:"uptime"`
 	ChainStats         map[string]*IndexerStats `json:"chainStats"`
 }
 

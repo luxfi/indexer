@@ -25,20 +25,20 @@ type ChainsConfig struct {
 
 // YAMLChainConfig represents a chain configuration from YAML
 type YAMLChainConfig struct {
-	ChainID        uint64                 `yaml:"chain_id"`
-	Name           string                 `yaml:"name"`
-	Symbol         string                 `yaml:"symbol"`
-	Type           string                 `yaml:"type"`
-	RPC            string                 `yaml:"rpc"`
-	WS             string                 `yaml:"ws,omitempty"`
-	API            string                 `yaml:"api,omitempty"`
-	Explorer       string                 `yaml:"explorer,omitempty"`
-	Enabled        bool                   `yaml:"enabled"`
-	NFTMarketplaces []YAMLMarketplace     `yaml:"nft_marketplaces,omitempty"`
-	Protocols      []YAMLProtocol         `yaml:"protocols,omitempty"`
-	StartBlock     uint64                 `yaml:"start_block,omitempty"`
-	BatchSize      int                    `yaml:"batch_size,omitempty"`
-	PollInterval   string                 `yaml:"poll_interval,omitempty"`
+	ChainID         uint64            `yaml:"chain_id"`
+	Name            string            `yaml:"name"`
+	Symbol          string            `yaml:"symbol"`
+	Type            string            `yaml:"type"`
+	RPC             string            `yaml:"rpc"`
+	WS              string            `yaml:"ws,omitempty"`
+	API             string            `yaml:"api,omitempty"`
+	Explorer        string            `yaml:"explorer,omitempty"`
+	Enabled         bool              `yaml:"enabled"`
+	NFTMarketplaces []YAMLMarketplace `yaml:"nft_marketplaces,omitempty"`
+	Protocols       []YAMLProtocol    `yaml:"protocols,omitempty"`
+	StartBlock      uint64            `yaml:"start_block,omitempty"`
+	BatchSize       int               `yaml:"batch_size,omitempty"`
+	PollInterval    string            `yaml:"poll_interval,omitempty"`
 }
 
 // YAMLMarketplace represents an NFT marketplace config

@@ -14,8 +14,8 @@ import (
 // NFT Marketplace Event Signatures
 const (
 	// OpenSea Seaport v1.1-1.6
-	SeaportOrderFulfilledSig = "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31" // OrderFulfilled(bytes32,address,address,address,(uint8,address,uint256,uint256)[],(uint8,address,uint256,uint256,address)[])
-	SeaportOrderCancelledSig = "0x6bacc01dbe442496068f7d234edd811f1a5f833243e0aec824f86ab861f3c90d" // OrderCancelled(bytes32,address,address)
+	SeaportOrderFulfilledSig   = "0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31" // OrderFulfilled(bytes32,address,address,address,(uint8,address,uint256,uint256)[],(uint8,address,uint256,uint256,address)[])
+	SeaportOrderCancelledSig   = "0x6bacc01dbe442496068f7d234edd811f1a5f833243e0aec824f86ab861f3c90d" // OrderCancelled(bytes32,address,address)
 	SeaportCounterIncrementSig = "0x721c20121297512b72821b97f5326877ea8ecf4bb9948fea5bfcb6453074d37f" // CounterIncremented(uint256,address)
 
 	// LooksRare v1
@@ -28,14 +28,14 @@ const (
 	LooksRareV2TakerAskSig = "0x9aaa45d6db2ef74ead0751ea9113263d1dec1b50cea05f0ca2002cb8063564a4" // TakerAsk((bytes32,uint256,address,address,bool,address,address,uint256,uint256,uint256,uint256[],(bytes32,bytes)[]))
 
 	// Blur
-	BlurOrdersMatchedSig = "0x61cbb2a3dee0b6064c2e681aadd61677fb4ef319f0b547508d495626f5a62f64" // OrdersMatched(address,address,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes))
-	BlurOrderCancelledSig = "0x5152abf959f6564662358c2e52b702c3fd8a1dead7a7e0efe0f0e3a8c2146a34" // OrderCancelled(bytes32)
+	BlurOrdersMatchedSig    = "0x61cbb2a3dee0b6064c2e681aadd61677fb4ef319f0b547508d495626f5a62f64" // OrdersMatched(address,address,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes))
+	BlurOrderCancelledSig   = "0x5152abf959f6564662358c2e52b702c3fd8a1dead7a7e0efe0f0e3a8c2146a34" // OrderCancelled(bytes32)
 	BlurNonceIncrementedSig = "0xa82a649bbd060c5c3e04c50b8f455d7a4ec1b99bd6f7e71ac1eb19a0a5c1c8f4" // NonceIncremented(address,uint256)
 
 	// Rarible
-	RaribleMatchSig      = "0x268820db288a211986b26a8fda86b1e0046281b21206936bb0e61c67b5c79ef4" // Match(bytes32,bytes32,address,address,uint256,bytes32)
-	RaribleCancelSig     = "0x75ab8acd8c1dc0fcd5ae9aebb5c8a7ea3c2a0f7d0a7fbc4ca4ee9ca79b8ad37d" // Cancel(bytes32)
-	RaribleRoyaltiesSig  = "0xff6a5e6f64e0de7cc82a417a0c1dc9d1b3a295c4f4de1c6e2a2c2db9f0e0e0e1" // RoyaltiesSet(address,uint256,LibPart.Part[])
+	RaribleMatchSig     = "0x268820db288a211986b26a8fda86b1e0046281b21206936bb0e61c67b5c79ef4" // Match(bytes32,bytes32,address,address,uint256,bytes32)
+	RaribleCancelSig    = "0x75ab8acd8c1dc0fcd5ae9aebb5c8a7ea3c2a0f7d0a7fbc4ca4ee9ca79b8ad37d" // Cancel(bytes32)
+	RaribleRoyaltiesSig = "0xff6a5e6f64e0de7cc82a417a0c1dc9d1b3a295c4f4de1c6e2a2c2db9f0e0e0e1" // RoyaltiesSet(address,uint256,LibPart.Part[])
 
 	// X2Y2
 	X2Y2InventorySig = "0x3cbb63f144840e5b1b0a38a7c19211d2e89de4d7c5faf8b2d3c1776c302d1d33" // EvInventory(bytes32,address,address,uint256,uint256,uint256,uint256,address,bytes,Item,Item)
@@ -46,12 +46,12 @@ const (
 	FoundationSettledSig = "0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6" // ReserveAuctionFinalized(uint256,address,address,uint256,uint256,uint256)
 
 	// SuperRare
-	SuperRareSoldSig = "0x2a9d06eec42acd217a17785dbec90b8b4f01a93ecd8c127edd36bfccf239f8b6" // Sold(address,address,uint256,uint256)
+	SuperRareSoldSig  = "0x2a9d06eec42acd217a17785dbec90b8b4f01a93ecd8c127edd36bfccf239f8b6" // Sold(address,address,uint256,uint256)
 	SuperRareOfferSig = "0x7d0c0d9eb9e33a8b7e3c3a9c8b3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a" // OfferAccepted(address,address,uint256,uint256)
 
 	// Zora
-	ZoraAskFilledSig  = "0x21a9d8e221211780696258a05c6225b1a24f428e2fd4d51708f1ab2be4224d39" // AskFilled(address,address,address,uint256,uint256,address,address,uint256)
-	ZoraAskCreatedSig = "0x5b8e2b9f74e3a1a4e2b9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7" // AskCreated(address,uint256,Ask)
+	ZoraAskFilledSig    = "0x21a9d8e221211780696258a05c6225b1a24f428e2fd4d51708f1ab2be4224d39" // AskFilled(address,address,address,uint256,uint256,address,address,uint256)
+	ZoraAskCreatedSig   = "0x5b8e2b9f74e3a1a4e2b9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7" // AskCreated(address,uint256,Ask)
 	ZoraAskCancelledSig = "0x6b8e2b9f74e3a1a4e2b9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7" // AskCancelled(address,uint256)
 )
 
@@ -59,16 +59,16 @@ const (
 type NFTMarketplaceProtocol string
 
 const (
-	ProtocolSeaport    NFTMarketplaceProtocol = "seaport"
-	ProtocolLooksRare  NFTMarketplaceProtocol = "looksrare"
+	ProtocolSeaport     NFTMarketplaceProtocol = "seaport"
+	ProtocolLooksRare   NFTMarketplaceProtocol = "looksrare"
 	ProtocolLooksRareV2 NFTMarketplaceProtocol = "looksrare_v2"
-	ProtocolBlur       NFTMarketplaceProtocol = "blur"
-	ProtocolRarible    NFTMarketplaceProtocol = "rarible"
-	ProtocolX2Y2       NFTMarketplaceProtocol = "x2y2"
-	ProtocolFoundation NFTMarketplaceProtocol = "foundation"
-	ProtocolSuperRare  NFTMarketplaceProtocol = "superrare"
-	ProtocolZora       NFTMarketplaceProtocol = "zora"
-	ProtocolCustom     NFTMarketplaceProtocol = "custom"
+	ProtocolBlur        NFTMarketplaceProtocol = "blur"
+	ProtocolRarible     NFTMarketplaceProtocol = "rarible"
+	ProtocolX2Y2        NFTMarketplaceProtocol = "x2y2"
+	ProtocolFoundation  NFTMarketplaceProtocol = "foundation"
+	ProtocolSuperRare   NFTMarketplaceProtocol = "superrare"
+	ProtocolZora        NFTMarketplaceProtocol = "zora"
+	ProtocolCustom      NFTMarketplaceProtocol = "custom"
 )
 
 // NFTOrderStatus represents the status of an NFT marketplace order
@@ -86,112 +86,112 @@ const (
 type NFTOrderType string
 
 const (
-	OrderTypeListing NFTOrderType = "listing"    // Seller listing NFT for sale
-	OrderTypeBid     NFTOrderType = "bid"        // Buyer bidding on NFT
-	OrderTypeOffer   NFTOrderType = "offer"      // Collection-wide or trait-specific offer
-	OrderTypeAuction NFTOrderType = "auction"    // Auction listing
+	OrderTypeListing NFTOrderType = "listing" // Seller listing NFT for sale
+	OrderTypeBid     NFTOrderType = "bid"     // Buyer bidding on NFT
+	OrderTypeOffer   NFTOrderType = "offer"   // Collection-wide or trait-specific offer
+	OrderTypeAuction NFTOrderType = "auction" // Auction listing
 )
 
 // NFTOrder represents an NFT marketplace order (listing, bid, or offer)
 type NFTOrder struct {
-	ID              string                 `json:"id"`               // Unique order ID
-	OrderHash       string                 `json:"orderHash"`        // Order hash from protocol
-	Protocol        NFTMarketplaceProtocol `json:"protocol"`         // Marketplace protocol
-	OrderType       NFTOrderType           `json:"orderType"`        // listing, bid, offer, auction
-	Status          NFTOrderStatus         `json:"status"`           // active, filled, cancelled, expired
-	Maker           string                 `json:"maker"`            // Order creator
-	Taker           string                 `json:"taker,omitempty"`  // Order filler (for filled orders)
-	Collection      string                 `json:"collection"`       // NFT collection address
-	TokenID         *big.Int               `json:"tokenId,omitempty"` // Token ID (nil for collection offers)
-	TokenStandard   string                 `json:"tokenStandard"`    // ERC721, ERC1155
-	Quantity        uint64                 `json:"quantity"`         // Amount (for ERC1155)
-	Price           *big.Int               `json:"price"`            // Price in payment token
-	PaymentToken    string                 `json:"paymentToken"`     // Payment token address (0x0 for native)
-	StartTime       time.Time              `json:"startTime"`        // Order start time
-	EndTime         time.Time              `json:"endTime"`          // Order expiration
-	Salt            *big.Int               `json:"salt,omitempty"`   // Order salt/nonce
-	Zone            string                 `json:"zone,omitempty"`   // Seaport zone
-	Conduit         string                 `json:"conduit,omitempty"` // Seaport conduit
-	Fees            []*OrderFee            `json:"fees,omitempty"`   // Protocol fees, royalties
-	Signature       string                 `json:"signature,omitempty"` // Order signature
-	RawOrder        string                 `json:"rawOrder,omitempty"` // Original order data
-	BlockNumber     uint64                 `json:"blockNumber"`
-	TxHash          string                 `json:"txHash"`
-	LogIndex        uint64                 `json:"logIndex"`
-	Timestamp       time.Time              `json:"timestamp"`
-	CreatedAt       time.Time              `json:"createdAt"`
-	UpdatedAt       time.Time              `json:"updatedAt"`
+	ID            string                 `json:"id"`                  // Unique order ID
+	OrderHash     string                 `json:"orderHash"`           // Order hash from protocol
+	Protocol      NFTMarketplaceProtocol `json:"protocol"`            // Marketplace protocol
+	OrderType     NFTOrderType           `json:"orderType"`           // listing, bid, offer, auction
+	Status        NFTOrderStatus         `json:"status"`              // active, filled, cancelled, expired
+	Maker         string                 `json:"maker"`               // Order creator
+	Taker         string                 `json:"taker,omitempty"`     // Order filler (for filled orders)
+	Collection    string                 `json:"collection"`          // NFT collection address
+	TokenID       *big.Int               `json:"tokenId,omitempty"`   // Token ID (nil for collection offers)
+	TokenStandard string                 `json:"tokenStandard"`       // ERC721, ERC1155
+	Quantity      uint64                 `json:"quantity"`            // Amount (for ERC1155)
+	Price         *big.Int               `json:"price"`               // Price in payment token
+	PaymentToken  string                 `json:"paymentToken"`        // Payment token address (0x0 for native)
+	StartTime     time.Time              `json:"startTime"`           // Order start time
+	EndTime       time.Time              `json:"endTime"`             // Order expiration
+	Salt          *big.Int               `json:"salt,omitempty"`      // Order salt/nonce
+	Zone          string                 `json:"zone,omitempty"`      // Seaport zone
+	Conduit       string                 `json:"conduit,omitempty"`   // Seaport conduit
+	Fees          []*OrderFee            `json:"fees,omitempty"`      // Protocol fees, royalties
+	Signature     string                 `json:"signature,omitempty"` // Order signature
+	RawOrder      string                 `json:"rawOrder,omitempty"`  // Original order data
+	BlockNumber   uint64                 `json:"blockNumber"`
+	TxHash        string                 `json:"txHash"`
+	LogIndex      uint64                 `json:"logIndex"`
+	Timestamp     time.Time              `json:"timestamp"`
+	CreatedAt     time.Time              `json:"createdAt"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
 }
 
 // OrderFee represents a fee attached to an order
 type OrderFee struct {
-	Recipient string   `json:"recipient"`
-	Amount    *big.Int `json:"amount"`
-	BasisPoints uint16 `json:"basisPoints,omitempty"`
-	FeeType   string   `json:"feeType"` // "protocol", "royalty", "platform"
+	Recipient   string   `json:"recipient"`
+	Amount      *big.Int `json:"amount"`
+	BasisPoints uint16   `json:"basisPoints,omitempty"`
+	FeeType     string   `json:"feeType"` // "protocol", "royalty", "platform"
 }
 
 // NFTSale represents a completed NFT sale
 type NFTSale struct {
-	ID              string                 `json:"id"`
-	OrderHash       string                 `json:"orderHash,omitempty"`
-	Protocol        NFTMarketplaceProtocol `json:"protocol"`
-	Collection      string                 `json:"collection"`
-	TokenID         *big.Int               `json:"tokenId"`
-	TokenStandard   string                 `json:"tokenStandard"`
-	Quantity        uint64                 `json:"quantity"`
-	Seller          string                 `json:"seller"`
-	Buyer           string                 `json:"buyer"`
-	Price           *big.Int               `json:"price"`
-	PaymentToken    string                 `json:"paymentToken"`
-	PriceUSD        *big.Float             `json:"priceUsd,omitempty"` // USD value at time of sale
-	Fees            []*OrderFee            `json:"fees,omitempty"`
-	FeeTotal        *big.Int               `json:"feeTotal"`
-	RoyaltyTotal    *big.Int               `json:"royaltyTotal"`
-	SellerReceived  *big.Int               `json:"sellerReceived"`
-	BlockNumber     uint64                 `json:"blockNumber"`
-	TxHash          string                 `json:"txHash"`
-	LogIndex        uint64                 `json:"logIndex"`
-	Timestamp       time.Time              `json:"timestamp"`
+	ID             string                 `json:"id"`
+	OrderHash      string                 `json:"orderHash,omitempty"`
+	Protocol       NFTMarketplaceProtocol `json:"protocol"`
+	Collection     string                 `json:"collection"`
+	TokenID        *big.Int               `json:"tokenId"`
+	TokenStandard  string                 `json:"tokenStandard"`
+	Quantity       uint64                 `json:"quantity"`
+	Seller         string                 `json:"seller"`
+	Buyer          string                 `json:"buyer"`
+	Price          *big.Int               `json:"price"`
+	PaymentToken   string                 `json:"paymentToken"`
+	PriceUSD       *big.Float             `json:"priceUsd,omitempty"` // USD value at time of sale
+	Fees           []*OrderFee            `json:"fees,omitempty"`
+	FeeTotal       *big.Int               `json:"feeTotal"`
+	RoyaltyTotal   *big.Int               `json:"royaltyTotal"`
+	SellerReceived *big.Int               `json:"sellerReceived"`
+	BlockNumber    uint64                 `json:"blockNumber"`
+	TxHash         string                 `json:"txHash"`
+	LogIndex       uint64                 `json:"logIndex"`
+	Timestamp      time.Time              `json:"timestamp"`
 }
 
 // NFTCollection represents collection-level marketplace data
 type NFTCollection struct {
-	Address         string     `json:"address"`
-	Name            string     `json:"name,omitempty"`
-	Symbol          string     `json:"symbol,omitempty"`
-	TokenStandard   string     `json:"tokenStandard"`
-	TotalSupply     uint64     `json:"totalSupply,omitempty"`
-	FloorPrice      *big.Int   `json:"floorPrice"`      // Current floor price
-	FloorToken      string     `json:"floorToken"`      // Payment token for floor
-	Royalty         uint16     `json:"royalty"`         // Royalty in basis points
+	Address          string    `json:"address"`
+	Name             string    `json:"name,omitempty"`
+	Symbol           string    `json:"symbol,omitempty"`
+	TokenStandard    string    `json:"tokenStandard"`
+	TotalSupply      uint64    `json:"totalSupply,omitempty"`
+	FloorPrice       *big.Int  `json:"floorPrice"` // Current floor price
+	FloorToken       string    `json:"floorToken"` // Payment token for floor
+	Royalty          uint16    `json:"royalty"`    // Royalty in basis points
 	RoyaltyRecipient string    `json:"royaltyRecipient,omitempty"`
-	Volume24h       *big.Int   `json:"volume24h"`
-	Volume7d        *big.Int   `json:"volume7d"`
-	VolumeTotal     *big.Int   `json:"volumeTotal"`
-	Sales24h        uint64     `json:"sales24h"`
-	Sales7d         uint64     `json:"sales7d"`
-	SalesTotal      uint64     `json:"salesTotal"`
-	ListingCount    uint64     `json:"listingCount"`    // Active listings
-	OwnerCount      uint64     `json:"ownerCount"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	Volume24h        *big.Int  `json:"volume24h"`
+	Volume7d         *big.Int  `json:"volume7d"`
+	VolumeTotal      *big.Int  `json:"volumeTotal"`
+	Sales24h         uint64    `json:"sales24h"`
+	Sales7d          uint64    `json:"sales7d"`
+	SalesTotal       uint64    `json:"salesTotal"`
+	ListingCount     uint64    `json:"listingCount"` // Active listings
+	OwnerCount       uint64    `json:"ownerCount"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // NFTMarketplaceStats contains marketplace-wide statistics
 type NFTMarketplaceStats struct {
-	TotalVolume     *big.Int               `json:"totalVolume"`
-	Volume24h       *big.Int               `json:"volume24h"`
-	Volume7d        *big.Int               `json:"volume7d"`
-	TotalSales      uint64                 `json:"totalSales"`
-	Sales24h        uint64                 `json:"sales24h"`
-	Sales7d         uint64                 `json:"sales7d"`
-	ActiveListings  uint64                 `json:"activeListings"`
-	ActiveBids      uint64                 `json:"activeBids"`
-	UniqueTraders   uint64                 `json:"uniqueTraders"`
-	EventsByType    map[string]uint64      `json:"eventsByType"`
-	VolumeByProtocol map[string]*big.Int   `json:"volumeByProtocol"`
-	LastBlockIndexed uint64                `json:"lastBlockIndexed"`
-	LastIndexTime   time.Time              `json:"lastIndexTime"`
+	TotalVolume      *big.Int            `json:"totalVolume"`
+	Volume24h        *big.Int            `json:"volume24h"`
+	Volume7d         *big.Int            `json:"volume7d"`
+	TotalSales       uint64              `json:"totalSales"`
+	Sales24h         uint64              `json:"sales24h"`
+	Sales7d          uint64              `json:"sales7d"`
+	ActiveListings   uint64              `json:"activeListings"`
+	ActiveBids       uint64              `json:"activeBids"`
+	UniqueTraders    uint64              `json:"uniqueTraders"`
+	EventsByType     map[string]uint64   `json:"eventsByType"`
+	VolumeByProtocol map[string]*big.Int `json:"volumeByProtocol"`
+	LastBlockIndexed uint64              `json:"lastBlockIndexed"`
+	LastIndexTime    time.Time           `json:"lastIndexTime"`
 }
 
 // NFTMarketplaceIndexer indexes NFT marketplace events across protocols
@@ -199,7 +199,7 @@ type NFTMarketplaceIndexer struct {
 	mu sync.RWMutex
 
 	// In-memory indexes
-	orders      map[string]*NFTOrder      // orderHash -> order
+	orders      map[string]*NFTOrder // orderHash -> order
 	sales       []*NFTSale
 	collections map[string]*NFTCollection // address -> collection
 
@@ -314,16 +314,16 @@ func (n *NFTMarketplaceIndexer) indexSeaportOrderFulfilled(log *LogEntry) error 
 	// offer[] and consideration[] arrays
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   orderHash,
-		Protocol:    ProtocolSeaport,
-		Seller:      offerer,
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    orderHash,
+		Protocol:     ProtocolSeaport,
+		Seller:       offerer,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
 	}
 
@@ -412,22 +412,22 @@ func (n *NFTMarketplaceIndexer) indexLooksRareTrade(log *LogEntry, protocol NFTM
 	}
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   orderHash,
-		Protocol:    protocol,
-		Collection:  collection,
-		TokenID:     tokenID,
-		Quantity:    amount.Uint64(),
-		Seller:      seller,
-		Buyer:       buyer,
-		Price:       price,
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    orderHash,
+		Protocol:     protocol,
+		Collection:   collection,
+		TokenID:      tokenID,
+		Quantity:     amount.Uint64(),
+		Seller:       seller,
+		Buyer:        buyer,
+		Price:        price,
 		PaymentToken: currency,
-		FeeTotal:    big.NewInt(0),
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	n.addSale(sale)
@@ -470,17 +470,17 @@ func (n *NFTMarketplaceIndexer) indexBlurOrdersMatched(log *LogEntry) error {
 	// Complex struct decoding required for full implementation
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		Protocol:    ProtocolBlur,
-		Seller:      maker,
-		Buyer:       taker,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		Protocol:     ProtocolBlur,
+		Seller:       maker,
+		Buyer:        taker,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	// Extract price and collection from data if available
@@ -524,18 +524,18 @@ func (n *NFTMarketplaceIndexer) indexRaribleMatch(log *LogEntry) error {
 
 	// Determine buyer/seller based on order types
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   leftHash + "-" + rightHash,
-		Protocol:    ProtocolRarible,
-		Seller:      leftMaker,
-		Buyer:       rightMaker,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    leftHash + "-" + rightHash,
+		Protocol:     ProtocolRarible,
+		Seller:       leftMaker,
+		Buyer:        rightMaker,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	n.addSale(sale)
@@ -574,19 +574,19 @@ func (n *NFTMarketplaceIndexer) indexX2Y2Inventory(log *LogEntry) error {
 	price := new(big.Int).SetBytes(hexToBytes(log.Data[128:192]))
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		OrderHash:   itemHash,
-		Protocol:    ProtocolX2Y2,
-		Seller:      maker,
-		Buyer:       taker,
-		Price:       price,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		OrderHash:    itemHash,
+		Protocol:     ProtocolX2Y2,
+		Seller:       maker,
+		Buyer:        taker,
+		Price:        price,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	n.addSale(sale)
@@ -625,19 +625,19 @@ func (n *NFTMarketplaceIndexer) indexZoraAskFilled(log *LogEntry) error {
 	price := new(big.Int).SetBytes(hexToBytes(log.Data[128:192]))
 
 	sale := &NFTSale{
-		ID:          fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-		Protocol:    ProtocolZora,
-		Collection:  collection,
-		TokenID:     tokenID,
-		Buyer:       buyer,
-		Price:       price,
-		Quantity:    1,
-		FeeTotal:    big.NewInt(0),
+		ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+		Protocol:     ProtocolZora,
+		Collection:   collection,
+		TokenID:      tokenID,
+		Buyer:        buyer,
+		Price:        price,
+		Quantity:     1,
+		FeeTotal:     big.NewInt(0),
 		RoyaltyTotal: big.NewInt(0),
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		LogIndex:    log.LogIndex,
-		Timestamp:   log.Timestamp,
+		BlockNumber:  log.BlockNumber,
+		TxHash:       log.TxHash,
+		LogIndex:     log.LogIndex,
+		Timestamp:    log.Timestamp,
 	}
 
 	n.addSale(sale)

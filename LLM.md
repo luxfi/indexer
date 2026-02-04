@@ -338,6 +338,14 @@ Go-based unified indexer for all Lux Network chains. Designed as a complete repl
 7. ✅ Bridge/Cross-chain indexing (`evm/defi/bridge.go`)
 8. ✅ LX DEX CLOB orderbook indexing (`evm/defi/orderbook.go`)
 9. ✅ Market history with OHLCV candles (`evm/defi/market.go`)
+10. ✅ NFT Marketplace indexing (`evm/defi/nft_marketplace.go`)
+    - OpenSea Seaport v1.1-1.6
+    - LooksRare v1/v2
+    - Blur
+    - Rarible
+    - X2Y2
+    - Zora
+    - Database migration: `migrations/004_nft_marketplace.sql`
 
 ---
 
@@ -416,6 +424,7 @@ evm/
 │   ├── bridge.go            # Cross-chain bridge
 │   ├── orderbook.go         # LX DEX CLOB
 │   ├── market.go            # OHLCV candle history
+│   ├── nft_marketplace.go   # NFT marketplace (Seaport, LooksRare, Blur, etc.)
 │   └── types.go             # Shared DeFi types
 ├── search/                  # Full-text search
 └── stats/                   # Chain metrics
@@ -731,6 +740,171 @@ LUX_RPC_URL=http://127.0.0.1:9640/ext/bc/C/rpc ./e2e_test -test.v
 
 ---
 
+## Multi-Chain Parallel Indexer (Phase 9) ✅ COMPLETE
+
+### Overview
+
+Massively parallel multi-chain indexer capable of indexing 100+ blockchains concurrently using Go routines. Designed to replace Reservoir API for NFT marketplace data and provide comprehensive DeFi/NFT indexing across all major chains.
+
+### Architecture
+
+```
+multichain/
+├── manager.go          # Parallel indexer orchestration
+├── config.go           # YAML config loader
+├── evm_indexer.go      # EVM chain indexer (Ethereum, Polygon, etc.)
+├── solana_indexer.go   # Solana indexer
+├── bitcoin_indexer.go  # Bitcoin indexer (Ordinals, Runes, BRC-20)
+├── cosmos_indexer.go   # Cosmos SDK chains (Osmosis, Injective, etc.)
+└── other_indexers.go   # Move, NEAR, Tron, TON, Substrate
+
+cmd/multichain/
+└── main.go             # CLI with HTTP API for stats
+```
+
+### Supported Chains
+
+| Type | Chains | Status |
+|------|--------|--------|
+| **Lux Ecosystem** | C-Chain (96369), Testnet (96368), Zoo (200200), Hanzo (36963) | ✅ |
+| **EVM** | Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, + 30 more | ✅ |
+| **Solana** | Mainnet, Devnet | ✅ |
+| **Bitcoin** | Mainnet (Ordinals, Runes, BRC-20, Stamps, Atomicals) | ✅ |
+| **Cosmos** | Osmosis, Injective, dYdX, Celestia, Sei, Neutron | ✅ |
+| **Move** | Aptos, Sui | ✅ |
+| **Other** | NEAR, Tron, TON, Polkadot/Kusama | ✅ |
+
+### Protocol Support
+
+**NFT Marketplaces:**
+- Seaport (OpenSea)
+- LooksRare v1/v2
+- Blur
+- X2Y2
+- Rarible
+- Zora
+- Magic Eden (Solana + EVM)
+- Tensor (Solana)
+- Sudoswap
+- Metaplex (Solana)
+
+**DeFi Protocols:**
+- DEX: Uniswap V2/V3, SushiSwap, Curve, Balancer, PancakeSwap, Raydium, Orca, Jupiter
+- Lending: Aave V2/V3, Compound V2/V3, Morpho
+- Perpetuals: GMX, Synthetix, dYdX, Drift, Mango
+- Liquid Staking: Lido, Rocket Pool, Eigenlayer, Marinade, Jito
+- Bridges: Wormhole, LayerZero, Stargate, Axelar
+- Yield: Yearn, Convex, Pendle
+
+**Bitcoin Protocols:**
+- Ordinals (inscriptions)
+- Runes (fungible tokens)
+- BRC-20 (fungible tokens)
+- Stamps (UTXO-based NFTs)
+- Atomicals (NFT/FT)
+
+### Running the Multi-Chain Indexer
+
+```bash
+# Build
+go build -o /tmp/multichain-indexer ./cmd/multichain
+
+# Run with config file
+/tmp/multichain-indexer -config config/chains.yaml -port 5000
+
+# Run with defaults
+/tmp/multichain-indexer
+
+# List configured chains
+/tmp/multichain-indexer -list
+```
+
+### Configuration (config/chains.yaml)
+
+```yaml
+lux:
+  cchain:
+    chain_id: 96369
+    name: "Lux C-Chain"
+    type: evm
+    rpc: "https://api.lux.network/ext/bc/C/rpc"
+    enabled: true
+    nft_marketplaces:
+      - protocol: seaport
+        address: "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+
+ethereum:
+  mainnet:
+    chain_id: 1
+    name: "Ethereum"
+    type: evm
+    rpc: "${ETH_RPC_URL:-https://eth.llamarpc.com}"
+    enabled: true
+    nft_marketplaces:
+      - protocol: seaport
+        address: "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+      - protocol: blur
+        address: "0x000000000000Ad05Ccc4F10045630fb830B95127"
+
+solana:
+  mainnet:
+    type: solana
+    rpc: "https://api.mainnet-beta.solana.com"
+    enabled: true
+    protocols:
+      - type: metaplex
+      - type: magic_eden
+      - type: tensor
+      - type: raydium
+      - type: jupiter
+
+bitcoin:
+  mainnet:
+    type: bitcoin
+    rpc: "http://localhost:8332"
+    enabled: true
+    protocols:
+      - type: ordinals
+      - type: runes
+      - type: brc20
+```
+
+### HTTP API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Health check |
+| `GET /stats` | Aggregate statistics |
+| `GET /chains` | All chain stats |
+| `GET /chain/{id}` | Single chain stats |
+| `GET /metrics` | Prometheus metrics |
+
+### Example Stats Response
+
+```json
+{
+  "totalChains": 50,
+  "activeChains": 48,
+  "totalBlocksIndexed": 1234567890,
+  "totalTxsIndexed": 9876543210,
+  "totalEventsIndexed": 5555555555,
+  "startTime": "2025-01-24T00:00:00Z",
+  "uptime": "24h30m45s",
+  "chainStats": {
+    "ethereum": {
+      "chainId": "ethereum",
+      "isRunning": true,
+      "latestBlock": 19500000,
+      "indexedBlock": 19499950,
+      "blocksBehind": 50,
+      "blocksProcessed": 1000000
+    }
+  }
+}
+```
+
+---
+
 ## Integration with Lux Ecosystem
 
 This package is part of the Lux blockchain ecosystem:
@@ -740,6 +914,6 @@ This package is part of the Lux blockchain ecosystem:
 
 ---
 
-*Last updated: 2025-12-25*
-*Status: Full Blockscout parity + Native DeFi indexing + Unified storage (KV + Query layers) + Build tags + E2E tests - All tests passing*
+*Last updated: 2026-01-24*
+*Status: Full Blockscout parity + Native DeFi indexing + NFT Marketplace indexing + Multi-chain parallel indexer (100+ chains) + Unified storage (KV + Query layers) + Build tags + E2E tests - All tests passing*
 *Ready for production deployment*
