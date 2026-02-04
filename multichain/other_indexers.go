@@ -60,7 +60,7 @@ func NewMoveIndexer(config ChainConfig, db Database) (*MoveIndexer, error) {
 	}, nil
 }
 
-func (m *MoveIndexer) ChainID() string    { return m.config.ID }
+func (m *MoveIndexer) ChainID() string      { return m.config.ID }
 func (m *MoveIndexer) ChainType() ChainType { return ChainTypeMove }
 
 func (m *MoveIndexer) Start(ctx context.Context) error {
@@ -215,9 +215,9 @@ func (m *MoveIndexer) httpGet(ctx context.Context, url string) ([]byte, error) {
 type NearIndexer struct {
 	mu sync.RWMutex
 
-	config  ChainConfig
-	db      Database
-	client  *http.Client
+	config ChainConfig
+	db     Database
+	client *http.Client
 
 	running      int32
 	indexedBlock uint64
@@ -244,7 +244,7 @@ func NewNearIndexer(config ChainConfig, db Database) (*NearIndexer, error) {
 	}, nil
 }
 
-func (n *NearIndexer) ChainID() string    { return n.config.ID }
+func (n *NearIndexer) ChainID() string      { return n.config.ID }
 func (n *NearIndexer) ChainType() ChainType { return ChainTypeNear }
 
 func (n *NearIndexer) Start(ctx context.Context) error {
@@ -347,9 +347,9 @@ func (n *NearIndexer) Stats() *IndexerStats {
 type TronIndexer struct {
 	mu sync.RWMutex
 
-	config  ChainConfig
-	db      Database
-	client  *http.Client
+	config ChainConfig
+	db     Database
+	client *http.Client
 
 	running      int32
 	indexedBlock uint64
@@ -376,7 +376,7 @@ func NewTronIndexer(config ChainConfig, db Database) (*TronIndexer, error) {
 	}, nil
 }
 
-func (t *TronIndexer) ChainID() string    { return t.config.ID }
+func (t *TronIndexer) ChainID() string      { return t.config.ID }
 func (t *TronIndexer) ChainType() ChainType { return ChainTypeTron }
 
 func (t *TronIndexer) Start(ctx context.Context) error {
@@ -475,9 +475,9 @@ func (t *TronIndexer) Stats() *IndexerStats {
 type SubstrateIndexer struct {
 	mu sync.RWMutex
 
-	config  ChainConfig
-	db      Database
-	client  *http.Client
+	config ChainConfig
+	db     Database
+	client *http.Client
 
 	running      int32
 	indexedBlock uint64
@@ -504,7 +504,7 @@ func NewSubstrateIndexer(config ChainConfig, db Database) (*SubstrateIndexer, er
 	}, nil
 }
 
-func (s *SubstrateIndexer) ChainID() string    { return s.config.ID }
+func (s *SubstrateIndexer) ChainID() string      { return s.config.ID }
 func (s *SubstrateIndexer) ChainType() ChainType { return ChainTypeSubstrate }
 
 func (s *SubstrateIndexer) Start(ctx context.Context) error {
