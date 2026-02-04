@@ -23,16 +23,16 @@ import (
 
 // DeFiIndexer is the unified indexer for all DeFi protocols
 type DeFiIndexer struct {
-	mu            sync.RWMutex
-	chainID       ChainID
-	amm           *AMMIndexer
-	lssvm         *LSSVMIndexer
-	perps         *PerpsIndexer
-	synths        *SynthsIndexer
-	staking       *StakingIndexer
-	bridge        *BridgeIndexer
-	orderbook     *OrderBookIndexer
-	marketHistory *MarketHistoryIndexer
+	mu             sync.RWMutex
+	chainID        ChainID
+	amm            *AMMIndexer
+	lssvm          *LSSVMIndexer
+	perps          *PerpsIndexer
+	synths         *SynthsIndexer
+	staking        *StakingIndexer
+	bridge         *BridgeIndexer
+	orderbook      *OrderBookIndexer
+	marketHistory  *MarketHistoryIndexer
 	nftMarketplace *NFTMarketplaceIndexer
 
 	// Event routing

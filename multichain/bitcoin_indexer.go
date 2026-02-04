@@ -24,7 +24,7 @@ type BitcoinIndexer struct {
 	client *http.Client
 
 	// State
-	running      int32
+	running       int32
 	indexedHeight uint64
 	latestHeight  uint64
 
@@ -64,26 +64,26 @@ type BitcoinBlock struct {
 
 // BitcoinTransaction represents a Bitcoin transaction
 type BitcoinTransaction struct {
-	TxID        string          `json:"txid"`
-	Hash        string          `json:"hash"`
-	Version     int32           `json:"version"`
-	Size        int             `json:"size"`
-	VSize       int             `json:"vsize"`
-	Weight      int             `json:"weight"`
-	LockTime    uint32          `json:"locktime"`
-	Vin         []BitcoinVin    `json:"vin"`
-	Vout        []BitcoinVout   `json:"vout"`
-	Hex         string          `json:"hex"`
-	BlockHash   string          `json:"blockhash,omitempty"`
-	BlockHeight uint64          `json:"blockheight,omitempty"`
-	BlockTime   int64           `json:"blocktime,omitempty"`
-	Fee         float64         `json:"fee,omitempty"`
+	TxID        string        `json:"txid"`
+	Hash        string        `json:"hash"`
+	Version     int32         `json:"version"`
+	Size        int           `json:"size"`
+	VSize       int           `json:"vsize"`
+	Weight      int           `json:"weight"`
+	LockTime    uint32        `json:"locktime"`
+	Vin         []BitcoinVin  `json:"vin"`
+	Vout        []BitcoinVout `json:"vout"`
+	Hex         string        `json:"hex"`
+	BlockHash   string        `json:"blockhash,omitempty"`
+	BlockHeight uint64        `json:"blockheight,omitempty"`
+	BlockTime   int64         `json:"blocktime,omitempty"`
+	Fee         float64       `json:"fee,omitempty"`
 	// Ordinals/Inscriptions
-	Inscriptions []Inscription  `json:"inscriptions,omitempty"`
+	Inscriptions []Inscription `json:"inscriptions,omitempty"`
 	// Runes
-	Runes        []RuneTransfer `json:"runes,omitempty"`
+	Runes []RuneTransfer `json:"runes,omitempty"`
 	// BRC-20
-	BRC20        []BRC20Op      `json:"brc20,omitempty"`
+	BRC20 []BRC20Op `json:"brc20,omitempty"`
 }
 
 // BitcoinVin represents a transaction input
@@ -111,44 +111,44 @@ type Script struct {
 
 // ScriptPubKey represents the output script
 type ScriptPubKey struct {
-	Asm     string   `json:"asm"`
-	Hex     string   `json:"hex"`
-	Type    string   `json:"type"`
-	Address string   `json:"address,omitempty"`
+	Asm     string `json:"asm"`
+	Hex     string `json:"hex"`
+	Type    string `json:"type"`
+	Address string `json:"address,omitempty"`
 }
 
 // Inscription represents an Ordinal inscription
 type Inscription struct {
-	ID            string `json:"id"`              // <txid>i<index>
-	Number        uint64 `json:"number"`          // Inscription number
+	ID            string `json:"id"`     // <txid>i<index>
+	Number        uint64 `json:"number"` // Inscription number
 	ContentType   string `json:"content_type"`
 	ContentLength uint64 `json:"content_length"`
 	Content       []byte `json:"content,omitempty"`
 	GenesisTxID   string `json:"genesis_txid"`
 	GenesisHeight uint64 `json:"genesis_height"`
 	Owner         string `json:"owner"`
-	Sat           uint64 `json:"sat"`             // Satoshi ordinal
-	SatRarity     string `json:"sat_rarity"`      // common, uncommon, rare, epic, legendary, mythic
+	Sat           uint64 `json:"sat"`        // Satoshi ordinal
+	SatRarity     string `json:"sat_rarity"` // common, uncommon, rare, epic, legendary, mythic
 	Timestamp     int64  `json:"timestamp"`
 }
 
 // RuneTransfer represents a Rune transfer
 type RuneTransfer struct {
-	RuneID    string `json:"rune_id"`     // <block>:<tx>
-	RuneName  string `json:"rune_name"`
-	Symbol    string `json:"symbol"`
-	Amount    string `json:"amount"`      // uint128 as string
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Decimals  uint8  `json:"decimals"`
-	Etching   bool   `json:"etching"`     // Is this an etching tx?
-	Mint      bool   `json:"mint"`        // Is this a mint tx?
-	Burn      bool   `json:"burn"`        // Is this a burn?
+	RuneID   string `json:"rune_id"` // <block>:<tx>
+	RuneName string `json:"rune_name"`
+	Symbol   string `json:"symbol"`
+	Amount   string `json:"amount"` // uint128 as string
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Decimals uint8  `json:"decimals"`
+	Etching  bool   `json:"etching"` // Is this an etching tx?
+	Mint     bool   `json:"mint"`    // Is this a mint tx?
+	Burn     bool   `json:"burn"`    // Is this a burn?
 }
 
 // BRC20Op represents a BRC-20 operation
 type BRC20Op struct {
-	Operation string `json:"op"`          // deploy, mint, transfer
+	Operation string `json:"op"` // deploy, mint, transfer
 	Ticker    string `json:"tick"`
 	Amount    string `json:"amt,omitempty"`
 	Max       string `json:"max,omitempty"`
@@ -174,16 +174,16 @@ type Stamp struct {
 
 // Atomical represents an Atomicals protocol item
 type Atomical struct {
-	AtomicalID   string `json:"atomical_id"`
-	AtomicalNum  uint64 `json:"atomical_number"`
-	Type         string `json:"type"` // NFT, FT, realm, container, subrealm
-	Ticker       string `json:"ticker,omitempty"`
-	Name         string `json:"name,omitempty"`
-	Owner        string `json:"owner"`
-	Value        uint64 `json:"value"`
-	Bitworkc     string `json:"bitworkc,omitempty"` // Mining commitment
-	Bitworkr     string `json:"bitworkr,omitempty"` // Mining reveal
-	ParentRealm  string `json:"parent_realm,omitempty"`
+	AtomicalID  string `json:"atomical_id"`
+	AtomicalNum uint64 `json:"atomical_number"`
+	Type        string `json:"type"` // NFT, FT, realm, container, subrealm
+	Ticker      string `json:"ticker,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Owner       string `json:"owner"`
+	Value       uint64 `json:"value"`
+	Bitworkc    string `json:"bitworkc,omitempty"` // Mining commitment
+	Bitworkr    string `json:"bitworkr,omitempty"` // Mining reveal
+	ParentRealm string `json:"parent_realm,omitempty"`
 }
 
 // NewBitcoinIndexer creates a new Bitcoin indexer
@@ -783,13 +783,21 @@ func parseBRC20FromContent(content []byte) *BRC20Op {
 // =============================================================================
 
 type GenericBitcoinIndexer struct{ config ProtocolConfig }
-func NewGenericBitcoinIndexer(config ProtocolConfig) *GenericBitcoinIndexer { return &GenericBitcoinIndexer{config: config} }
+
+func NewGenericBitcoinIndexer(config ProtocolConfig) *GenericBitcoinIndexer {
+	return &GenericBitcoinIndexer{config: config}
+}
 func (g *GenericBitcoinIndexer) Name() string { return "generic_bitcoin" }
-func (g *GenericBitcoinIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error { return nil }
+func (g *GenericBitcoinIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
+	return nil
+}
 
 // Ordinals Indexer
 type OrdinalsIndexer struct{ config ProtocolConfig }
-func NewOrdinalsIndexer(config ProtocolConfig) *OrdinalsIndexer { return &OrdinalsIndexer{config: config} }
+
+func NewOrdinalsIndexer(config ProtocolConfig) *OrdinalsIndexer {
+	return &OrdinalsIndexer{config: config}
+}
 func (o *OrdinalsIndexer) Name() string { return "ordinals" }
 func (o *OrdinalsIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
 	// Index inscriptions
@@ -801,8 +809,9 @@ func (o *OrdinalsIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTrans
 
 // Runes Indexer
 type RunesIndexer struct{ config ProtocolConfig }
+
 func NewRunesIndexer(config ProtocolConfig) *RunesIndexer { return &RunesIndexer{config: config} }
-func (r *RunesIndexer) Name() string { return "runes" }
+func (r *RunesIndexer) Name() string                      { return "runes" }
 func (r *RunesIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
 	// Index rune transfers, etchings, mints
 	for _, rune := range tx.Runes {
@@ -813,8 +822,9 @@ func (r *RunesIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransact
 
 // BRC-20 Indexer
 type BRC20Indexer struct{ config ProtocolConfig }
+
 func NewBRC20Indexer(config ProtocolConfig) *BRC20Indexer { return &BRC20Indexer{config: config} }
-func (b *BRC20Indexer) Name() string { return "brc20" }
+func (b *BRC20Indexer) Name() string                      { return "brc20" }
 func (b *BRC20Indexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
 	// Index BRC-20 operations
 	for _, op := range tx.BRC20 {
@@ -825,8 +835,9 @@ func (b *BRC20Indexer) IndexTransaction(ctx context.Context, tx *BitcoinTransact
 
 // Stamps Indexer
 type StampsIndexer struct{ config ProtocolConfig }
+
 func NewStampsIndexer(config ProtocolConfig) *StampsIndexer { return &StampsIndexer{config: config} }
-func (s *StampsIndexer) Name() string { return "stamps" }
+func (s *StampsIndexer) Name() string                       { return "stamps" }
 func (s *StampsIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
 	// Index Bitcoin Stamps (Counterparty-based)
 	return nil
@@ -834,7 +845,10 @@ func (s *StampsIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransac
 
 // Atomicals Indexer
 type AtomicalsIndexer struct{ config ProtocolConfig }
-func NewAtomicalsIndexer(config ProtocolConfig) *AtomicalsIndexer { return &AtomicalsIndexer{config: config} }
+
+func NewAtomicalsIndexer(config ProtocolConfig) *AtomicalsIndexer {
+	return &AtomicalsIndexer{config: config}
+}
 func (a *AtomicalsIndexer) Name() string { return "atomicals" }
 func (a *AtomicalsIndexer) IndexTransaction(ctx context.Context, tx *BitcoinTransaction, block *BitcoinBlock) error {
 	// Index Atomicals protocol items
