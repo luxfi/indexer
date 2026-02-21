@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/luxfi/indexer/achain"
 	"github.com/luxfi/indexer/bchain"
 	"github.com/luxfi/indexer/chain"

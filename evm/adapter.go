@@ -1231,6 +1231,10 @@ func (a *Adapter) call(ctx context.Context, method string, params interface{}) (
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http status %d from %s", resp.StatusCode, a.rpcEndpoint)
+	}
+
 	var result struct {
 		Result json.RawMessage `json:"result"`
 		Error  *struct {
