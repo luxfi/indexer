@@ -1,5 +1,6 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Build stage - use BUILDPLATFORM to run Go natively on host (avoids QEMU segfaults)
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+ARG TARGETOS TARGETARCH
 
 RUN apk add --no-cache git ca-certificates
 
@@ -12,12 +13,12 @@ RUN go mod download
 # Copy source
 COPY . .
 
-# Build with version info
+# Build with version info - cross-compile via GOOS/GOARCH
 ARG VERSION=dev
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.version=${VERSION}" -o /indexer ./cmd/indexer
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -tags postgres -ldflags "-X main.version=${VERSION}" -o /indexer ./cmd/indexer
 
 # Runtime stage
-FROM alpine:3.19
+FROM --platform=linux/amd64 alpine:3.19
 
 RUN apk add --no-cache ca-certificates tzdata
 
