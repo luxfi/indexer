@@ -29,11 +29,12 @@ type Config struct {
 
 // Indexer is the main EVM chain indexer
 type Indexer struct {
-	config     Config
-	store      storage.Store
-	adapter    *Adapter
-	subscriber *Subscriber
-	mu         sync.RWMutex
+	config      Config
+	store       storage.Store
+	adapter     *Adapter
+	subscriber  *Subscriber
+	mu          sync.RWMutex
+	lastLogTime time.Time
 }
 
 // EVMBlock represents a parsed EVM block
@@ -231,6 +232,11 @@ func (idx *Indexer) Run(ctx context.Context) error {
 }
 
 func (idx *Indexer) startIndexing(ctx context.Context) {
+	log.Printf("[evm] Indexing goroutine started, RPC: %s", idx.adapter.rpcEndpoint)
+
+	// Index immediately on startup before entering ticker loop
+	idx.indexNewBlocks(ctx)
+
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -248,12 +254,20 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 	// Get current block number from RPC
 	block, err := idx.adapter.GetLatestBlock(ctx)
 	if err != nil {
+		if idx.lastLogTime.Add(30 * time.Second).Before(time.Now()) {
+			log.Printf("[evm] Failed to get latest block: %v", err)
+			idx.lastLogTime = time.Now()
+		}
 		return
 	}
 
 	// Get last indexed block from storage
 	var lastIndexed uint64
-	rows, _ := idx.store.Query(ctx, "SELECT COALESCE(MAX(number), 0) as max_num FROM evm_blocks")
+	rows, queryErr := idx.store.Query(ctx, "SELECT COALESCE(MAX(number), 0) as max_num FROM evm_blocks")
+	if queryErr != nil {
+		log.Printf("[evm] Failed to query last indexed block: %v", queryErr)
+		return
+	}
 	if len(rows) > 0 {
 		if v, ok := rows[0]["max_num"]; ok {
 			switch h := v.(type) {
@@ -270,6 +284,12 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 	if lastIndexed > 0 {
 		startBlock = lastIndexed + 1
 	}
+
+	if startBlock <= block.Number && idx.lastLogTime.Add(30*time.Second).Before(time.Now()) {
+		log.Printf("[evm] Indexing blocks %d to %d (latest: %d)", startBlock, block.Number, block.Number)
+		idx.lastLogTime = time.Now()
+	}
+
 	for blockNum := startBlock; blockNum <= block.Number; blockNum++ {
 		if err := idx.indexBlock(ctx, blockNum); err != nil {
 			log.Printf("[evm] Failed to index block %d: %v", blockNum, err)
