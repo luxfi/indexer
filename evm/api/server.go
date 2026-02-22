@@ -16,6 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+
+	"github.com/luxfi/indexer/evm/account"
 )
 
 // Config for the API server
@@ -35,12 +37,27 @@ type Server struct {
 	rpcHandler *RPCHandler
 	wsHub      *WebSocketHub
 	router     *mux.Router
+	iam        *IAMMiddleware
+	accountAPI *AccountAPI
+	accountSvc *account.Service
 }
 
 // NewServer creates a new API server
 func NewServer(cfg Config, db *sql.DB) *Server {
 	repo := NewRepository(db, cfg.ChainID)
 	wsHub := NewWebSocketHub()
+
+	// Initialize account service
+	acctSvc := account.NewService(db, account.DefaultConfig())
+
+	// Initialize IAM middleware
+	iamCfg := IAMConfigFromEnv()
+	iamMiddleware := NewIAMMiddleware(iamCfg, acctSvc)
+	if iamCfg.Enabled {
+		log.Printf("[IAM] authentication enabled (server=%s, client=%s)", iamCfg.ServerURL, iamCfg.ClientID)
+	} else {
+		log.Printf("[IAM] authentication disabled (set IAM_ENABLED=true to enable)")
+	}
 
 	s := &Server{
 		config:     cfg,
@@ -49,6 +66,9 @@ func NewServer(cfg Config, db *sql.DB) *Server {
 		rpcHandler: NewRPCHandler(repo),
 		wsHub:      wsHub,
 		router:     mux.NewRouter(),
+		iam:        iamMiddleware,
+		accountAPI: NewAccountAPI(acctSvc),
+		accountSvc: acctSvc,
 	}
 
 	s.setupRoutes()
@@ -128,6 +148,26 @@ func (s *Server) setupRoutes() {
 
 	// GraphQL
 	api.HandleFunc("/graphql", s.handleGraphQL).Methods("POST", "GET")
+
+	// Account API (requires IAM authentication)
+	acct := s.router.PathPrefix("/api/account/v2").Subrouter()
+	acct.Use(s.iam.RequireAuth)
+	acct.HandleFunc("/get_csrf", s.accountAPI.HandleGetCSRF).Methods("GET")
+	acct.HandleFunc("/user/info", s.accountAPI.HandleGetUserInfo).Methods("GET")
+	acct.HandleFunc("/user/api_keys", s.accountAPI.HandleListAPIKeys).Methods("GET")
+	acct.HandleFunc("/user/api_keys", s.accountAPI.HandleCreateAPIKey).Methods("POST")
+	acct.HandleFunc("/user/api_keys/{id}", s.accountAPI.HandleDeleteAPIKey).Methods("DELETE")
+	acct.HandleFunc("/user/watchlist", s.accountAPI.HandleListWatchlists).Methods("GET")
+	acct.HandleFunc("/user/watchlist/{id}", s.accountAPI.HandleGetWatchlistAddresses).Methods("GET")
+	acct.HandleFunc("/user/watchlist/{id}", s.accountAPI.HandleAddWatchlistAddress).Methods("POST")
+	acct.HandleFunc("/user/watchlist/{id}/{address_hash}", s.accountAPI.HandleRemoveWatchlistAddress).Methods("DELETE")
+	acct.HandleFunc("/user/tags/address", s.accountAPI.HandleListAddressTags).Methods("GET")
+	acct.HandleFunc("/user/tags/address", s.accountAPI.HandleSetAddressTag).Methods("POST")
+	acct.HandleFunc("/user/tags/address/{id}", s.accountAPI.HandleDeleteAddressTag).Methods("DELETE")
+	acct.HandleFunc("/user/custom_abis", s.accountAPI.HandleListCustomABIs).Methods("GET")
+	acct.HandleFunc("/user/custom_abis", s.accountAPI.HandleSetCustomABI).Methods("POST")
+	acct.HandleFunc("/user/custom_abis/{id}", s.accountAPI.HandleDeleteCustomABI).Methods("DELETE")
+	s.router.HandleFunc("/api/account/auth/logout", s.accountAPI.HandleLogout).Methods("GET", "POST")
 }
 
 // CORS middleware
