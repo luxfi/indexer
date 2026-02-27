@@ -392,7 +392,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	// Create ZK proofs archive table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS zchain_proofs (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			tx_id TEXT NOT NULL,
 			proof_type TEXT NOT NULL,
 			proof_data TEXT NOT NULL,
@@ -423,7 +423,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		return fmt.Errorf("create merkle state table: %w", err)
 	}
 
-	_ = store.Exec(ctx, `INSERT OR IGNORE INTO zchain_merkle_state (id, root, height, leaf_count) VALUES (1, '', 0, 0)`)
+	_ = store.Exec(ctx, `INSERT INTO zchain_merkle_state (id, root, height, leaf_count) VALUES (1, '', 0, 0) ON CONFLICT DO NOTHING`)
 
 	// Create extended stats table
 	err = store.Exec(ctx, `
@@ -442,7 +442,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		return fmt.Errorf("create extended stats table: %w", err)
 	}
 
-	_ = store.Exec(ctx, `INSERT OR IGNORE INTO zchain_extended_stats (id) VALUES (1)`)
+	_ = store.Exec(ctx, `INSERT INTO zchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING`)
 
 	return nil
 }
@@ -537,8 +537,9 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 func (a *Adapter) StoreTransfer(ctx context.Context, store storage.Store, t ShieldedTransfer, vertexID string) error {
 	// Store transfer
 	err := store.Exec(ctx, `
-		INSERT OR IGNORE INTO zchain_transfers (tx_id, type, proof_type, proof_data, value_balance, fee, memo, timestamp, vertex_id)
+		INSERT INTO zchain_transfers (tx_id, type, proof_type, proof_data, value_balance, fee, memo, timestamp, vertex_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO NOTHING
 	`, t.TxID, t.Type, t.Proof.Type, t.Proof.Data, t.ValueBalance, t.Fee, t.Memo, t.Timestamp, vertexID)
 	if err != nil {
 		return fmt.Errorf("store transfer: %w", err)
@@ -557,8 +558,9 @@ func (a *Adapter) StoreTransfer(ctx context.Context, store storage.Store, t Shie
 	// Store nullifiers
 	for _, n := range t.Nullifiers {
 		err = store.Exec(ctx, `
-			INSERT OR IGNORE INTO zchain_nullifiers (hash, tx_id, idx, spent_at)
+			INSERT INTO zchain_nullifiers (hash, tx_id, idx, spent_at)
 			VALUES (?, ?, ?, ?)
+			ON CONFLICT DO NOTHING
 		`, n.Hash, n.TxID, n.Index, n.SpentAt)
 		if err != nil {
 			return fmt.Errorf("store nullifier: %w", err)
@@ -572,8 +574,9 @@ func (a *Adapter) StoreTransfer(ctx context.Context, store storage.Store, t Shie
 			spent = 1
 		}
 		err = store.Exec(ctx, `
-			INSERT OR IGNORE INTO zchain_commitments (hash, tx_id, idx, created_at, spent)
+			INSERT INTO zchain_commitments (hash, tx_id, idx, created_at, spent)
 			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT DO NOTHING
 		`, c.Hash, c.TxID, c.Index, c.CreatedAt, spent)
 		if err != nil {
 			return fmt.Errorf("store commitment: %w", err)
