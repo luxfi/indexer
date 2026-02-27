@@ -330,8 +330,8 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 
 	// Get validator stats
 	validatorRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_validators")
-	activeRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_validators WHERE end_time > datetime('now')")
-	stakeRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_validators WHERE end_time > datetime('now')")
+	activeRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_validators WHERE end_time > NOW()")
+	stakeRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_validators WHERE end_time > NOW()")
 
 	var totalValidators, activeValidators int64
 	var totalStake int64
@@ -358,8 +358,8 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 	}
 
 	// Get delegator stats
-	delegatorRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_delegators WHERE end_time > datetime('now')")
-	delegatedRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_delegators WHERE end_time > datetime('now')")
+	delegatorRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_delegators WHERE end_time > NOW()")
+	delegatedRows, _ := store.Query(ctx, "SELECT COALESCE(SUM(stake_amount), 0) as total FROM pchain_delegators WHERE end_time > NOW()")
 
 	var totalDelegators int64
 	var totalDelegated int64
@@ -532,7 +532,7 @@ func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error
 	for _, v := range validators {
 		err := store.Exec(ctx, `
 			INSERT INTO pchain_validators (node_id, start_time, end_time, stake_amount, potential_reward, delegation_fee, uptime, connected, tx_id, updated_at)
-			VALUES (?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'), ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			VALUES (?, to_timestamp(?), to_timestamp(?), ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT (node_id) DO UPDATE SET
 				end_time = EXCLUDED.end_time,
 				stake_amount = EXCLUDED.stake_amount,
@@ -549,7 +549,7 @@ func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error
 		for _, d := range v.Delegators {
 			err := store.Exec(ctx, `
 				INSERT INTO pchain_delegators (tx_id, node_id, start_time, end_time, stake_amount, potential_reward, reward_owner)
-				VALUES (?, ?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'), ?, ?, ?)
+				VALUES (?, ?, to_timestamp(?), to_timestamp(?), ?, ?, ?)
 				ON CONFLICT (tx_id) DO UPDATE SET
 					end_time = EXCLUDED.end_time,
 					potential_reward = EXCLUDED.potential_reward

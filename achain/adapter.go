@@ -408,7 +408,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			total_receipts BIGINT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT OR IGNORE INTO achain_stats (id) VALUES (1);
+		INSERT INTO achain_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
 	`
 
 	if err := store.Exec(ctx, schema); err != nil {

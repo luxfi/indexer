@@ -1416,7 +1416,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	}
 
 	// Initialize stats row
-	return store.Exec(ctx, "INSERT OR IGNORE INTO cchain_extended_stats (id) VALUES (1)")
+	return store.Exec(ctx, "INSERT INTO cchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING")
 }
 
 // GetStats returns C-Chain specific statistics using unified storage

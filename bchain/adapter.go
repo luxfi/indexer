@@ -286,7 +286,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 
 		-- Locked assets table
 		CREATE TABLE IF NOT EXISTS bchain_locked_assets (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			asset_id TEXT NOT NULL,
 			source_chain TEXT NOT NULL,
 			amount TEXT NOT NULL,
@@ -319,7 +319,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			unique_chains BIGINT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
-		INSERT OR IGNORE INTO bchain_bridge_stats (id) VALUES (1);
+		INSERT INTO bchain_bridge_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
 	`
 
 	if err := store.Exec(ctx, schema); err != nil {

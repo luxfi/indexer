@@ -424,17 +424,17 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	}
 
 	// Initialize stats row
-	if err := store.Exec(ctx, "INSERT OR IGNORE INTO kchain_extended_stats (id) VALUES (1)"); err != nil {
+	if err := store.Exec(ctx, "INSERT INTO kchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING"); err != nil {
 		return err
 	}
 
 	// Seed algorithms reference data - simpler INSERT OR IGNORE
 	algorithms := []string{
-		"INSERT OR IGNORE INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('ml-kem-768', 'key-exchange', 192, 2400, 0, 1, 0, 'ML-KEM-768 post-quantum key encapsulation', '[\"NIST FIPS 203\"]')",
-		"INSERT OR IGNORE INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('ml-dsa-65', 'signing', 192, 0, 3309, 1, 0, 'ML-DSA-65 post-quantum digital signature', '[\"NIST FIPS 204\"]')",
-		"INSERT OR IGNORE INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('bls-threshold', 'signing', 128, 0, 96, 0, 1, 'BLS12-381 threshold signatures', '[\"IETF BLS Signature\"]')",
-		"INSERT OR IGNORE INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('secp256k1', 'signing', 128, 0, 64, 0, 0, 'ECDSA on secp256k1 (Ethereum compatible)', '[\"SEC 2\"]')",
-		"INSERT OR IGNORE INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('frost-secp256k1', 'signing', 128, 0, 64, 0, 1, 'FROST threshold Schnorr on secp256k1', '[\"IETF FROST\", \"BIP-340\"]')",
+		"INSERT INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('ml-kem-768', 'key-exchange', 192, 2400, 0, 1, 0, 'ML-KEM-768 post-quantum key encapsulation', '[\"NIST FIPS 203\"]') ON CONFLICT DO NOTHING",
+		"INSERT INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('ml-dsa-65', 'signing', 192, 0, 3309, 1, 0, 'ML-DSA-65 post-quantum digital signature', '[\"NIST FIPS 204\"]') ON CONFLICT DO NOTHING",
+		"INSERT INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('bls-threshold', 'signing', 128, 0, 96, 0, 1, 'BLS12-381 threshold signatures', '[\"IETF BLS Signature\"]') ON CONFLICT DO NOTHING",
+		"INSERT INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('secp256k1', 'signing', 128, 0, 64, 0, 0, 'ECDSA on secp256k1 (Ethereum compatible)', '[\"SEC 2\"]') ON CONFLICT DO NOTHING",
+		"INSERT INTO kchain_algorithms (name, type, security_level, key_size, signature_size, post_quantum, threshold_support, description, standards) VALUES ('frost-secp256k1', 'signing', 128, 0, 64, 0, 1, 'FROST threshold Schnorr on secp256k1', '[\"IETF FROST\", \"BIP-340\"]') ON CONFLICT DO NOTHING",
 	}
 	for _, q := range algorithms {
 		_ = store.Exec(ctx, q)

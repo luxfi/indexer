@@ -20,6 +20,7 @@ import (
 	"github.com/luxfi/indexer/chain"
 	"github.com/luxfi/indexer/dag"
 	"github.com/luxfi/indexer/evm"
+	"github.com/luxfi/indexer/kchain"
 	"github.com/luxfi/indexer/pchain"
 	"github.com/luxfi/indexer/qchain"
 	"github.com/luxfi/indexer/storage"
@@ -130,6 +131,8 @@ func main() {
 		runTChain(ctx, store, *rpcEndpoint, *httpPort, *pollInterval)
 	case "zchain":
 		runZChain(ctx, store, *rpcEndpoint, *httpPort, *pollInterval)
+	case "kchain":
+		runKChain(ctx, store, *rpcEndpoint, *httpPort, *pollInterval)
 	// Linear chains
 	case "pchain":
 		runPChain(ctx, store, *rpcEndpoint, *httpPort, *pollInterval)
@@ -322,6 +325,29 @@ func runCChain(ctx context.Context, store storage.Store, rpcEndpoint string, htt
 	log.Println("[cchain] Indexer stopped")
 }
 
+func runKChain(ctx context.Context, store storage.Store, rpcEndpoint string, httpPort int, pollInterval time.Duration) {
+	adapter := kchain.New(rpcEndpoint)
+	cfg := dag.Config{
+		ChainType:    dag.ChainK,
+		ChainName:    "K-Chain (Key Management)",
+		RPCEndpoint:  rpcEndpoint,
+		RPCMethod:    "kvm",
+		HTTPPort:     httpPort,
+		PollInterval: pollInterval,
+	}
+
+	idx, err := dag.New(cfg, store, adapter)
+	if err != nil {
+		log.Fatalf("[kchain] Failed to create indexer: %v", err)
+	}
+
+	log.Printf("[kchain] Starting DAG indexer on port %d", httpPort)
+	if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
+		log.Fatalf("[kchain] Indexer error: %v", err)
+	}
+	log.Println("[kchain] Indexer stopped")
+}
+
 func printChainList() {
 	fmt.Println("  DAG-based chains (fast consensus):")
 	fmt.Println("    xchain  - X-Chain (Exchange)  - Port 4200 - Asset exchange, UTXOs")
@@ -330,6 +356,7 @@ func printChainList() {
 	fmt.Println("    qchain  - Q-Chain (Quantum)   - Port 4300 - Quantum finality proofs")
 	fmt.Println("    tchain  - T-Chain (Teleport)  - Port 4700 - MPC threshold signatures")
 	fmt.Println("    zchain  - Z-Chain (Privacy)   - Port 4400 - ZK transactions")
+	fmt.Println("    kchain  - K-Chain (KMS)       - Port 4900 - Post-quantum key material")
 	fmt.Println()
 	fmt.Println("  Linear chains (strict ordering):")
 	fmt.Println("    pchain  - P-Chain (Platform)  - Port 4100 - Validators, staking")
@@ -348,6 +375,7 @@ func defaultPort(ct string) int {
 		"achain": 4500,
 		"bchain": 4600,
 		"tchain": 4700,
+		"kchain": 4900,
 	}
 	return ports[ct]
 }
@@ -362,6 +390,7 @@ func defaultRPC(ct string) string {
 		"achain": "http://localhost:9650/ext/bc/A",
 		"bchain": "http://localhost:9650/ext/bc/B",
 		"tchain": "http://localhost:9650/ext/bc/T",
+		"kchain": "http://localhost:9650/ext/bc/K",
 	}
 	return endpoints[ct]
 }
