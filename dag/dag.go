@@ -30,6 +30,7 @@ const (
 	ChainQ ChainType = "qchain" // Quantum - finality proofs
 	ChainT ChainType = "tchain" // Teleport - MPC signatures
 	ChainZ ChainType = "zchain" // Privacy - ZK transactions (DAG for fast consensus, proofs for privacy)
+	ChainK ChainType = "kchain" // KMS - Post-quantum key material
 )
 
 // Config for DAG indexer

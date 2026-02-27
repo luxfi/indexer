@@ -275,7 +275,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	// Create lattice parameters table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_lattice_params (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			name TEXT UNIQUE NOT NULL,
 			dimension INTEGER NOT NULL,
 			modulus INTEGER NOT NULL,
@@ -307,8 +307,9 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	}
 	for _, d := range defaults {
 		_ = store.Exec(ctx, `
-			INSERT OR IGNORE INTO qchain_lattice_params (name, dimension, modulus, error_bound, security_level, algorithm, description)
+			INSERT INTO qchain_lattice_params (name, dimension, modulus, error_bound, security_level, algorithm, description)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT DO NOTHING
 		`, d.name, d.dimension, d.modulus, d.errorBound, d.secLvl, d.algorithm, d.description)
 	}
 
@@ -384,7 +385,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		return fmt.Errorf("create extended stats table: %w", err)
 	}
 
-	_ = store.Exec(ctx, `INSERT OR IGNORE INTO qchain_extended_stats (id) VALUES (1)`)
+	_ = store.Exec(ctx, `INSERT INTO qchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING`)
 
 	return nil
 }
@@ -464,10 +465,21 @@ func (a *Adapter) StoreProof(ctx context.Context, store storage.Store, proof *Fi
 		verified = 1
 	}
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO qchain_finality_proofs
+		INSERT INTO qchain_finality_proofs
 			(id, vertex_id, proof_type, lattice_dimension, lattice_modulus,
 			 lattice_error_bound, security_level, algorithm, signature, public_key, verified)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			vertex_id = EXCLUDED.vertex_id,
+			proof_type = EXCLUDED.proof_type,
+			lattice_dimension = EXCLUDED.lattice_dimension,
+			lattice_modulus = EXCLUDED.lattice_modulus,
+			lattice_error_bound = EXCLUDED.lattice_error_bound,
+			security_level = EXCLUDED.security_level,
+			algorithm = EXCLUDED.algorithm,
+			signature = EXCLUDED.signature,
+			public_key = EXCLUDED.public_key,
+			verified = EXCLUDED.verified
 	`,
 		proof.ID, proof.VertexID, proof.ProofType,
 		proof.LatticeParams.Dimension, proof.LatticeParams.Modulus,
@@ -538,9 +550,19 @@ func (a *Adapter) StoreStamp(ctx context.Context, store storage.Store, stamp *Qu
 		certified = 1
 	}
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO qchain_stamps
+		INSERT INTO qchain_stamps
 			(id, vertex_id, chain_id, block_height, block_hash, entropy, key_id, signature, timestamp, certified)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			vertex_id = EXCLUDED.vertex_id,
+			chain_id = EXCLUDED.chain_id,
+			block_height = EXCLUDED.block_height,
+			block_hash = EXCLUDED.block_hash,
+			entropy = EXCLUDED.entropy,
+			key_id = EXCLUDED.key_id,
+			signature = EXCLUDED.signature,
+			timestamp = EXCLUDED.timestamp,
+			certified = EXCLUDED.certified
 	`, stamp.ID, stamp.VertexID, stamp.ChainID, stamp.BlockHeight, stamp.BlockHash,
 		stamp.Entropy, stamp.KeyID, stamp.Signature, stamp.Timestamp, certified)
 }
@@ -552,9 +574,19 @@ func (a *Adapter) StoreRingtailKey(ctx context.Context, store storage.Store, key
 		revoked = 1
 	}
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO qchain_ringtail_keys
+		INSERT INTO qchain_ringtail_keys
 			(id, public_key, key_type, algorithm, security_level, owner, valid_from, valid_until, revoked, vertex_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			public_key = EXCLUDED.public_key,
+			key_type = EXCLUDED.key_type,
+			algorithm = EXCLUDED.algorithm,
+			security_level = EXCLUDED.security_level,
+			owner = EXCLUDED.owner,
+			valid_from = EXCLUDED.valid_from,
+			valid_until = EXCLUDED.valid_until,
+			revoked = EXCLUDED.revoked,
+			vertex_id = EXCLUDED.vertex_id
 	`, key.ID, key.PublicKey, key.KeyType, key.Algorithm, key.SecurityLvl,
 		key.Owner, key.ValidFrom, key.ValidUntil, revoked, vertexID)
 }

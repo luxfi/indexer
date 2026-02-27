@@ -463,7 +463,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		return fmt.Errorf("create mpc stats table: %w", err)
 	}
 
-	_ = store.Exec(ctx, `INSERT OR IGNORE INTO tchain_mpc_stats (id) VALUES (1)`)
+	_ = store.Exec(ctx, `INSERT INTO tchain_mpc_stats (id) VALUES (1) ON CONFLICT DO NOTHING`)
 
 	return nil
 }
@@ -584,16 +584,38 @@ func (a *Adapter) StoreSession(ctx context.Context, store storage.Store, s *Sign
 	signatures, _ := json.Marshal(s.Signatures)
 
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO tchain_sessions (id, threshold, total_shares, message_hash, participants, signatures, final_sig, status, source_chain, dest_chain, created_at, completed_at, expires_at)
+		INSERT INTO tchain_sessions (id, threshold, total_shares, message_hash, participants, signatures, final_sig, status, source_chain, dest_chain, created_at, completed_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			threshold = EXCLUDED.threshold,
+			total_shares = EXCLUDED.total_shares,
+			message_hash = EXCLUDED.message_hash,
+			participants = EXCLUDED.participants,
+			signatures = EXCLUDED.signatures,
+			final_sig = EXCLUDED.final_sig,
+			status = EXCLUDED.status,
+			source_chain = EXCLUDED.source_chain,
+			dest_chain = EXCLUDED.dest_chain,
+			created_at = EXCLUDED.created_at,
+			completed_at = EXCLUDED.completed_at,
+			expires_at = EXCLUDED.expires_at
 	`, s.ID, s.Threshold, s.TotalShares, s.MessageHash, string(participants), string(signatures), s.FinalSig, s.Status, s.SourceChain, s.DestChain, s.CreatedAt, s.CompletedAt, s.ExpiresAt)
 }
 
 // StoreKeyShare stores a key share
 func (a *Adapter) StoreKeyShare(ctx context.Context, store storage.Store, k *KeyShare) error {
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO tchain_key_shares (id, public_key, share_index, node_id, keygen_id, status, created_at, rotated_at, expires_at)
+		INSERT INTO tchain_key_shares (id, public_key, share_index, node_id, keygen_id, status, created_at, rotated_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			public_key = EXCLUDED.public_key,
+			share_index = EXCLUDED.share_index,
+			node_id = EXCLUDED.node_id,
+			keygen_id = EXCLUDED.keygen_id,
+			status = EXCLUDED.status,
+			created_at = EXCLUDED.created_at,
+			rotated_at = EXCLUDED.rotated_at,
+			expires_at = EXCLUDED.expires_at
 	`, k.ID, k.PublicKey, k.ShareIndex, k.NodeID, k.KeyGenID, k.Status, k.CreatedAt, k.RotatedAt, k.ExpiresAt)
 }
 
@@ -602,16 +624,36 @@ func (a *Adapter) StoreKeyGeneration(ctx context.Context, store storage.Store, k
 	participants, _ := json.Marshal(kg.Participants)
 
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO tchain_key_generations (id, threshold, total_shares, public_key, participants, status, created_at, completed_at)
+		INSERT INTO tchain_key_generations (id, threshold, total_shares, public_key, participants, status, created_at, completed_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			threshold = EXCLUDED.threshold,
+			total_shares = EXCLUDED.total_shares,
+			public_key = EXCLUDED.public_key,
+			participants = EXCLUDED.participants,
+			status = EXCLUDED.status,
+			created_at = EXCLUDED.created_at,
+			completed_at = EXCLUDED.completed_at
 	`, kg.ID, kg.Threshold, kg.TotalShares, kg.PublicKey, string(participants), kg.Status, kg.CreatedAt, kg.CompletedAt)
 }
 
 // StoreMessage stores a teleport message
 func (a *Adapter) StoreMessage(ctx context.Context, store storage.Store, m *TeleportMessage) error {
 	return store.Exec(ctx, `
-		INSERT OR REPLACE INTO tchain_messages (id, source_chain, dest_chain, sender, receiver, payload, nonce, session_id, status, created_at, signed_at, delivered_at)
+		INSERT INTO tchain_messages (id, source_chain, dest_chain, sender, receiver, payload, nonce, session_id, status, created_at, signed_at, delivered_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			source_chain = EXCLUDED.source_chain,
+			dest_chain = EXCLUDED.dest_chain,
+			sender = EXCLUDED.sender,
+			receiver = EXCLUDED.receiver,
+			payload = EXCLUDED.payload,
+			nonce = EXCLUDED.nonce,
+			session_id = EXCLUDED.session_id,
+			status = EXCLUDED.status,
+			created_at = EXCLUDED.created_at,
+			signed_at = EXCLUDED.signed_at,
+			delivered_at = EXCLUDED.delivered_at
 	`, m.ID, m.SourceChain, m.DestChain, m.Sender, m.Receiver, string(m.Payload), m.Nonce, m.SessionID, m.Status, m.CreatedAt, m.SignedAt, m.DeliveredAt)
 }
 
