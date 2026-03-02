@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -34,9 +35,7 @@ func newGraphQLProxy(endpoint string) (*graphqlProxy, error) {
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(graphqlErrorResponse(
-			fmt.Sprintf("G-Chain upstream error: %v", err),
-		))
+		json.NewEncoder(w).Encode(graphqlErrorResponse("upstream service unavailable"))
 	}
 
 	return &graphqlProxy{target: u, proxy: proxy}, nil
@@ -88,10 +87,10 @@ func (p *plugin) handleCrossChainSearch(e *core.RequestEvent) error {
 		))
 	}
 
-	chainDBs := p.config.ChainDBPaths
-	if len(chainDBs) == 0 {
-		// Single-chain mode: just search the local DB.
-		chainDBs = map[string]string{p.config.ChainName: p.config.IndexerDBPath}
+	// Use pre-opened connections if available; fall back to single-chain local DB.
+	dbs := p.chainDBs
+	if len(dbs) == 0 {
+		dbs = map[string]*sql.DB{p.config.ChainName: p.db}
 	}
 
 	type chainResult struct {
@@ -106,23 +105,13 @@ func (p *plugin) handleCrossChainSearch(e *core.RequestEvent) error {
 		wg      sync.WaitGroup
 	)
 
-	for chain, dbPath := range chainDBs {
+	for chain, db := range dbs {
 		wg.Add(1)
-		go func(chain, dbPath string) {
+		go func(chain string, db *sql.DB) {
 			defer wg.Done()
 
-			db, err := sql.Open("sqlite3",
-				fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", dbPath))
-			if err != nil {
-				mu.Lock()
-				results = append(results, chainResult{Chain: chain, Error: err.Error()})
-				mu.Unlock()
-				return
-			}
-			defer db.Close()
-			db.SetMaxOpenConns(2)
-
 			var data any
+			var err error
 			if address != "" {
 				data, err = searchAddress(db, address)
 			} else {
@@ -136,7 +125,7 @@ func (p *plugin) handleCrossChainSearch(e *core.RequestEvent) error {
 				results = append(results, chainResult{Chain: chain, Data: data})
 			}
 			mu.Unlock()
-		}(chain, dbPath)
+		}(chain, db)
 	}
 
 	wg.Wait()
@@ -216,7 +205,7 @@ func (p *plugin) serveGraphQLPlayground(e *core.RequestEvent, title, variant str
 		endpoint = "/v1/explorer/graphql"
 	}
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
+	page := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
   <title>%s</title>
@@ -237,9 +226,9 @@ func (p *plugin) serveGraphQLPlayground(e *core.RequestEvent, title, variant str
     })
   </script>
 </body>
-</html>`, title, endpoint)
+</html>`, html.EscapeString(title), endpoint)
 
-	return e.HTML(http.StatusOK, html)
+	return e.HTML(http.StatusOK, page)
 }
 
 // graphqlErrorResponse builds a standard GraphQL error response body.
