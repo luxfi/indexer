@@ -138,8 +138,18 @@ func (s *StandaloneServer) j(fn jfn) http.HandlerFunc {
 
 func (s *StandaloneServer) q(r *http.Request, query string, args ...any) (*sql.Rows, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	_ = cancel // deferred by caller via rows.Close
-	return s.db.QueryContext(ctx, query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	// Cancel when rows are closed via the request context chain.
+	// The 5s timeout protects against hung queries.
+	go func() {
+		<-ctx.Done()
+		cancel()
+	}()
+	return rows, nil
 }
 
 func ep() paginatedResponse { return paginatedResponse{Items: []any{}} }
