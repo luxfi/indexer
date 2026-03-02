@@ -126,7 +126,7 @@ func TestSecuritiesIndexer_DividendLifecycle(t *testing.T) {
 			SecDividendReclaimedSig,
 			"0x0000000000000000000000000000000000000000000000000000000000000001",
 		},
-		Data: "0x" + strings.Repeat("0", 60) + "0384", // 900 unclaimed
+		Data:   "0x" + strings.Repeat("0", 60) + "0384", // 900 unclaimed
 		TxHash: "0xtx3", BlockNumber: 102, Timestamp: now.Add(2 * time.Minute),
 	})
 
