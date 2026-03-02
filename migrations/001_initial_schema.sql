@@ -1,7 +1,7 @@
 -- Lux EVM Indexer Initial Schema
 -- Version: 1.0.0
 -- Date: 2025-12-25
--- Compatible with: Blockscout v6.x
+-- Compatible with: explorer API v2
 
 -- Enable extensions
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";           -- Trigram for fuzzy search
@@ -92,7 +92,7 @@ CREATE TABLE transactions (
     block_hash      BYTEA NOT NULL,
     transaction_index INTEGER NOT NULL,
 
-    -- Core fields (Blockscout compatible)
+    -- Core fields
     from_address_hash BYTEA NOT NULL,
     to_address_hash BYTEA,
     value           NUMERIC(100) NOT NULL,
@@ -114,7 +114,7 @@ CREATE TABLE transactions (
     nonce           BIGINT NOT NULL,
     type            SMALLINT NOT NULL DEFAULT 0,
 
-    -- Status (Blockscout uses integer: 1=success, 0=fail, NULL=pending)
+    -- Status (integer: 1=success, 0=fail, NULL=pending)
     status          SMALLINT,
     error           TEXT,
     revert_reason   TEXT,
@@ -154,7 +154,7 @@ CREATE TABLE internal_transactions (
     index           INTEGER NOT NULL,
     trace_address   INTEGER[] NOT NULL DEFAULT '{}',
 
-    -- Trace type (Blockscout compatible)
+    -- Trace type
     type            VARCHAR(20) NOT NULL,  -- call, create, selfdestruct, reward
     call_type       VARCHAR(20),           -- call, delegatecall, staticcall, callcode
 
@@ -200,7 +200,7 @@ CREATE TABLE logs (
     transaction_index INTEGER NOT NULL,
     index           INTEGER NOT NULL,  -- log_index within block
 
-    -- Log data (Blockscout compatible field names)
+    -- Log data
     address_hash    BYTEA NOT NULL,
     data            BYTEA,
     first_topic     BYTEA,   -- topic0
@@ -225,7 +225,7 @@ CREATE TABLE logs_200201 PARTITION OF logs FOR VALUES IN (200201);
 CREATE TABLE logs_36963 PARTITION OF logs FOR VALUES IN (36963);
 
 --------------------------------------------------------------------------------
--- Addresses (Blockscout compatible)
+-- Addresses
 --------------------------------------------------------------------------------
 
 CREATE TABLE addresses (
@@ -233,7 +233,7 @@ CREATE TABLE addresses (
     chain_id        BIGINT NOT NULL,
     hash            BYTEA NOT NULL,
 
-    -- Fetched balance (Blockscout uses this naming)
+    -- Fetched balance
     fetched_coin_balance NUMERIC(100),
     fetched_coin_balance_block_number BIGINT,
 
@@ -353,7 +353,7 @@ CREATE TABLE token_transfers (
     block_number    BIGINT NOT NULL,
     block_hash      BYTEA NOT NULL,
 
-    -- Transfer details (Blockscout compatible field names)
+    -- Transfer details
     from_address_hash BYTEA NOT NULL,
     to_address_hash BYTEA NOT NULL,
     token_contract_address_hash BYTEA NOT NULL,

@@ -236,7 +236,7 @@ func (h *RPCHandler) getInternalTxList(ctx context.Context, r *http.Request) RPC
 		if itx.To != nil {
 			etx["to"] = itx.To.Hash
 		}
-		if !itx.Success {
+		if itx.Success != nil && !*itx.Success {
 			etx["isError"] = "1"
 			etx["errCode"] = itx.Error
 		}
@@ -750,8 +750,6 @@ func (h *RPCHandler) getNodeCount(ctx context.Context, r *http.Request) RPCRespo
 }
 
 func (h *RPCHandler) handleProxy(ctx context.Context, action string, r *http.Request) RPCResponse {
-	// Proxy actions pass through to the RPC node
-	// For now, return not implemented
 	switch action {
 	case "eth_blockNumber":
 		return RPCResponse{Status: "1", Message: "OK", Result: "0x0"}

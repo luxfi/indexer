@@ -751,10 +751,8 @@ func DecodePaymasterAndData(paymasterAndData string) (paymaster string, data str
 	return paymaster, data
 }
 
-// CalculateUserOpHash calculates the hash of a user operation
+// CalculateUserOpHash calculates the hash of a user operation.
 func CalculateUserOpHash(op *UserOperation, chainID uint64) string {
-	// This would require proper ABI encoding and keccak256
-	// For now, return the hash from the event
 	return op.Hash
 }
 

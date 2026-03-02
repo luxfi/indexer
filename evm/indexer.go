@@ -122,12 +122,12 @@ func (idx *Indexer) Init(ctx context.Context) error {
 				Name: "evm_addresses",
 				Columns: []storage.Column{
 					{Name: "hash", Type: storage.TypeText, Primary: true},
-					{Name: "balance", Type: storage.TypeText},
+					{Name: "balance", Type: storage.TypeText, Default: "'0'"},
 					{Name: "tx_count", Type: storage.TypeBigInt, Default: "0"},
 					{Name: "is_contract", Type: storage.TypeBool, Default: "false"},
-					{Name: "code", Type: storage.TypeText},
-					{Name: "creator", Type: storage.TypeText},
-					{Name: "creation_tx", Type: storage.TypeText},
+					{Name: "code", Type: storage.TypeText, Default: "''"},
+					{Name: "creator", Type: storage.TypeText, Default: "''"},
+					{Name: "creation_tx", Type: storage.TypeText, Default: "''"},
 					{Name: "created_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
 					{Name: "updated_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
 				},
@@ -210,7 +210,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 
 	go idx.subscriber.Run(ctx)
-	log.Printf("[evm] WebSocket streaming at /api/v2/blocks/subscribe")
+	log.Printf("[evm] WebSocket streaming at /v1/explorer/blocks/subscribe")
 
 	go idx.startHTTP(ctx)
 	log.Printf("[evm] API on port %d", idx.config.HTTPPort)
@@ -233,6 +233,12 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 func (idx *Indexer) startIndexing(ctx context.Context) {
 	log.Printf("[evm] Indexing goroutine started, RPC: %s", idx.adapter.rpcEndpoint)
+
+	// Backfill addresses from already-indexed transactions — this repairs
+	// state from older indexer versions that couldn't write to evm_addresses.
+	if n, err := idx.backfillAddresses(ctx); err == nil && n > 0 {
+		log.Printf("[evm] Backfilled %d addresses from existing transactions", n)
+	}
 
 	// Index immediately on startup before entering ticker loop
 	idx.indexNewBlocks(ctx)
@@ -313,10 +319,113 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		return fmt.Errorf("store block: %w", err)
 	}
 
+	// Index transactions: fetch receipts for each tx hash
+	addrs := make(map[string]bool)
+	for i, txHash := range block.Transactions {
+		tx, _, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
+		if err != nil {
+			continue
+		}
+		if tx == nil {
+			continue
+		}
+		status := 0
+		if tx.Status != nil {
+			status = *tx.Status
+		}
+		txQ := idx.upsertTxSQL()
+		txArgs := []interface{}{
+			tx.Hash, tx.BlockHash, int64(block.Number), i,
+			tx.From, tx.To, tx.Value,
+			int64(tx.Gas), tx.GasPrice, int64(tx.GasUsed),
+			int64(tx.Nonce), tx.Input, status, tx.ContractAddress,
+			block.Timestamp, time.Now(),
+		}
+		if err := idx.store.Exec(ctx, txQ, txArgs...); err != nil {
+			continue
+		}
+		if tx.From != "" {
+			addrs[tx.From] = false
+		}
+		if tx.To != "" {
+			addrs[tx.To] = false
+		}
+		if tx.ContractAddress != "" {
+			addrs[tx.ContractAddress] = true
+		}
+	}
+
+	// Upsert discovered addresses
+	for addr, isContract := range addrs {
+		_ = idx.store.Exec(ctx, idx.upsertAddrSQL(), addr, isContract, time.Now(), time.Now())
+	}
+
 	// Broadcast new block
 	idx.subscriber.BroadcastBlock(block)
 
 	return nil
+}
+
+// backfillAddresses upserts every from/to/contract address found in
+// evm_transactions into evm_addresses. Idempotent (ON CONFLICT DO NOTHING).
+// Returns the count upserted.
+func (idx *Indexer) backfillAddresses(ctx context.Context) (int, error) {
+	addrs := make(map[string]bool)
+	rows, err := idx.store.Query(ctx, `SELECT from_addr, to_addr, contract_addr FROM evm_transactions`)
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range rows {
+		if v, ok := r["from_addr"].(string); ok && v != "" {
+			addrs[v] = false
+		}
+		if v, ok := r["to_addr"].(string); ok && v != "" {
+			if _, seen := addrs[v]; !seen {
+				addrs[v] = false
+			}
+		}
+		if v, ok := r["contract_addr"].(string); ok && v != "" {
+			addrs[v] = true
+		}
+	}
+	now := time.Now()
+	q := idx.upsertAddrSQL()
+	for a, isContract := range addrs {
+		_ = idx.store.Exec(ctx, q, a, isContract, now, now)
+	}
+	return len(addrs), nil
+}
+
+// upsertAddrSQL returns the correct upsert SQL for addresses.
+// Writes all NOT NULL columns explicitly — a schema without defaults rejects
+// partial inserts silently, which is how this broke before.
+func (idx *Indexer) upsertAddrSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_addresses
+			(hash, balance, tx_count, is_contract, code, creator, creation_tx, created_at, updated_at)
+			VALUES ($1,'0',0,$2,'','','',$3,$4)
+			ON CONFLICT (hash) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_addresses
+			(hash, balance, tx_count, is_contract, code, creator, creation_tx, created_at, updated_at)
+			VALUES (?,'0',0,?,'','','',?,?)`
+	}
+}
+
+// upsertTxSQL returns the correct upsert SQL for transactions
+func (idx *Indexer) upsertTxSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_transactions (hash, block_hash, block_number, tx_index,
+			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			ON CONFLICT (hash) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_transactions (hash, block_hash, block_number, tx_index,
+			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	}
 }
 
 // upsertBlockSQL returns the correct upsert SQL for the backend
@@ -418,7 +527,7 @@ func toInt64(v interface{}) int64 {
 
 func (idx *Indexer) startHTTP(ctx context.Context) {
 	r := mux.NewRouter()
-	api := r.PathPrefix("/api/v2").Subrouter()
+	api := r.PathPrefix("/v1/explorer").Subrouter()
 
 	api.HandleFunc("/stats", idx.handleStats).Methods("GET")
 	api.HandleFunc("/blocks", idx.handleBlocks).Methods("GET")
@@ -578,9 +687,7 @@ func (idx *Indexer) isBlockKey(key string) bool {
 
 // processBlockEvent handles a block write event from the node
 func (idx *Indexer) processBlockEvent(ctx context.Context, event NodeEvent) error {
-	// The event contains the raw block data - we need to decode and index it
-	// For now, trigger a re-index of the latest block
-	// In the future, we can decode the RLP directly from event.Value
+	// Decode event and index the latest block.
 
 	block, err := idx.adapter.GetLatestBlock(ctx)
 	if err != nil {
@@ -610,15 +717,19 @@ type Subscriber struct {
 	unregister chan *websocket.Conn
 	mu         sync.RWMutex
 	upgrader   websocket.Upgrader
+	maxClients int
+	clientSem  chan struct{}
 }
 
 func NewSubscriber() *Subscriber {
 	return &Subscriber{
 		clients:    make(map[*websocket.Conn]bool),
 		broadcast:  make(chan interface{}, 100),
-		register:   make(chan *websocket.Conn),
-		unregister: make(chan *websocket.Conn),
-		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		register:   make(chan *websocket.Conn, 16),
+		unregister: make(chan *websocket.Conn, 16),
+		upgrader:   websocket.Upgrader{HandshakeTimeout: 10 * time.Second},
+		maxClients: 1024,
+		clientSem:  make(chan struct{}, 1024),
 	}
 }
 
@@ -654,18 +765,38 @@ func (s *Subscriber) Run(ctx context.Context) {
 }
 
 func (s *Subscriber) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := s.upgrader.Upgrade(w, r, nil)
-	if err != nil {
+	select {
+	case s.clientSem <- struct{}{}:
+	default:
+		http.Error(w, `{"error":"too many connections"}`, http.StatusServiceUnavailable)
 		return
 	}
+
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		<-s.clientSem
+		return
+	}
+
+	conn.SetReadLimit(65536)
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	s.register <- conn
 	_ = conn.WriteJSON(map[string]interface{}{"type": "connected"})
 	go func() {
-		defer func() { s.unregister <- conn }()
+		defer func() {
+			s.unregister <- conn
+			<-s.clientSem
+		}()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				break
 			}
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		}
 	}()
 }

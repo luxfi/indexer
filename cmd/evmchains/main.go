@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package main runs multiple EVM chain indexers in a single process.
-// Each chain gets its own Blockscout-compatible API server on a dedicated port,
+// Each chain gets its own explorer API server on a dedicated port,
 // while all chains share one PostgreSQL database using table prefixes.
 package main
 
@@ -146,7 +146,7 @@ func main() {
 	log.Println("All chain servers stopped")
 }
 
-// runChain starts a Blockscout-compatible API server for a single chain.
+// runChain starts an explorer API server for a single chain.
 func runChain(ctx context.Context, db *sql.DB, chain ChainDef) {
 	log.Printf("[%s] Starting API server on port %d (chain_id=%d, rpc=%s)",
 		chain.Slug, chain.Port, chain.ChainID, chain.RPC)
