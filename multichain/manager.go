@@ -36,15 +36,24 @@ const (
 	ChainTypeICP        ChainType = "icp"
 	ChainTypeMultiversX ChainType = "multiversx"
 
-	// Lux Native Chains (non-EVM)
-	ChainTypeLuxAI        ChainType = "lux_ai"        // A-Chain: AI compute/Oracle
-	ChainTypeLuxBridge    ChainType = "lux_bridge"    // B-Chain: Cross-chain bridge
-	ChainTypeLuxThreshold ChainType = "lux_threshold" // T-Chain: Threshold FHE
-	ChainTypeLuxZK        ChainType = "lux_zk"        // Z-Chain: Zero-knowledge
-	ChainTypeLuxGraph     ChainType = "lux_graph"     // G-Chain: GraphQL indexing
-	ChainTypeLuxIdentity  ChainType = "lux_identity"  // I-Chain: Decentralized identity
-	ChainTypeLuxKey       ChainType = "lux_key"       // K-Chain: Key management
-	ChainTypeLuxDEX       ChainType = "lux_dex"       // D-Chain: DEX orderbook
+	// Purpose-based platform chain types. Brand-neutral so any network that
+	// wires these VMs into its node binary can consume the indexer without
+	// renaming. The single-letter chain convention (A/B/D/...) lives in the
+	// ID field — Type captures the VM's semantic role.
+	ChainTypePlatform  ChainType = "platform"  // P-Chain: validators, staking, subnets
+	ChainTypeUTXO      ChainType = "utxo"      // X-Chain: UTXO asset chain
+	ChainTypeAI        ChainType = "ai"        // A-Chain: AI compute / inference
+	ChainTypeBridge    ChainType = "bridge"    // B-Chain: cross-chain bridge
+	ChainTypeDEX       ChainType = "dex"       // D-Chain: orderbook DEX
+	ChainTypeGraph     ChainType = "graph"     // G-Chain: GraphQL indexing
+	ChainTypeIdentity  ChainType = "identity"  // I-Chain: decentralized identity / DIDs
+	ChainTypeKey       ChainType = "key"       // K-Chain: key management / KMS
+	ChainTypeMPC       ChainType = "mpc"       // M-Chain: CGGMP21 / FROST MPC coordination
+	ChainTypeOracle    ChainType = "oracle"    // O-Chain: oracle aggregation
+	ChainTypeQuantum   ChainType = "quantum"   // Q-Chain: PQ finality (ML-DSA, Ringtail)
+	ChainTypeRelay     ChainType = "relay"     // R-Chain: cross-chain message relay
+	ChainTypeThreshold ChainType = "threshold" // T-Chain: threshold FHE
+	ChainTypeZK        ChainType = "zk"        // Z-Chain: zero-knowledge rollup
 )
 
 // ProtocolType identifies DeFi protocol types
@@ -401,10 +410,13 @@ func (m *Manager) createIndexer(config ChainConfig) (ChainIndexer, error) {
 		return NewTonIndexer(config, m.db)
 	case ChainTypeSubstrate:
 		return NewSubstrateIndexer(config, m.db)
-	// Lux Native Chains
-	case ChainTypeLuxAI, ChainTypeLuxBridge, ChainTypeLuxThreshold, ChainTypeLuxZK,
-		ChainTypeLuxGraph, ChainTypeLuxIdentity, ChainTypeLuxKey, ChainTypeLuxDEX:
-		return NewLuxNativeIndexer(config), nil
+	// Purpose-built platform chains (platform/UTXO/AI/bridge/DEX/graph/
+	// identity/key/MPC/oracle/quantum/relay/threshold/ZK)
+	case ChainTypePlatform, ChainTypeUTXO, ChainTypeAI, ChainTypeBridge,
+		ChainTypeDEX, ChainTypeGraph, ChainTypeIdentity, ChainTypeKey,
+		ChainTypeMPC, ChainTypeOracle, ChainTypeQuantum, ChainTypeRelay,
+		ChainTypeThreshold, ChainTypeZK:
+		return NewPlatformIndexer(config), nil
 	default:
 		return nil, fmt.Errorf("unsupported chain type: %s", config.Type)
 	}
