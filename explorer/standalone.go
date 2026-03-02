@@ -229,6 +229,23 @@ func (s *StandaloneServer) detectTable(names ...string) string {
 
 func (s *StandaloneServer) routes() {
 	m := s.mux
+
+	// ================================================================
+	// Universal endpoints — work for any chain type
+	// ================================================================
+	m.HandleFunc("GET /v1/explorer/stats", s.j(s.stats))
+	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
+	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
+	m.HandleFunc("GET /v1/explorer/search", s.j(s.search))
+	m.HandleFunc("GET /v1/explorer/search/quick", s.j(s.search))
+	m.HandleFunc("GET /v1/explorer/search/check-redirect", s.j(s.searchRedirect))
+	m.HandleFunc("GET /v1/explorer/config/version", s.j(s.backendVersion))
+	m.HandleFunc("GET /v1/explorer/config/chain", s.j(s.backendConfig))
+
+	// ================================================================
+	// EVM endpoints — blocks, transactions, addresses, tokens, contracts
+	// Used by: C-Chain, Zoo, Hanzo, SPC, Pars, and any EVM chain
+	// ================================================================
 	m.HandleFunc("GET /v1/explorer/blocks", s.j(s.listBlocks))
 	m.HandleFunc("GET /v1/explorer/blocks/{id}", s.j(s.getBlock))
 	m.HandleFunc("GET /v1/explorer/blocks/{id}/transactions", s.j(s.blockTxs))
@@ -241,79 +258,59 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}", s.j(s.getAddr))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/transactions", s.j(s.addrTxs))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/counters", s.j(s.addrCounters))
-	m.HandleFunc("GET /v1/explorer/tokens", s.j(s.listTokens))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}", s.j(s.getToken))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/holders", s.j(s.tokenHolders))
-	m.HandleFunc("GET /v1/explorer/smart-contracts/{addr}", s.j(s.getContract))
-	m.HandleFunc("GET /v1/explorer/search", s.j(s.search))
-	m.HandleFunc("GET /v1/explorer/search/quick", s.j(s.search))
-	m.HandleFunc("GET /v1/explorer/search/check-redirect", s.j(s.searchRedirect))
-	m.HandleFunc("GET /v1/explorer/stats", s.j(s.stats))
-	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
-	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
-
-	// Config
-	m.HandleFunc("GET /v1/explorer/config/version", s.j(s.backendVersion))
-	m.HandleFunc("GET /v1/explorer/config/chain", s.j(s.backendConfig))
-
-	// Realtime — Base SSE/WebSocket for live block/tx subscriptions
-	m.HandleFunc("/v1/base/realtime", s.realtimeHandler)
-
-	// Address sub-resources
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-transfers", s.j(s.addrTokenTransfers))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/internal-transactions", s.j(s.addrInternalTxs))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/logs", s.j(s.addrLogs))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/tokens", s.j(s.addrTokens))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-balances", s.j(s.addrTokens))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/coin-balance-history", s.j(s.addrCoinHistory))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/coin-balance-history-by-day", s.j(s.addrCoinHistory))
+	m.HandleFunc("GET /v1/explorer/addresses/{hash}/timeline", s.j(s.addrTimeline))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/tabs-counters", s.j(s.addrCounters))
-
-	// Token sub-resources
+	m.HandleFunc("GET /v1/explorer/tokens", s.j(s.listTokens))
+	m.HandleFunc("GET /v1/explorer/tokens/{addr}", s.j(s.getToken))
+	m.HandleFunc("GET /v1/explorer/tokens/{addr}/holders", s.j(s.tokenHolders))
 	m.HandleFunc("GET /v1/explorer/tokens/{addr}/transfers", s.j(s.tokenTransfers))
 	m.HandleFunc("GET /v1/explorer/tokens/{addr}/instances", s.j(s.emptyList))
 	m.HandleFunc("GET /v1/explorer/tokens/{addr}/counters", s.j(s.tokenCounters))
-
-	// Smart contract sub-resources
+	m.HandleFunc("GET /v1/explorer/tokens/{addr}/distribution", s.j(s.tokenDistribution))
 	m.HandleFunc("GET /v1/explorer/smart-contracts", s.j(s.listContracts))
+	m.HandleFunc("GET /v1/explorer/smart-contracts/{addr}", s.j(s.getContract))
 	m.HandleFunc("GET /v1/explorer/smart-contracts/counters", s.j(s.contractCounters))
-
-	// Token transfers list
 	m.HandleFunc("GET /v1/explorer/token-transfers", s.j(s.allTokenTransfers))
-
-	// Internal transactions list
 	m.HandleFunc("GET /v1/explorer/internal-transactions", s.j(s.allInternalTxs))
 
 	// CSV exports
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/transactions/csv", s.csvHandler(s.csvAddrTxs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/internal-transactions/csv", s.csvHandler(s.csvAddrInternalTxs))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-transfers/csv", s.csvHandler(s.csvAddrTokenTransfers))
+	m.HandleFunc("GET /v1/explorer/addresses/{hash}/internal-transactions/csv", s.csvHandler(s.csvAddrInternalTxs))
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/logs/csv", s.csvHandler(s.csvAddrLogs))
 	m.HandleFunc("GET /v1/explorer/token-transfers/csv", s.csvHandler(s.csvAllTokenTransfers))
 
-	// Unified account timeline
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/timeline", s.j(s.addrTimeline))
-
-	// DEX endpoints
+	// ================================================================
+	// DEX endpoints — orderbook, trades, markets, pools
+	// Used by: D-Chain (native CLOB), any chain with AMM contracts
+	// ================================================================
 	m.HandleFunc("GET /v1/explorer/dex/markets", s.j(s.dexMarkets))
 	m.HandleFunc("GET /v1/explorer/dex/markets/{pair}", s.j(s.dexMarketDetail))
 	m.HandleFunc("GET /v1/explorer/dex/trades", s.j(s.dexTrades))
 	m.HandleFunc("GET /v1/explorer/dex/trades/{pair}", s.j(s.dexTradesByPair))
 	m.HandleFunc("GET /v1/explorer/dex/orderbook/{pair}", s.j(s.dexOrderbook))
 	m.HandleFunc("GET /v1/explorer/dex/candles/{pair}", s.j(s.dexCandles))
-
-	// Pool endpoints
 	m.HandleFunc("GET /v1/explorer/pools", s.j(s.poolList))
 	m.HandleFunc("GET /v1/explorer/pools/{id}", s.j(s.poolDetail))
 	m.HandleFunc("GET /v1/explorer/pools/{id}/swaps", s.j(s.poolSwaps))
 
-	// Token distribution (Gini coefficient)
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/distribution", s.j(s.tokenDistribution))
-
-	// Webhooks (notification subscriptions)
+	// ================================================================
+	// Notifications — webhook subscriptions for address activity
+	// ================================================================
 	m.HandleFunc("POST /v1/explorer/webhooks", s.j(s.registerWebhook))
 	m.HandleFunc("GET /v1/explorer/webhooks", s.j(s.listWebhooks))
 	m.HandleFunc("DELETE /v1/explorer/webhooks", s.j(s.deleteWebhook))
+
+	// ================================================================
+	// Realtime — Base WebSocket for live subscriptions
+	// ================================================================
+	m.HandleFunc("/v1/base/realtime", s.realtimeHandler)
 }
 
 type jfn func(*http.Request) (any, int)
