@@ -209,8 +209,22 @@ func (w *NotificationWorker) poll() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Auto-detect column names (different schemas use different names)
+	fromCol, toCol, tsCol, idxCol := "from_addr", "to_addr", "timestamp", "tx_index"
+	// Check if using the test/PG schema with _hash suffix
+	var dummy int
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='from_address_hash'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+		fromCol, toCol = "from_address_hash", "to_address_hash"
+	}
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='block_timestamp'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+		tsCol = "block_timestamp"
+	}
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='transaction_index'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+		idxCol = "transaction_index"
+	}
+
 	rows, err := w.db.QueryContext(ctx,
-		fmt.Sprintf("SELECT hash, block_number, from_addr, to_addr, value, timestamp FROM %s WHERE block_number > ? ORDER BY block_number, tx_index", w.table),
+		fmt.Sprintf("SELECT hash, block_number, %s, %s, value, %s FROM %s WHERE block_number > ? ORDER BY block_number, %s", fromCol, toCol, tsCol, w.table, idxCol),
 		w.lastBlock)
 	if err != nil {
 		w.logger.Warn("notification poll failed", slog.String("error", err.Error()))
