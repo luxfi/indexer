@@ -3,7 +3,7 @@
 
 // Package evm provides a unified EVM indexer for all Lux EVM chains.
 // Indexes blocks, transactions, addresses, tokens, smart contracts, and more.
-// Designed to be a complete Go-native replacement for Blockscout.
+// Indexes blocks, transactions, addresses, tokens, smart contracts, and more.
 //
 // Supported chains:
 //   - Lux C-Chain (mainnet: 96369, testnet: 96368)
@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/luxfi/indexer/chain"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/chain"
+	"github.com/luxfi/explorer/storage"
 )
 
 const (
@@ -179,7 +179,7 @@ type TracerType string
 const (
 	// TracerCallTracer uses geth's built-in callTracer (recommended)
 	TracerCallTracer TracerType = "callTracer"
-	// TracerJS uses custom JavaScript tracer for Blockscout compatibility
+	// TracerJS uses custom JavaScript tracer for internal transaction tracing
 	TracerJS TracerType = "js"
 	// TracerParity uses trace_replayBlockTransactions (Parity/Nethermind)
 	TracerParity TracerType = "parity"
@@ -586,7 +586,7 @@ func flattenCallFrame(frame *CallFrame, txHash string, blockNumber uint64, times
 	return *traces
 }
 
-// normalizeCallType normalizes call type from geth to Blockscout format
+// normalizeCallType normalizes call type from geth to standard explorer format
 func normalizeCallType(t string) string {
 	switch strings.ToLower(t) {
 	case "call":
@@ -616,9 +616,9 @@ func normalizeValue(v string) string {
 	return v
 }
 
-// traceTransactionJS uses custom JavaScript tracer (Blockscout compatible)
+// traceTransactionJS uses custom JavaScript tracer for internal transaction tracing
 func (a *Adapter) traceTransactionJS(ctx context.Context, txHash string, blockNumber uint64, timestamp time.Time, timeout string) ([]InternalTransaction, error) {
-	// JavaScript tracer that mimics Blockscout's tracer.js
+	// Standard JavaScript tracer for internal call tracing
 	tracer := `{
 		callStack: [{}],
 		descended: false,

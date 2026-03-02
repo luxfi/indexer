@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package api provides REST, RPC, GraphQL, and WebSocket APIs for the EVM indexer.
-// API design matches Blockscout v2 for frontend compatibility.
+// API design follows the explorer v2 format for frontend compatibility.
 package api
 
 import (
@@ -18,7 +18,7 @@ type Pagination struct {
 	TotalRows int `json:"total_rows"`
 }
 
-// NextPageParams for cursor-based pagination (Blockscout compatible)
+// NextPageParams for cursor-based pagination
 type NextPageParams struct {
 	BlockNumber      *uint64 `json:"block_number,omitempty"`
 	Index            *int    `json:"index,omitempty"`
@@ -33,7 +33,7 @@ type PaginatedResponse struct {
 	NextPageParams *NextPageParams `json:"next_page_params,omitempty"`
 }
 
-// Block represents a block in Blockscout v2 format
+// Block represents a block in explorer v2 format
 type Block struct {
 	Height             uint64        `json:"height"`
 	Hash               string        `json:"hash"`
@@ -76,7 +76,7 @@ type BlockReward struct {
 	Amount  string   `json:"amount"`
 }
 
-// Transaction in Blockscout v2 format
+// Transaction in explorer v2 format
 type Transaction struct {
 	Hash                string          `json:"hash"`
 	BlockHash           string          `json:"block_hash,omitempty"`
@@ -134,7 +134,7 @@ type TxAction struct {
 	Data     map[string]interface{} `json:"data"`
 }
 
-// Address in Blockscout v2 format
+// Address in explorer v2 format
 type Address struct {
 	Hash               string          `json:"hash"`
 	Name               string          `json:"name,omitempty"`
@@ -178,7 +178,7 @@ type AddressTag struct {
 	URL         string `json:"url,omitempty"`
 }
 
-// Token in Blockscout v2 format
+// Token in explorer v2 format
 type Token struct {
 	Address        string  `json:"address"`
 	Name           string  `json:"name"`
@@ -203,7 +203,7 @@ type TokenBalance struct {
 	TokenInstance *NFT   `json:"token_instance,omitempty"`
 }
 
-// TokenTransfer in Blockscout v2 format
+// TokenTransfer in explorer v2 format
 type TokenTransfer struct {
 	TxHash      string      `json:"tx_hash"`
 	BlockHash   string      `json:"block_hash,omitempty"`
@@ -268,7 +268,7 @@ type DecodedLog struct {
 	Parameters []DecodedParam `json:"parameters,omitempty"`
 }
 
-// SmartContract in Blockscout v2 format
+// SmartContract in explorer v2 format
 type SmartContract struct {
 	Address                string           `json:"address_hash"`
 	Name                   string           `json:"name,omitempty"`
@@ -323,7 +323,7 @@ type NFT struct {
 	ExternalURL  string                 `json:"external_app_url,omitempty"`
 }
 
-// ChainStats for /api/v2/stats
+// ChainStats for /v1/explorer/stats
 type ChainStats struct {
 	TotalBlocks         int64   `json:"total_blocks"`
 	TotalTransactions   int64   `json:"total_transactions"`

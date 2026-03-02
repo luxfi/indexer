@@ -9,24 +9,28 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/luxfi/indexer/achain"
-	"github.com/luxfi/indexer/bchain"
-	"github.com/luxfi/indexer/chain"
-	"github.com/luxfi/indexer/dag"
-	"github.com/luxfi/indexer/evm"
-	"github.com/luxfi/indexer/kchain"
-	"github.com/luxfi/indexer/pchain"
-	"github.com/luxfi/indexer/qchain"
-	"github.com/luxfi/indexer/storage"
-	"github.com/luxfi/indexer/tchain"
-	"github.com/luxfi/indexer/xchain"
-	"github.com/luxfi/indexer/zchain"
+	"github.com/hanzoai/replicate"
+	"github.com/luxfi/age"
+	"github.com/luxfi/explorer/achain"
+	"github.com/luxfi/explorer/bchain"
+	"github.com/luxfi/explorer/chain"
+	"github.com/luxfi/explorer/dag"
+	"github.com/luxfi/explorer/evm"
+	"github.com/luxfi/explorer/kchain"
+	"github.com/luxfi/explorer/pchain"
+	"github.com/luxfi/explorer/qchain"
+	"github.com/luxfi/explorer/storage"
+	"github.com/luxfi/explorer/tchain"
+	"github.com/luxfi/explorer/xchain"
+	"github.com/luxfi/explorer/zchain"
 )
 
 var version = "dev"
@@ -99,6 +103,11 @@ func main() {
 		log.Fatalf("Failed to create storage: %v", err)
 	}
 	defer store.Close()
+
+	// Start SQLite WAL replication to S3 (no-op if REPLICATE_S3_ENDPOINT is unset).
+	// PQ-encrypted via luxfi/age when REPLICATE_AGE_RECIPIENT is set.
+	stopReplicate := startReplicate(filepath.Join(*dataDir, "query", "indexer.db"))
+	defer stopReplicate()
 
 	// Initialize storage
 	ctx, cancel := context.WithCancel(context.Background())
@@ -393,4 +402,102 @@ func defaultRPC(ct string) string {
 		"kchain": "http://localhost:9650/ext/bc/K",
 	}
 	return endpoints[ct]
+}
+
+// startReplicate streams SQLite WAL changes to S3, PQ-encrypted via luxfi/age.
+// Returns a no-op stop function when REPLICATE_S3_ENDPOINT is not set.
+//
+// Env vars:
+//
+//	REPLICATE_S3_ENDPOINT   — S3 endpoint (required, no-op if empty)
+//	REPLICATE_S3_BUCKET     — bucket name (default: "replicate")
+//	REPLICATE_S3_PATH       — key prefix (default: hostname)
+//	REPLICATE_S3_REGION     — S3 region (default: "us-central1")
+//	REPLICATE_S3_ACCESS_KEY — S3 access key
+//	REPLICATE_S3_SECRET_KEY — S3 secret key
+//	REPLICATE_AGE_RECIPIENT — age public key for PQ encryption
+//	REPLICATE_AGE_IDENTITY  — age private key for restore/decrypt
+//	REPLICATE_SYNC_INTERVAL — WAL sync interval (default: "1s")
+func startReplicate(dbPath string) func() {
+	endpoint := os.Getenv("REPLICATE_S3_ENDPOINT")
+	if endpoint == "" {
+		return func() {}
+	}
+
+	bucket := envOr("REPLICATE_S3_BUCKET", "replicate")
+	prefix := os.Getenv("REPLICATE_S3_PATH")
+	if prefix == "" {
+		prefix, _ = os.Hostname()
+	}
+	region := envOr("REPLICATE_S3_REGION", "us-central1")
+
+	// Propagate to AWS SDK env vars.
+	if ak := os.Getenv("REPLICATE_S3_ACCESS_KEY"); ak != "" {
+		os.Setenv("AWS_ACCESS_KEY_ID", ak)
+	}
+	if sk := os.Getenv("REPLICATE_S3_SECRET_KEY"); sk != "" {
+		os.Setenv("AWS_SECRET_ACCESS_KEY", sk)
+	}
+
+	replicaURL := fmt.Sprintf("s3://%s/%s?endpoint=%s&region=%s&force-path-style=true",
+		url.PathEscape(bucket),
+		url.PathEscape(prefix),
+		url.QueryEscape(endpoint),
+		url.QueryEscape(region),
+	)
+
+	client, err := replicate.NewReplicaClientFromURL(replicaURL)
+	if err != nil {
+		log.Printf("[replicate] invalid S3 config: %v", err)
+		return func() {}
+	}
+
+	db := replicate.NewDB(dbPath)
+	replica := replicate.NewReplicaWithClient(db, client)
+
+	// Sync interval.
+	if v := os.Getenv("REPLICATE_SYNC_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			replica.SyncInterval = d
+		}
+	}
+
+	// PQ encryption via luxfi/age.
+	if recipientStr := os.Getenv("REPLICATE_AGE_RECIPIENT"); recipientStr != "" {
+		rcs, err := age.ParseRecipients(strings.NewReader(recipientStr))
+		if err != nil {
+			log.Printf("[replicate] invalid AGE_RECIPIENT, encryption disabled: %v", err)
+		} else {
+			replica.AgeRecipients = rcs
+		}
+	}
+	if identityStr := os.Getenv("REPLICATE_AGE_IDENTITY"); identityStr != "" {
+		ids, err := age.ParseIdentities(strings.NewReader(identityStr))
+		if err != nil {
+			log.Printf("[replicate] invalid AGE_IDENTITY, decryption disabled: %v", err)
+		} else {
+			replica.AgeIdentities = ids
+		}
+	}
+
+	db.Replica = replica
+
+	if err := db.Open(); err != nil {
+		log.Printf("[replicate] failed to open: %v", err)
+		return func() {}
+	}
+
+	log.Printf("[replicate] streaming db=%s s3=%s/%s encrypted=%v",
+		dbPath, bucket, prefix, len(replica.AgeRecipients) > 0)
+
+	return func() {
+		_ = db.Close(context.Background())
+	}
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

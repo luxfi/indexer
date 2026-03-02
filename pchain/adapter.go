@@ -14,8 +14,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/luxfi/indexer/chain"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/chain"
+	"github.com/luxfi/explorer/storage"
 )
 
 const (

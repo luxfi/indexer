@@ -1,0 +1,248 @@
+# Explorer multi-chain configuration
+# Each chain gets its own SQLite file: {data_dir}/{slug}/query/indexer.db
+# Scale: tested with 200+ chains concurrently, ~2MB RAM per idle chain
+
+data_dir: ${DATA_DIR:-~/.explorer/data}
+http_addr: ${HTTP_ADDR:-:8090}
+
+chains:
+  # ============================================================
+  # Lux Native Chains (9 chains)
+  # ============================================================
+
+  # EVM — C-Chain (default explorer view)
+  - slug: cchain
+    name: C-Chain
+    chain_id: 96369
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/C/rpc
+    coin: LUX
+    enabled: true
+    default: true
+
+  # Platform — validators, staking, subnets
+  - slug: pchain
+    name: P-Chain
+    type: linear
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/P
+    coin: LUX
+    enabled: true
+
+  # Exchange — UTXOs, atomic swaps, assets
+  - slug: xchain
+    name: X-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/X
+    coin: LUX
+    enabled: true
+
+  # AI — attestations, model registration, inference results
+  - slug: achain
+    name: A-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/A
+    coin: LUX
+    enabled: true
+
+  # Bridge — cross-chain transfers, proof validation, MPC custody
+  - slug: bchain
+    name: B-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/B
+    coin: LUX
+    enabled: true
+
+  # Quantum — post-quantum finality proofs, lattice signatures
+  - slug: qchain
+    name: Q-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/Q
+    coin: LUX
+    enabled: true
+
+  # Threshold — MPC key shares, threshold signatures, FHE operations
+  - slug: tchain
+    name: T-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/T
+    coin: LUX
+    enabled: true
+
+  # Zero-Knowledge — shielded transfers, nullifier tracking, ZK proofs
+  - slug: zchain
+    name: Z-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/Z
+    coin: LUX
+    enabled: true
+
+  # Key Management — PQ key material, certificate lifecycle, HSM bridge
+  - slug: kchain
+    name: K-Chain
+    type: dag
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/K
+    coin: LUX
+    enabled: true
+
+  # ============================================================
+  # Lux Subnet Chains (EVM-compatible)
+  # ============================================================
+
+  - slug: zoo
+    name: Zoo
+    chain_id: 200200
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/Zoo/rpc
+    coin: ZOO
+    enabled: true
+
+  - slug: hanzo
+    name: Hanzo AI
+    chain_id: 36963
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/Hanzo/rpc
+    coin: HANZO
+    enabled: true
+
+  - slug: spc
+    name: SPC
+    chain_id: 36911
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/SPC/rpc
+    coin: SPC
+    enabled: true
+
+  - slug: pars
+    name: Pars
+    chain_id: 494949
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/Pars/rpc
+    coin: PARS
+    enabled: true
+
+  # DEX Chain — CLOB orderbook, perpetuals, AMM, liquidations
+  - slug: dex
+    name: DEX
+    chain_id: 0
+    type: evm
+    rpc: ${LUX_RPC:-http://localhost:9650}/ext/bc/D/rpc
+    coin: LUX
+    enabled: true
+
+  # ============================================================
+  # External Chains — for bridge, MPC, cross-chain support
+  # ============================================================
+
+  # Ethereum + L2s
+  - slug: ethereum
+    name: Ethereum
+    chain_id: 1
+    type: evm
+    rpc: ${ETH_RPC:-https://eth.llamarpc.com}
+    coin: ETH
+    enabled: true
+
+  - slug: arbitrum
+    name: Arbitrum One
+    chain_id: 42161
+    type: evm
+    rpc: ${ARB_RPC:-https://arb1.arbitrum.io/rpc}
+    coin: ETH
+    enabled: true
+
+  - slug: optimism
+    name: Optimism
+    chain_id: 10
+    type: evm
+    rpc: ${OP_RPC:-https://mainnet.optimism.io}
+    coin: ETH
+    enabled: true
+
+  - slug: base
+    name: Base
+    chain_id: 8453
+    type: evm
+    rpc: ${BASE_RPC:-https://mainnet.base.org}
+    coin: ETH
+    enabled: true
+
+  - slug: polygon
+    name: Polygon
+    chain_id: 137
+    type: evm
+    rpc: ${POLYGON_RPC:-https://polygon-rpc.com}
+    coin: MATIC
+    enabled: true
+
+  - slug: bsc
+    name: BNB Chain
+    chain_id: 56
+    type: evm
+    rpc: ${BSC_RPC:-https://bsc-dataseed.binance.org}
+    coin: BNB
+    enabled: true
+
+  - slug: avalanche
+    name: Avalanche
+    chain_id: 43114
+    type: evm
+    rpc: ${AVAX_RPC:-https://api.avax.network/ext/bc/C/rpc}
+    coin: AVAX
+    enabled: true
+
+  # Non-EVM
+  - slug: solana
+    name: Solana
+    type: solana
+    rpc: ${SOLANA_RPC:-https://api.mainnet-beta.solana.com}
+    coin: SOL
+    enabled: true
+
+  - slug: bitcoin
+    name: Bitcoin
+    type: bitcoin
+    rpc: ${BTC_RPC:-http://localhost:8332}
+    coin: BTC
+    enabled: false  # requires local bitcoind
+
+  - slug: cosmos
+    name: Cosmos Hub
+    type: cosmos
+    rpc: ${COSMOS_RPC:-https://cosmos-rpc.publicnode.com:443}
+    coin: ATOM
+    enabled: true
+
+  - slug: aptos
+    name: Aptos
+    type: move
+    rpc: ${APTOS_RPC:-https://fullnode.mainnet.aptoslabs.com/v1}
+    coin: APT
+    enabled: true
+
+  - slug: sui
+    name: Sui
+    type: move
+    rpc: ${SUI_RPC:-https://fullnode.mainnet.sui.io}
+    coin: SUI
+    enabled: true
+
+  - slug: near
+    name: NEAR
+    type: near
+    rpc: ${NEAR_RPC:-https://rpc.mainnet.near.org}
+    coin: NEAR
+    enabled: true
+
+  - slug: ton
+    name: TON
+    type: ton
+    rpc: ${TON_RPC:-https://toncenter.com/api/v2}
+    coin: TON
+    enabled: true
+
+  - slug: tron
+    name: TRON
+    type: tron
+    rpc: ${TRON_RPC:-https://api.trongrid.io}
+    coin: TRX
+    enabled: true

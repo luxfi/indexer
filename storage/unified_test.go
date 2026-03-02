@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/indexer/storage/kv"
-	"github.com/luxfi/indexer/storage/query"
+	"github.com/luxfi/explorer/storage/kv"
+	"github.com/luxfi/explorer/storage/query"
 )
 
 func TestUnifiedStore(t *testing.T) {

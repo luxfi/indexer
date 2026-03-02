@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/explorer/dag"
 )
 
 // TestNew tests the adapter constructor
