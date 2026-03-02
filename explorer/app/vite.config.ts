@@ -11,7 +11,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/v1/indexer': {
-        target: 'https://explore.dev.example.internal',
+        target: 'http://localhost:8090',
         changeOrigin: true,
       },
     },

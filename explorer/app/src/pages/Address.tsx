@@ -21,7 +21,7 @@ export function Address() {
   const { data: addr, isLoading } = useAddress(hash!)
   const { data: txs } = useAddressTransactions(hash!)
   const { data: contract } = useContract(hash!)
-  const coin = import.meta.env.VITE_COIN || 'LQDTY'
+  const coin = import.meta.env.VITE_COIN || 'ETH'
   const [tab, setTab] = useState<Tab>('transactions')
 
   if (isLoading) return <p style={{ color: colors.textMuted }}>Loading...</p>
