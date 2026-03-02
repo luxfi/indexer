@@ -452,8 +452,8 @@ func TestGetTransactionReceipt(t *testing.T) {
 	if tx.To != "0xto456" {
 		t.Errorf("To = %q, want 0xto456", tx.To)
 	}
-	if tx.Status != 1 {
-		t.Errorf("Status = %d, want 1", tx.Status)
+	if tx.Status == nil || *tx.Status != 1 {
+		t.Errorf("Status = %v, want 1", tx.Status)
 	}
 	if tx.GasUsed != 21000 {
 		t.Errorf("GasUsed = %d, want 21000", tx.GasUsed)
@@ -2125,6 +2125,340 @@ func TestParseTokenTransfersERC1155Single(t *testing.T) {
 	expectedTo := "0x" + toAddr
 	if transfer.To != expectedTo {
 		t.Errorf("To = %q, want %q", transfer.To, expectedTo)
+	}
+}
+
+// ============================================================================
+// HIGH Finding Tests: TransferBatch, TransferSingle fix, Non-standard ERC721,
+// ERC-404, WETH events, decodeBatchData
+// ============================================================================
+
+// TestParseTokenTransfersERC1155Batch tests parsing ERC1155 TransferBatch logs
+func TestParseTokenTransfersERC1155Batch(t *testing.T) {
+	fromAddr := "1234567890abcdef1234567890abcdef12345678"
+	toAddr := "abcdef1234567890abcdef1234567890abcdef12"
+	operatorAddr := "9999999999999999999999999999999999999999"
+
+	// ABI-encode (uint256[], uint256[]) with 3 items each:
+	// offset_ids = 0x40 (64 bytes), offset_values = 0xc0 (192 bytes)
+	// ids = [1, 2, 3], values = [10, 20, 30]
+	data := "0x" +
+		"0000000000000000000000000000000000000000000000000000000000000040" + // offset to ids array (64)
+		"00000000000000000000000000000000000000000000000000000000000000c0" + // offset to values array (192)
+		"0000000000000000000000000000000000000000000000000000000000000003" + // ids.length = 3
+		"0000000000000000000000000000000000000000000000000000000000000001" + // ids[0] = 1
+		"0000000000000000000000000000000000000000000000000000000000000002" + // ids[1] = 2
+		"0000000000000000000000000000000000000000000000000000000000000003" + // ids[2] = 3
+		"0000000000000000000000000000000000000000000000000000000000000003" + // values.length = 3
+		"000000000000000000000000000000000000000000000000000000000000000a" + // values[0] = 10
+		"0000000000000000000000000000000000000000000000000000000000000014" + // values[1] = 20
+		"000000000000000000000000000000000000000000000000000000000000001e" // values[2] = 30
+
+	log := Log{
+		TxHash:      "0xtxbatch",
+		LogIndex:    5,
+		BlockNumber: 200,
+		Address:     "0xerc1155contract",
+		Topics: []string{
+			TopicTransferBatch,
+			"0x000000000000000000000000" + operatorAddr,
+			"0x000000000000000000000000" + fromAddr,
+			"0x000000000000000000000000" + toAddr,
+		},
+		Data: data,
+	}
+
+	transfers := parseTokenTransfers(log, time.Now())
+
+	if len(transfers) != 3 {
+		t.Fatalf("expected 3 transfers, got %d", len(transfers))
+	}
+
+	wantIDs := []string{"1", "2", "3"}
+	wantValues := []string{"10", "20", "30"}
+	for i, tr := range transfers {
+		if tr.TokenType != "ERC1155" {
+			t.Errorf("[%d] TokenType = %q, want ERC1155", i, tr.TokenType)
+		}
+		if tr.TokenID != wantIDs[i] {
+			t.Errorf("[%d] TokenID = %q, want %q", i, tr.TokenID, wantIDs[i])
+		}
+		if tr.Value != wantValues[i] {
+			t.Errorf("[%d] Value = %q, want %q", i, tr.Value, wantValues[i])
+		}
+		if tr.From != "0x"+fromAddr {
+			t.Errorf("[%d] From = %q", i, tr.From)
+		}
+		if tr.To != "0x"+toAddr {
+			t.Errorf("[%d] To = %q", i, tr.To)
+		}
+		// Each batch item gets a unique ID suffix
+		wantID := fmt.Sprintf("0xtxbatch-5-%d", i)
+		if tr.ID != wantID {
+			t.Errorf("[%d] ID = %q, want %q", i, tr.ID, wantID)
+		}
+	}
+}
+
+// TestParseTokenTransfersERC1155SingleFixed tests the fixed data length check
+func TestParseTokenTransfersERC1155SingleFixed(t *testing.T) {
+	fromAddr := "1234567890abcdef1234567890abcdef12345678"
+	toAddr := "abcdef1234567890abcdef1234567890abcdef12"
+	operatorAddr := "9999999999999999999999999999999999999999"
+
+	// data with 0x prefix + 128 hex chars (two uint256 values)
+	log := Log{
+		TxHash:      "0xtx1155",
+		LogIndex:    0,
+		BlockNumber: 100,
+		Address:     "0xerc1155",
+		Topics: []string{
+			TopicTransferSingle,
+			"0x000000000000000000000000" + operatorAddr,
+			"0x000000000000000000000000" + fromAddr,
+			"0x000000000000000000000000" + toAddr,
+		},
+		Data: "0x00000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000064",
+	}
+
+	transfers := parseTokenTransfers(log, time.Now())
+	if len(transfers) != 1 {
+		t.Fatalf("expected 1 transfer, got %d", len(transfers))
+	}
+	if transfers[0].TokenID != "5" {
+		t.Errorf("TokenID = %q, want 5", transfers[0].TokenID)
+	}
+	if transfers[0].Value != "100" {
+		t.Errorf("Value = %q, want 100", transfers[0].Value)
+	}
+
+	// Short data (less than 128 hex chars after stripping 0x) should produce no transfers
+	shortLog := log
+	shortLog.Data = "0x0000000000000000000000000000000000000000000000000000000000000005" // only 64 hex chars
+	transfers = parseTokenTransfers(shortLog, time.Now())
+	if len(transfers) != 0 {
+		t.Errorf("expected 0 transfers for short data, got %d", len(transfers))
+	}
+}
+
+// TestParseTokenTransfersNonStandardERC721 tests the fallback for non-standard ERC721
+// that emits Transfer with only topic0 and all params in data
+func TestParseTokenTransfersNonStandardERC721(t *testing.T) {
+	// 3 x 32 bytes in data: from, to, tokenId
+	fromAddr := "0000000000000000000000001111111111111111111111111111111111111111"
+	toAddr := "0000000000000000000000002222222222222222222222222222222222222222"
+	tokenID := "0000000000000000000000000000000000000000000000000000000000000007"
+
+	log := Log{
+		TxHash:      "0xtx721ns",
+		LogIndex:    0,
+		BlockNumber: 300,
+		Address:     "0xnonstd",
+		Topics:      []string{TopicTransferERC20}, // Only topic0
+		Data:        "0x" + fromAddr + toAddr + tokenID,
+	}
+
+	transfers := parseTokenTransfers(log, time.Now())
+	if len(transfers) != 1 {
+		t.Fatalf("expected 1 transfer, got %d", len(transfers))
+	}
+	tr := transfers[0]
+	if tr.TokenType != "ERC721" {
+		t.Errorf("TokenType = %q, want ERC721", tr.TokenType)
+	}
+	if tr.Value != "1" {
+		t.Errorf("Value = %q, want 1", tr.Value)
+	}
+	if tr.TokenID != "7" {
+		t.Errorf("TokenID = %q, want 7", tr.TokenID)
+	}
+	if tr.From != "0x1111111111111111111111111111111111111111" {
+		t.Errorf("From = %q", tr.From)
+	}
+	if tr.To != "0x2222222222222222222222222222222222222222" {
+		t.Errorf("To = %q", tr.To)
+	}
+}
+
+// TestParseTokenTransfersERC404 tests ERC-404 hybrid token events
+func TestParseTokenTransfersERC404(t *testing.T) {
+	fromTopic := "0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	toTopic := "0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	amountData := "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000" // 1e18
+	tokenIDData := "0x0000000000000000000000000000000000000000000000000000000000000042" // 66
+
+	t.Run("ERC404 ERC20 side", func(t *testing.T) {
+		log := Log{
+			TxHash:      "0xtx404erc20",
+			LogIndex:    0,
+			BlockNumber: 400,
+			Address:     "0xerc404token",
+			Topics:      []string{TopicERC404ERC20Transfer, fromTopic, toTopic},
+			Data:        amountData,
+		}
+		transfers := parseTokenTransfers(log, time.Now())
+		if len(transfers) != 1 {
+			t.Fatalf("expected 1 transfer, got %d", len(transfers))
+		}
+		if transfers[0].TokenType != "ERC20" {
+			t.Errorf("TokenType = %q, want ERC20", transfers[0].TokenType)
+		}
+		if transfers[0].Value != "1000000000000000000" {
+			t.Errorf("Value = %q", transfers[0].Value)
+		}
+	})
+
+	t.Run("ERC404 ERC721 side", func(t *testing.T) {
+		log := Log{
+			TxHash:      "0xtx404erc721",
+			LogIndex:    1,
+			BlockNumber: 400,
+			Address:     "0xerc404token",
+			Topics:      []string{TopicERC404ERC721Transfer, fromTopic, toTopic},
+			Data:        tokenIDData,
+		}
+		transfers := parseTokenTransfers(log, time.Now())
+		if len(transfers) != 1 {
+			t.Fatalf("expected 1 transfer, got %d", len(transfers))
+		}
+		if transfers[0].TokenType != "ERC721" {
+			t.Errorf("TokenType = %q, want ERC721", transfers[0].TokenType)
+		}
+		if transfers[0].Value != "1" {
+			t.Errorf("Value = %q, want 1", transfers[0].Value)
+		}
+		if transfers[0].TokenID != "66" {
+			t.Errorf("TokenID = %q, want 66", transfers[0].TokenID)
+		}
+	})
+}
+
+// TestParseTokenTransfersWETH tests WETH Deposit and Withdrawal events
+func TestParseTokenTransfersWETH(t *testing.T) {
+	dstTopic := "0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc"
+	amountData := "0x0000000000000000000000000000000000000000000000001bc16d674ec80000" // 2e18
+
+	t.Run("WETH Deposit", func(t *testing.T) {
+		log := Log{
+			TxHash:      "0xtxdeposit",
+			LogIndex:    0,
+			BlockNumber: 500,
+			Address:     "0xweth",
+			Topics:      []string{TopicWETHDeposit, dstTopic},
+			Data:        amountData,
+		}
+		transfers := parseTokenTransfers(log, time.Now())
+		if len(transfers) != 1 {
+			t.Fatalf("expected 1 transfer, got %d", len(transfers))
+		}
+		tr := transfers[0]
+		if tr.TokenType != "ERC20" {
+			t.Errorf("TokenType = %q, want ERC20", tr.TokenType)
+		}
+		if tr.From != "0x0000000000000000000000000000000000000000" {
+			t.Errorf("From = %q, want zero address", tr.From)
+		}
+		if tr.To != "0xcccccccccccccccccccccccccccccccccccccccc" {
+			t.Errorf("To = %q", tr.To)
+		}
+		if tr.Value != "2000000000000000000" {
+			t.Errorf("Value = %q, want 2000000000000000000", tr.Value)
+		}
+	})
+
+	t.Run("WETH Withdrawal", func(t *testing.T) {
+		log := Log{
+			TxHash:      "0xtxwithdraw",
+			LogIndex:    1,
+			BlockNumber: 500,
+			Address:     "0xweth",
+			Topics:      []string{TopicWETHWithdrawal, dstTopic},
+			Data:        amountData,
+		}
+		transfers := parseTokenTransfers(log, time.Now())
+		if len(transfers) != 1 {
+			t.Fatalf("expected 1 transfer, got %d", len(transfers))
+		}
+		tr := transfers[0]
+		if tr.From != "0xcccccccccccccccccccccccccccccccccccccccc" {
+			t.Errorf("From = %q", tr.From)
+		}
+		if tr.To != "0x0000000000000000000000000000000000000000" {
+			t.Errorf("To = %q, want zero address", tr.To)
+		}
+	})
+}
+
+// TestDecodeBatchData tests the ABI decoder for TransferBatch data
+func TestDecodeBatchData(t *testing.T) {
+	t.Run("valid 2 items", func(t *testing.T) {
+		data := "0x" +
+			"0000000000000000000000000000000000000000000000000000000000000040" + // ids offset=64
+			"00000000000000000000000000000000000000000000000000000000000000a0" + // values offset=160
+			"0000000000000000000000000000000000000000000000000000000000000002" + // ids.length=2
+			"000000000000000000000000000000000000000000000000000000000000000a" + // ids[0]=10
+			"0000000000000000000000000000000000000000000000000000000000000014" + // ids[1]=20
+			"0000000000000000000000000000000000000000000000000000000000000002" + // values.length=2
+			"0000000000000000000000000000000000000000000000000000000000000001" + // values[0]=1
+			"0000000000000000000000000000000000000000000000000000000000000002" // values[1]=2
+
+		ids, values := decodeBatchData(data)
+		if len(ids) != 2 || len(values) != 2 {
+			t.Fatalf("ids=%d values=%d, want 2 each", len(ids), len(values))
+		}
+		if ids[0] != "10" || ids[1] != "20" {
+			t.Errorf("ids = %v, want [10 20]", ids)
+		}
+		if values[0] != "1" || values[1] != "2" {
+			t.Errorf("values = %v, want [1 2]", values)
+		}
+	})
+
+	t.Run("too short", func(t *testing.T) {
+		ids, values := decodeBatchData("0xdeadbeef")
+		if ids != nil || values != nil {
+			t.Error("expected nil for short data")
+		}
+	})
+
+	t.Run("empty arrays", func(t *testing.T) {
+		data := "0x" +
+			"0000000000000000000000000000000000000000000000000000000000000040" +
+			"0000000000000000000000000000000000000000000000000000000000000060" +
+			"0000000000000000000000000000000000000000000000000000000000000000" +
+			"0000000000000000000000000000000000000000000000000000000000000000"
+
+		ids, values := decodeBatchData(data)
+		if len(ids) != 0 {
+			t.Errorf("expected 0 ids, got %d", len(ids))
+		}
+		if len(values) != 0 {
+			t.Errorf("expected 0 values, got %d", len(values))
+		}
+	})
+}
+
+// TestNewEventSignatureConstants tests the new event topic constants
+func TestNewEventSignatureConstants(t *testing.T) {
+	topics := []struct {
+		name  string
+		topic string
+	}{
+		{"TopicERC404ERC20Transfer", TopicERC404ERC20Transfer},
+		{"TopicERC404ERC721Transfer", TopicERC404ERC721Transfer},
+		{"TopicWETHDeposit", TopicWETHDeposit},
+		{"TopicWETHWithdrawal", TopicWETHWithdrawal},
+	}
+
+	for _, tt := range topics {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.topic) != 66 {
+				t.Errorf("%s length = %d, want 66", tt.name, len(tt.topic))
+			}
+			if tt.topic[:2] != "0x" {
+				t.Errorf("%s should start with 0x", tt.name)
+			}
+		})
 	}
 }
 
