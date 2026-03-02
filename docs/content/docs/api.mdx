@@ -5,101 +5,101 @@ description: REST, GraphQL, and WebSocket API documentation
 
 # API Reference
 
-The Lux Indexer provides full Blockscout API v2 compatibility plus additional endpoints.
+The Lux Indexer provides a full explorer API v2 plus additional endpoints.
 
 ## REST API v2
 
-Base URL: `/api/v2`
+Base URL: `/v1/explorer`
 
 ### Blocks
 
 ```bash
 # Get latest blocks
-GET /api/v2/blocks
+GET /v1/explorer/blocks
 
 # Get block by number
-GET /api/v2/blocks/{number}
+GET /v1/explorer/blocks/{number}
 
 # Get block transactions
-GET /api/v2/blocks/{number}/transactions
+GET /v1/explorer/blocks/{number}/transactions
 ```
 
 ### Transactions
 
 ```bash
 # Get transaction by hash
-GET /api/v2/transactions/{hash}
+GET /v1/explorer/transactions/{hash}
 
 # Get transaction logs
-GET /api/v2/transactions/{hash}/logs
+GET /v1/explorer/transactions/{hash}/logs
 
 # Get internal transactions
-GET /api/v2/transactions/{hash}/internal-transactions
+GET /v1/explorer/transactions/{hash}/internal-transactions
 ```
 
 ### Addresses
 
 ```bash
 # Get address info
-GET /api/v2/addresses/{hash}
+GET /v1/explorer/addresses/{hash}
 
 # Get address transactions
-GET /api/v2/addresses/{hash}/transactions
+GET /v1/explorer/addresses/{hash}/transactions
 
 # Get token balances
-GET /api/v2/addresses/{hash}/token-balances
+GET /v1/explorer/addresses/{hash}/token-balances
 
 # Get coin balance history
-GET /api/v2/addresses/{hash}/coin-balance-history
+GET /v1/explorer/addresses/{hash}/coin-balance-history
 ```
 
 ### Tokens
 
 ```bash
 # List tokens
-GET /api/v2/tokens
+GET /v1/explorer/tokens
 
 # Get token info
-GET /api/v2/tokens/{hash}
+GET /v1/explorer/tokens/{hash}
 
 # Get token transfers
-GET /api/v2/tokens/{hash}/transfers
+GET /v1/explorer/tokens/{hash}/transfers
 
 # Get token holders
-GET /api/v2/tokens/{hash}/holders
+GET /v1/explorer/tokens/{hash}/holders
 ```
 
 ### Smart Contracts
 
 ```bash
 # Get verified contract
-GET /api/v2/smart-contracts/{hash}
+GET /v1/explorer/smart-contracts/{hash}
 
 # Get contract ABI
-GET /api/v2/smart-contracts/{hash}/methods-read
+GET /v1/explorer/smart-contracts/{hash}/methods-read
 
 # Submit verification
-POST /api/v2/smart-contracts/{hash}/verification
+POST /v1/explorer/smart-contracts/{hash}/verification
 ```
 
 ### Search
 
 ```bash
 # Universal search
-GET /api/v2/search?q={query}
+GET /v1/explorer/search?q={query}
 ```
 
 ### Stats
 
 ```bash
 # Get chain stats
-GET /api/v2/stats
+GET /v1/explorer/stats
 
 # Get gas price oracle
-GET /api/v2/stats/gas-price
+GET /v1/explorer/stats/gas-price
 
 # Get charts data
-GET /api/v2/stats/charts/{type}
+GET /v1/explorer/stats/charts/{type}
 ```
 
 ## GraphQL API

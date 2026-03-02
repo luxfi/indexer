@@ -93,7 +93,7 @@ func (e *Engine) Tbl(name string) string {
 }
 
 // NewEngine creates a new search engine.
-// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 func NewEngine(db *sql.DB, chainSlug ...string) *Engine {
 	prefix := "cchain"
 	if len(chainSlug) > 0 && chainSlug[0] != "" {

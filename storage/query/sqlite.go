@@ -57,8 +57,14 @@ func NewSQLite(cfg Config) (*SQLite, error) {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Open database with WAL mode and other optimizations
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&cache=shared", path)
+	// Open database with WAL mode and other optimizations.
+	// When replicate is managing WAL streaming, disable auto-checkpoint so
+	// replicate controls when WAL data is flushed (prevents data loss in S3 stream).
+	ckpt := ""
+	if os.Getenv("REPLICATE_S3_ENDPOINT") != "" {
+		ckpt = "&_auto_checkpoint=0"
+	}
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&cache=shared%s", path, ckpt)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite: %w", err)

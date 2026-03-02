@@ -134,7 +134,7 @@ $$ LANGUAGE plpgsql;
 -- Search Functions
 --------------------------------------------------------------------------------
 
--- Universal search function (Blockscout compatible)
+-- Universal search function
 CREATE OR REPLACE FUNCTION search_all(
     p_chain_id BIGINT,
     p_query TEXT,

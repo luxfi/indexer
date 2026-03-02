@@ -1453,18 +1453,15 @@ func (m *MagicEdenSolanaIndexer) parseExecuteSaleV2(ctx context.Context, tx *Sol
 	return nil
 }
 
-// parseBuy parses Magic Eden Buy instruction (creates buy order)
+// parseBuy parses Magic Eden Buy instruction (creates buy order).
+// Only sales (ExecuteSaleV2) are indexed; buy orders are skipped.
 func (m *MagicEdenSolanaIndexer) parseBuy(ctx context.Context, tx *SolanaTransaction, ix *SolanaInstruction, reader *BorshReader) error {
-	// Buy instruction creates a buy order, not an actual sale
-	// We might want to track these for order book analysis
-	// For now, we only index actual sales (ExecuteSaleV2)
 	return nil
 }
 
-// parseSell parses Magic Eden Sell instruction (creates sell listing)
+// parseSell parses Magic Eden Sell instruction (creates sell listing).
+// Only sales (ExecuteSaleV2) are indexed; listings are skipped.
 func (m *MagicEdenSolanaIndexer) parseSell(ctx context.Context, tx *SolanaTransaction, ix *SolanaInstruction, reader *BorshReader) error {
-	// Sell instruction creates a listing, not an actual sale
-	// For now, we only index actual sales
 	return nil
 }
 

@@ -46,7 +46,7 @@ const (
 	ChainZooTest  ChainID = "Z-200201" // Zoo Network Testnet
 	ChainHanzo    ChainID = "H-36963"  // Hanzo AI Chain
 	ChainPChain   ChainID = "P"        // Platform Chain (validators)
-	ChainXChain   ChainID = "X"        // Exchange Chain (assets)
+	ChainXChain   ChainID = "X"        // UTXO Chain (assets)
 	ChainBChain   ChainID = "B"        // Bridge Chain
 	ChainTChain   ChainID = "T"        // Teleporter Chain
 )
