@@ -293,7 +293,8 @@ func (r *Repository) scanTransaction(rows *sql.Rows) (*Transaction, error) {
 	var value, gasPrice string
 	var blockNumber, gas, gasUsed, nonce uint64
 	var txIndex int
-	var txType, status uint8
+	var txType uint8
+	var status sql.NullInt64
 	var input string
 	var timestamp time.Time
 
@@ -313,7 +314,8 @@ func (r *Repository) scanTransactionRow(row *sql.Row) (*Transaction, error) {
 	var value, gasPrice string
 	var blockNumber, gas, gasUsed, nonce uint64
 	var txIndex int
-	var txType, status uint8
+	var txType uint8
+	var status sql.NullInt64
 	var input string
 	var timestamp time.Time
 
@@ -332,7 +334,7 @@ func (r *Repository) scanTransactionRow(row *sql.Row) (*Transaction, error) {
 
 func (r *Repository) buildTransaction(hash, blockHash string, blockNumber uint64, from string, to sql.NullString,
 	value string, gas uint64, gasPrice string, gasUsed uint64, nonce uint64, input string,
-	txIndex int, txType, status uint8, contractAddr sql.NullString, timestamp time.Time) (*Transaction, error) {
+	txIndex int, txType uint8, status sql.NullInt64, contractAddr sql.NullString, timestamp time.Time) (*Transaction, error) {
 
 	tx := &Transaction{
 		Hash:             hash,
@@ -359,7 +361,10 @@ func (r *Repository) buildTransaction(hash, blockHash string, blockNumber uint64
 		tx.CreatedContract = &Address{Hash: contractAddr.String, IsContract: true}
 	}
 
-	if status == 1 {
+	if !status.Valid {
+		tx.Status = "pending"
+		tx.Result = "pending"
+	} else if status.Int64 == 1 {
 		tx.Status = "ok"
 		tx.Result = "success"
 	} else {

@@ -8,7 +8,6 @@ package tchain
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -348,7 +347,6 @@ func (a *Adapter) GetActiveKeyShares(ctx context.Context, publicKey string) ([]K
 
 // InitSchema creates T-Chain specific database tables
 func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
-	// Create signing sessions table
 	err := store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_sessions (
 			id TEXT PRIMARY KEY,
@@ -374,7 +372,6 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_sessions_message ON tchain_sessions(message_hash)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_sessions_created ON tchain_sessions(created_at DESC)`)
 
-	// Create key shares table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_key_shares (
 			id TEXT PRIMARY KEY,
@@ -396,7 +393,6 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_node ON tchain_key_shares(node_id)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_shares_status ON tchain_key_shares(status)`)
 
-	// Create key generation ceremonies table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_key_generations (
 			id TEXT PRIMARY KEY,
@@ -416,7 +412,6 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_status ON tchain_key_generations(status)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_key_gen_pubkey ON tchain_key_generations(public_key)`)
 
-	// Create teleport messages table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_messages (
 			id TEXT PRIMARY KEY,
@@ -442,7 +437,6 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_status ON tchain_messages(status)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_tchain_messages_session ON tchain_messages(session_id)`)
 
-	// Create MPC statistics table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS tchain_mpc_stats (
 			id INTEGER PRIMARY KEY DEFAULT 1,
@@ -472,12 +466,10 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	// Get MPC stats
 	var totalSessions, activeSessions, completedSessions, failedSessions int64
 	var totalKeyShares, activeKeyShares, totalKeyGens int64
 	var totalMessages, pendingMessages, deliveredMessages int64
 
-	// Query sessions
 	rows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_sessions")
 	if len(rows) > 0 {
 		if v, ok := rows[0]["cnt"].(int64); ok {
@@ -503,7 +495,6 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 		}
 	}
 
-	// Query key shares
 	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_key_shares")
 	if len(rows) > 0 {
 		if v, ok := rows[0]["cnt"].(int64); ok {
@@ -523,7 +514,6 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 		}
 	}
 
-	// Query messages
 	rows, _ = store.Query(ctx, "SELECT COUNT(*) as cnt FROM tchain_messages")
 	if len(rows) > 0 {
 		if v, ok := rows[0]["cnt"].(int64); ok {
@@ -562,12 +552,10 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 		"delivered_messages": deliveredMessages,
 	}
 
-	// Calculate signing success rate
 	if totalSessions > 0 {
 		stats["signing_success_rate"] = float64(completedSessions) / float64(totalSessions) * 100.0
 	}
 
-	// Get average threshold
 	rows, _ = store.Query(ctx, "SELECT COALESCE(AVG(threshold), 0) as avg_threshold FROM tchain_key_generations WHERE status='completed'")
 	if len(rows) > 0 {
 		if v, ok := rows[0]["avg_threshold"].(float64); ok {
@@ -695,34 +683,14 @@ func (a *Adapter) rpcCall(ctx context.Context, req map[string]interface{}) (json
 	return rpcResp.Result, nil
 }
 
-// ValidateSignature validates a threshold signature
-func ValidateSignature(publicKey, message, signature string) (bool, error) {
-	// Decode hex strings
-	pubKeyBytes, err := hex.DecodeString(publicKey)
-	if err != nil {
-		return false, fmt.Errorf("decode public key: %w", err)
-	}
-	msgBytes, err := hex.DecodeString(message)
-	if err != nil {
-		return false, fmt.Errorf("decode message: %w", err)
-	}
-	sigBytes, err := hex.DecodeString(signature)
-	if err != nil {
-		return false, fmt.Errorf("decode signature: %w", err)
-	}
-
-	// Basic length validation (actual crypto verification would use luxfi/crypto)
-	if len(pubKeyBytes) < 32 || len(sigBytes) < 64 {
-		return false, fmt.Errorf("invalid key or signature length")
-	}
-
-	// Placeholder - actual verification uses threshold signature scheme
-	_ = msgBytes
-	return true, nil
+// ValidateSignature validates a threshold signature.
+// Threshold signature verification requires the T-Chain node; it cannot be done client-side.
+func ValidateSignature(_, _, _ string) (bool, error) {
+	return false, fmt.Errorf("threshold signature verification not implemented: must be performed by T-Chain node")
 }
 
-// ComputeThreshold computes required threshold for given parameters
-// Uses t-of-n threshold where t = (n * 2 / 3) + 1 for Byzantine fault tolerance
+// ComputeThreshold computes required threshold for given parameters.
+// Uses t-of-n threshold where t = (n * 2 / 3) + 1 for Byzantine fault tolerance.
 func ComputeThreshold(totalShares uint32) uint32 {
 	if totalShares < 2 {
 		return 1

@@ -615,7 +615,7 @@ func TestTransactionStruct(t *testing.T) {
 		Input:            "0x",
 		TransactionIndex: 0,
 		Type:             2,
-		Status:           1,
+		Status:           intPtr(1),
 		ContractAddress:  "",
 		Timestamp:        time.Now(),
 	}
@@ -2284,7 +2284,7 @@ func TestParseTokenTransfersNonStandardERC721(t *testing.T) {
 func TestParseTokenTransfersERC404(t *testing.T) {
 	fromTopic := "0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	toTopic := "0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	amountData := "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000" // 1e18
+	amountData := "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"  // 1e18
 	tokenIDData := "0x0000000000000000000000000000000000000000000000000000000000000042" // 66
 
 	t.Run("ERC404 ERC20 side", func(t *testing.T) {
@@ -2565,3 +2565,5 @@ func BenchmarkSortInternalTransactionsByTraceAddress(b *testing.B) {
 		SortInternalTransactionsByTraceAddress(cpy)
 	}
 }
+
+func intPtr(i int) *int { return &i }

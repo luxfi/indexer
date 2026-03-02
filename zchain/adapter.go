@@ -162,8 +162,7 @@ func (a *Adapter) ParseVertex(data json.RawMessage) (*dag.Vertex, error) {
 	var transfers []ShieldedTransfer
 	if len(raw.Transfers) > 0 {
 		if err := json.Unmarshal(raw.Transfers, &transfers); err != nil {
-			// Transfers may be empty or malformed; continue
-			transfers = nil
+			return nil, fmt.Errorf("parse transfers in vertex %s: %w", raw.ID, err)
 		}
 	}
 
@@ -535,6 +534,25 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 
 // StoreTransfer stores a shielded transfer and its components
 func (a *Adapter) StoreTransfer(ctx context.Context, store storage.Store, t ShieldedTransfer, vertexID string) error {
+	// Validate nullifier hashes
+	for _, n := range t.Nullifiers {
+		if err := ValidateNullifierHash(n.Hash); err != nil {
+			return fmt.Errorf("invalid nullifier in transfer %s: %w", t.TxID, err)
+		}
+	}
+
+	// Validate commitment hashes
+	for _, c := range t.Commitments {
+		if err := ValidateCommitmentHash(c.Hash); err != nil {
+			return fmt.Errorf("invalid commitment in transfer %s: %w", t.TxID, err)
+		}
+	}
+
+	// Zero out value_balance for fully shielded types (no transparent flow)
+	if t.Type == TxShieldedTransfer || t.Type == TxJoinSplit {
+		t.ValueBalance = 0
+	}
+
 	// Store transfer
 	err := store.Exec(ctx, `
 		INSERT INTO zchain_transfers (tx_id, type, proof_type, proof_data, value_balance, fee, memo, timestamp, vertex_id)

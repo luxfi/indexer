@@ -370,16 +370,16 @@ func TestDetectL2BatchFromCalldata(t *testing.T) {
 
 // BridgeEventPair correlates a deposit on L1 with a mint on L2
 type BridgeEventPair struct {
-	L1DepositTxHash string    `json:"l1DepositTxHash"`
-	L1BlockNumber   uint64    `json:"l1BlockNumber"`
-	L2MintTxHash    string    `json:"l2MintTxHash,omitempty"`
-	L2BlockNumber   uint64    `json:"l2BlockNumber,omitempty"`
-	Token           string    `json:"token"`
-	Amount          string    `json:"amount"`
-	Sender          string    `json:"sender"`
-	Recipient       string    `json:"recipient"`
-	Status          string    `json:"status"` // pending, confirmed, failed
-	CorrelationID   string    `json:"correlationId"`
+	L1DepositTxHash string `json:"l1DepositTxHash"`
+	L1BlockNumber   uint64 `json:"l1BlockNumber"`
+	L2MintTxHash    string `json:"l2MintTxHash,omitempty"`
+	L2BlockNumber   uint64 `json:"l2BlockNumber,omitempty"`
+	Token           string `json:"token"`
+	Amount          string `json:"amount"`
+	Sender          string `json:"sender"`
+	Recipient       string `json:"recipient"`
+	Status          string `json:"status"` // pending, confirmed, failed
+	CorrelationID   string `json:"correlationId"`
 }
 
 func TestBridgeEventCorrelation(t *testing.T) {
@@ -473,11 +473,11 @@ func TestBridgeEventCorrelation(t *testing.T) {
 
 // SequencerBatchTracker tracks sequencer batch submissions over time
 type SequencerBatchTracker struct {
-	ChainID        string `json:"chainId"`
-	LastBatchIndex uint64 `json:"lastBatchIndex"`
-	TotalBatches   uint64 `json:"totalBatches"`
-	TotalL2Blocks  uint64 `json:"totalL2Blocks"`
-	AvgBatchSize   float64 `json:"avgBatchSize"`
+	ChainID        string    `json:"chainId"`
+	LastBatchIndex uint64    `json:"lastBatchIndex"`
+	TotalBatches   uint64    `json:"totalBatches"`
+	TotalL2Blocks  uint64    `json:"totalL2Blocks"`
+	AvgBatchSize   float64   `json:"avgBatchSize"`
 	LastSubmission time.Time `json:"lastSubmission"`
 }
 
@@ -488,9 +488,9 @@ func TestSequencerBatchTracking(t *testing.T) {
 
 	// Simulate 10 batch submissions
 	batches := make([]struct {
-		index    uint64
-		l2Start  uint64
-		l2End    uint64
+		index   uint64
+		l2Start uint64
+		l2End   uint64
 	}, 10)
 
 	for i := range batches {
@@ -528,16 +528,16 @@ func TestSequencerBatchTracking(t *testing.T) {
 
 // DisputeGame represents an Optimism-style dispute game
 type DisputeGame struct {
-	GameIndex   uint64    `json:"gameIndex"`
-	GameType    uint32    `json:"gameType"` // 0=Cannon, 1=Permissioned, 2=Alphabet
-	RootClaim   string    `json:"rootClaim"`
-	L2BlockNum  uint64    `json:"l2BlockNum"`
-	Status      string    `json:"status"` // in_progress, challenger_wins, defender_wins
-	Creator     string    `json:"creator"`
-	Challenger  string    `json:"challenger,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	ResolvedAt  time.Time `json:"resolvedAt,omitempty"`
-	L1TxHash    string    `json:"l1TxHash"`
+	GameIndex  uint64    `json:"gameIndex"`
+	GameType   uint32    `json:"gameType"` // 0=Cannon, 1=Permissioned, 2=Alphabet
+	RootClaim  string    `json:"rootClaim"`
+	L2BlockNum uint64    `json:"l2BlockNum"`
+	Status     string    `json:"status"` // in_progress, challenger_wins, defender_wins
+	Creator    string    `json:"creator"`
+	Challenger string    `json:"challenger,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+	ResolvedAt time.Time `json:"resolvedAt,omitempty"`
+	L1TxHash   string    `json:"l1TxHash"`
 }
 
 func TestDisputeGameSerialization(t *testing.T) {
@@ -764,8 +764,8 @@ func TestMockL2RPCGetLogs(t *testing.T) {
 		"id":      1,
 		"result": []interface{}{
 			map[string]interface{}{
-				"address":          "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
-				"topics":          []string{
+				"address": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
+				"topics": []string{
 					"0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32", // TransactionDeposited
 					"0x0000000000000000000000001234567890123456789012345678901234567890", // from
 					"0x0000000000000000000000009876543210987654321098765432109876543210", // to

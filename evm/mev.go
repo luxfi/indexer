@@ -220,17 +220,17 @@ func (m *MEVIndexer) ProcessBlock(ctx context.Context, blockNumber uint64) error
 func (m *MEVIndexer) detectSandwich(ctx context.Context, tx1Hash, tx2Hash, tx3Hash string, blockNumber uint64, timestamp time.Time) {
 	// Get transaction receipts
 	tx1, logs1, err := m.adapter.GetTransactionReceipt(ctx, tx1Hash)
-	if err != nil || tx1.Status != 1 {
+	if err != nil || tx1.Status == nil || *tx1.Status != 1 {
 		return
 	}
 
 	tx2, logs2, err := m.adapter.GetTransactionReceipt(ctx, tx2Hash)
-	if err != nil || tx2.Status != 1 {
+	if err != nil || tx2.Status == nil || *tx2.Status != 1 {
 		return
 	}
 
 	tx3, logs3, err := m.adapter.GetTransactionReceipt(ctx, tx3Hash)
-	if err != nil || tx3.Status != 1 {
+	if err != nil || tx3.Status == nil || *tx3.Status != 1 {
 		return
 	}
 
@@ -292,7 +292,7 @@ func (m *MEVIndexer) detectSandwich(ctx context.Context, tx1Hash, tx2Hash, tx3Ha
 // detectArbitrage detects arbitrage transactions
 func (m *MEVIndexer) detectArbitrage(ctx context.Context, txHash string, blockNumber uint64, timestamp time.Time) {
 	tx, logs, err := m.adapter.GetTransactionReceipt(ctx, txHash)
-	if err != nil || tx.Status != 1 {
+	if err != nil || tx.Status == nil || *tx.Status != 1 {
 		return
 	}
 
@@ -359,7 +359,7 @@ func (m *MEVIndexer) detectArbitrage(ctx context.Context, txHash string, blockNu
 // detectLiquidation detects liquidation transactions
 func (m *MEVIndexer) detectLiquidation(ctx context.Context, txHash string, blockNumber uint64, timestamp time.Time) {
 	tx, logs, err := m.adapter.GetTransactionReceipt(ctx, txHash)
-	if err != nil || tx.Status != 1 {
+	if err != nil || tx.Status == nil || *tx.Status != 1 {
 		return
 	}
 
