@@ -39,6 +39,7 @@ import (
 	"github.com/hanzoai/replicate"
 	"github.com/luxfi/age"
 	"github.com/luxfi/explorer/evm"
+	"github.com/luxfi/explorer/explorer"
 	"github.com/luxfi/explorer/storage"
 	"gopkg.in/yaml.v3"
 )
@@ -203,21 +204,47 @@ func main() {
 		}()
 	}
 
-	// Start HTTP server
+	// Start HTTP server with explorer API
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Mount explorer API for each chain that has a ready DB
 	log.Printf("  http:  %s", cfg.HTTPAddr)
 	for _, c := range enabled {
+		dbPath := filepath.Join(cfg.DataDir, c.Slug, "query", "indexer.db")
+		// Wait briefly for the indexer to create the DB
+		go func(chain ChainConfig, path string) {
+			for i := 0; i < 30; i++ {
+				time.Sleep(time.Second)
+				apiSrv, err := explorer.NewStandaloneServer(explorer.Config{
+					IndexerDBPath: path,
+					ChainID:       chain.ChainID,
+					ChainName:     chain.Name,
+					CoinSymbol:    chain.CoinSymbol,
+				})
+				if err != nil {
+					continue
+				}
+				// Mount the chain's handler
+				mux.Handle("/v1/explorer/", apiSrv.Handler())
+				log.Printf("[%s] API mounted at /v1/explorer/*", chain.Slug)
+				return
+			}
+			log.Printf("[%s] API not mounted — DB not ready after 30s", chain.Slug)
+		}(c, dbPath)
+
 		if c.Default {
 			log.Printf("  %-20s /v1/explorer/*         %s", c.Slug, c.RPC)
 		} else {
 			log.Printf("  %-20s /v1/explorer/%s/*  %s", c.Slug, c.Slug, c.RPC)
 		}
 	}
+
+	// Serve embedded frontend at /
+	mux.Handle("/", frontendHandler())
 
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
 	go func() {
