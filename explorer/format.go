@@ -235,6 +235,7 @@ func formatToken(t map[string]any) map[string]any {
 		"exchange_rate":          t["fiat_value"],
 		"circulating_market_cap": fmtNum(t["circulating_market_cap"]),
 		"icon_url":               t["icon_url"],
+		"trust_score":            computeTokenScore(t),
 	}
 }
 
