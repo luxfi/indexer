@@ -314,10 +314,11 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 	}
 
 	// Index transactions: fetch receipts for each tx hash
+	addrs := make(map[string]bool)
 	for i, txHash := range block.Transactions {
 		tx, _, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
 		if err != nil {
-			continue // skip failed receipt fetches
+			continue
 		}
 		if tx == nil {
 			continue
@@ -337,12 +338,38 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		if err := idx.store.Exec(ctx, txQ, txArgs...); err != nil {
 			continue
 		}
+		if tx.From != "" {
+			addrs[tx.From] = false
+		}
+		if tx.To != "" {
+			addrs[tx.To] = false
+		}
+		if tx.ContractAddress != "" {
+			addrs[tx.ContractAddress] = true
+		}
+	}
+
+	// Upsert discovered addresses
+	for addr, isContract := range addrs {
+		_ = idx.store.Exec(ctx, idx.upsertAddrSQL(), addr, isContract, time.Now(), time.Now())
 	}
 
 	// Broadcast new block
 	idx.subscriber.BroadcastBlock(block)
 
 	return nil
+}
+
+// upsertAddrSQL returns the correct upsert SQL for addresses
+func (idx *Indexer) upsertAddrSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_addresses (hash, is_contract, created_at, updated_at)
+			VALUES ($1,$2,$3,$4) ON CONFLICT (hash) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_addresses (hash, is_contract, created_at, updated_at)
+			VALUES (?,?,?,?)`
+	}
 }
 
 // upsertTxSQL returns the correct upsert SQL for transactions
