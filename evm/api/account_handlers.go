@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/luxfi/indexer/evm/account"
+	"github.com/luxfi/explorer/evm/account"
 )
 
 // AccountAPI provides HTTP handlers for user account endpoints.

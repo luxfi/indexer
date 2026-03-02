@@ -613,23 +613,23 @@ func TestParseBlock(t *testing.T) {
 
 ---
 
-## Blockscout Compatibility
+## API Compatibility
 
 ### API Response Format
 
 **Good**:
-- JSON response structures match Blockscout
+- JSON response structures follow standard explorer v2 format
 - Transaction, Address, Token types are compatible
 - Pagination patterns follow conventions
 
 **Needs Verification**:
-- Need integration tests against actual Blockscout API
+- Need integration tests against reference explorer API
 - Missing some advanced features (contract verification, source code)
 
 ### Database Schema
 
 **Good**:
-- Core tables align with Blockscout schema
+- Core tables follow standard explorer schema
 - Proper indexing for common queries
 
 **Differences**:

@@ -12,8 +12,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/luxfi/indexer/pchain"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/pchain"
+	"github.com/luxfi/explorer/storage"
 )
 
 // isPChainAvailable checks if P-Chain API is available (may be disabled in dev mode)

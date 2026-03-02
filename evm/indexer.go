@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/storage"
 )
 
 // Config for EVM indexer
@@ -210,7 +210,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 
 	go idx.subscriber.Run(ctx)
-	log.Printf("[evm] WebSocket streaming at /api/v2/blocks/subscribe")
+	log.Printf("[evm] WebSocket streaming at /v1/explorer/blocks/subscribe")
 
 	go idx.startHTTP(ctx)
 	log.Printf("[evm] API on port %d", idx.config.HTTPPort)
@@ -418,7 +418,7 @@ func toInt64(v interface{}) int64 {
 
 func (idx *Indexer) startHTTP(ctx context.Context) {
 	r := mux.NewRouter()
-	api := r.PathPrefix("/api/v2").Subrouter()
+	api := r.PathPrefix("/v1/explorer").Subrouter()
 
 	api.HandleFunc("/stats", idx.handleStats).Methods("GET")
 	api.HandleFunc("/blocks", idx.handleBlocks).Methods("GET")

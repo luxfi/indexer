@@ -75,7 +75,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock blocks endpoint
-	router.HandleFunc("/api/v2/blocks", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/blocks", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		blocks := []Block{
 			{
@@ -94,7 +94,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock single block endpoint
-	router.HandleFunc("/api/v2/blocks/{block_hash_or_number}", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/blocks/{block_hash_or_number}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		block := Block{
 			Hash:             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -107,7 +107,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock transactions endpoint
-	router.HandleFunc("/api/v2/transactions", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/transactions", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		blockNum := uint64(100)
 		gasUsed := uint64(21000)
@@ -130,7 +130,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock addresses endpoint
-	router.HandleFunc("/api/v2/addresses/{address_hash}", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/addresses/{address_hash}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		txCount := uint64(10)
 		addr := Address{
@@ -143,7 +143,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock tokens endpoint
-	router.HandleFunc("/api/v2/tokens", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/tokens", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		decimals := uint8(18)
 		holderCount := uint64(1000)
@@ -162,7 +162,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock search endpoint
-	router.HandleFunc("/api/v2/search", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/search", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		query := r.URL.Query().Get("q")
 		var results []SearchResult
@@ -178,7 +178,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock stats endpoint
-	router.HandleFunc("/api/v2/stats", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		stats := ChainStats{
 			TotalBlocks:       100,
@@ -226,7 +226,7 @@ func setupMockRoutes(s *Server) *mux.Router {
 	}).Methods("GET")
 
 	// Mock GraphQL endpoint
-	router.HandleFunc("/api/v2/graphql", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/v1/explorer/graphql", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.Header().Set("Content-Type", "text/html")
 			w.Write([]byte("<html>GraphQL Playground</html>"))
@@ -290,7 +290,7 @@ func TestBlocksEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/blocks")
+	resp, err := http.Get(ts.URL + "/v1/explorer/blocks")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestSingleBlockEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/blocks/100")
+	resp, err := http.Get(ts.URL + "/v1/explorer/blocks/100")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestTransactionsEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/transactions")
+	resp, err := http.Get(ts.URL + "/v1/explorer/transactions")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestAddressEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/addresses/0x1111111111111111111111111111111111111111")
+	resp, err := http.Get(ts.URL + "/v1/explorer/addresses/0x1111111111111111111111111111111111111111")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestTokensEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/tokens")
+	resp, err := http.Get(ts.URL + "/v1/explorer/tokens")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -423,7 +423,7 @@ func TestSearchEndpoint(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		resp, err := http.Get(ts.URL + "/api/v2/search?q=" + test.query)
+		resp, err := http.Get(ts.URL + "/v1/explorer/search?q=" + test.query)
 		if err != nil {
 			t.Fatalf("Failed to make request: %v", err)
 		}
@@ -445,7 +445,7 @@ func TestStatsEndpoint(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/stats")
+	resp, err := http.Get(ts.URL + "/v1/explorer/stats")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -541,7 +541,7 @@ func TestGraphQLPlayground(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v2/graphql")
+	resp, err := http.Get(ts.URL + "/v1/explorer/graphql")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestGraphQLQuery(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(query)
-	resp, err := http.Post(ts.URL+"/api/v2/graphql", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(ts.URL+"/v1/explorer/graphql", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -596,9 +596,9 @@ func TestPaginationParameters(t *testing.T) {
 		url  string
 		name string
 	}{
-		{"/api/v2/blocks?page=0&page_size=10", "blocks with page params"},
-		{"/api/v2/transactions?page=0&page_size=10", "transactions with page params"},
-		{"/api/v2/tokens?page=0&page_size=10", "tokens with page params"},
+		{"/v1/explorer/blocks?page=0&page_size=10", "blocks with page params"},
+		{"/v1/explorer/transactions?page=0&page_size=10", "transactions with page params"},
+		{"/v1/explorer/tokens?page=0&page_size=10", "tokens with page params"},
 	}
 
 	for _, test := range tests {
@@ -643,7 +643,7 @@ func TestOptionsRequest(t *testing.T) {
 	_, ts := setupTestServer(t)
 	defer ts.Close()
 
-	req, _ := http.NewRequest("OPTIONS", ts.URL+"/api/v2/blocks", nil)
+	req, _ := http.NewRequest("OPTIONS", ts.URL+"/v1/explorer/blocks", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
@@ -798,7 +798,7 @@ func BenchmarkBlocksEndpoint(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		resp, err := client.Get(ts.URL + "/api/v2/blocks")
+		resp, err := client.Get(ts.URL + "/v1/explorer/blocks")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -855,7 +855,7 @@ func TestIntegrationWithDatabase(t *testing.T) {
 	defer ts.Close()
 
 	// Test real database queries
-	resp, err := http.Get(ts.URL + "/api/v2/stats")
+	resp, err := http.Get(ts.URL + "/v1/explorer/stats")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
@@ -934,19 +934,19 @@ func TestAPISequence(t *testing.T) {
 	defer ts.Close()
 
 	// Get stats first
-	resp, _ := http.Get(ts.URL + "/api/v2/stats")
+	resp, _ := http.Get(ts.URL + "/v1/explorer/stats")
 	resp.Body.Close()
 
 	// Then get blocks
-	resp, _ = http.Get(ts.URL + "/api/v2/blocks")
+	resp, _ = http.Get(ts.URL + "/v1/explorer/blocks")
 	resp.Body.Close()
 
 	// Then get transactions
-	resp, _ = http.Get(ts.URL + "/api/v2/transactions")
+	resp, _ = http.Get(ts.URL + "/v1/explorer/transactions")
 	resp.Body.Close()
 
 	// Then search
-	resp, _ = http.Get(ts.URL + "/api/v2/search?q=0x123")
+	resp, _ = http.Get(ts.URL + "/v1/explorer/search?q=0x123")
 	resp.Body.Close()
 }
 
@@ -959,7 +959,7 @@ func TestParallelRequests(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			t.Run(fmt.Sprintf("request_%d", i), func(t *testing.T) {
 				t.Parallel()
-				resp, err := http.Get(ts.URL + "/api/v2/blocks")
+				resp, err := http.Get(ts.URL + "/v1/explorer/blocks")
 				if err != nil {
 					t.Fatalf("Request failed: %v", err)
 				}

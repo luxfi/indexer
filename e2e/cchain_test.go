@@ -13,8 +13,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/luxfi/indexer/evm"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/evm"
+	"github.com/luxfi/explorer/storage"
 )
 
 var _ = Describe("C-Chain", func() {

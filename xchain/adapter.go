@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/luxfi/indexer/dag"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/dag"
+	"github.com/luxfi/explorer/storage"
 )
 
 // Adapter implements dag.Adapter for X-Chain
