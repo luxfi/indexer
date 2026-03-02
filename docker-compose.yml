@@ -20,7 +20,7 @@ x-indexer-common: &indexer-common
 services:
   # PostgreSQL database for all indexers
   postgres:
-    image: postgres:15-alpine
+    image: ghcr.io/hanzoai/sql:17-alpine
     container_name: lux-indexer-postgres
     restart: unless-stopped
     environment:
