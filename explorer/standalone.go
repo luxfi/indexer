@@ -126,92 +126,92 @@ func (s *StandaloneServer) detectTable(names ...string) string {
 
 func (s *StandaloneServer) routes() {
 	m := s.mux
-	m.HandleFunc("GET /v1/explorer/blocks", s.j(s.listBlocks))
-	m.HandleFunc("GET /v1/explorer/blocks/{id}", s.j(s.getBlock))
-	m.HandleFunc("GET /v1/explorer/blocks/{id}/transactions", s.j(s.blockTxs))
-	m.HandleFunc("GET /v1/explorer/transactions", s.j(s.listTxs))
-	m.HandleFunc("GET /v1/explorer/transactions/{hash}", s.j(s.getTx))
-	m.HandleFunc("GET /v1/explorer/transactions/{hash}/token-transfers", s.j(s.txTransfers))
-	m.HandleFunc("GET /v1/explorer/transactions/{hash}/internal-transactions", s.j(s.txInternal))
-	m.HandleFunc("GET /v1/explorer/transactions/{hash}/logs", s.j(s.txLogs))
-	m.HandleFunc("GET /v1/explorer/addresses", s.j(s.listAddrs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}", s.j(s.getAddr))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/transactions", s.j(s.addrTxs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/counters", s.j(s.addrCounters))
-	m.HandleFunc("GET /v1/explorer/tokens", s.j(s.listTokens))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}", s.j(s.getToken))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/holders", s.j(s.tokenHolders))
-	m.HandleFunc("GET /v1/explorer/smart-contracts/{addr}", s.j(s.getContract))
-	m.HandleFunc("GET /v1/explorer/search", s.j(s.search))
-	m.HandleFunc("GET /v1/explorer/search/quick", s.j(s.search))
-	m.HandleFunc("GET /v1/explorer/search/check-redirect", s.j(s.searchRedirect))
-	m.HandleFunc("GET /v1/explorer/stats", s.j(s.stats))
-	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
-	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
+	m.HandleFunc("GET /blocks", s.j(s.listBlocks))
+	m.HandleFunc("GET /blocks/{id}", s.j(s.getBlock))
+	m.HandleFunc("GET /blocks/{id}/transactions", s.j(s.blockTxs))
+	m.HandleFunc("GET /transactions", s.j(s.listTxs))
+	m.HandleFunc("GET /transactions/{hash}", s.j(s.getTx))
+	m.HandleFunc("GET /transactions/{hash}/token-transfers", s.j(s.txTransfers))
+	m.HandleFunc("GET /transactions/{hash}/internal-transactions", s.j(s.txInternal))
+	m.HandleFunc("GET /transactions/{hash}/logs", s.j(s.txLogs))
+	m.HandleFunc("GET /addresses", s.j(s.listAddrs))
+	m.HandleFunc("GET /addresses/{hash}", s.j(s.getAddr))
+	m.HandleFunc("GET /addresses/{hash}/transactions", s.j(s.addrTxs))
+	m.HandleFunc("GET /addresses/{hash}/counters", s.j(s.addrCounters))
+	m.HandleFunc("GET /tokens", s.j(s.listTokens))
+	m.HandleFunc("GET /tokens/{addr}", s.j(s.getToken))
+	m.HandleFunc("GET /tokens/{addr}/holders", s.j(s.tokenHolders))
+	m.HandleFunc("GET /smart-contracts/{addr}", s.j(s.getContract))
+	m.HandleFunc("GET /search", s.j(s.search))
+	m.HandleFunc("GET /search/quick", s.j(s.search))
+	m.HandleFunc("GET /search/check-redirect", s.j(s.searchRedirect))
+	m.HandleFunc("GET /stats", s.j(s.stats))
+	m.HandleFunc("GET /stats/charts/transactions", s.j(s.chartTxs))
+	m.HandleFunc("GET /stats/charts/market", s.j(s.chartMarket))
 
 	// Homepage widgets
-	m.HandleFunc("GET /v1/explorer/homepage/blocks", s.j(s.mainPageBlocks))
-	m.HandleFunc("GET /v1/explorer/homepage/transactions", s.j(s.mainPageTxs))
-	m.HandleFunc("GET /v1/explorer/homepage/indexing-status", s.j(s.indexingStatus))
+	m.HandleFunc("GET /homepage/blocks", s.j(s.mainPageBlocks))
+	m.HandleFunc("GET /homepage/transactions", s.j(s.mainPageTxs))
+	m.HandleFunc("GET /homepage/indexing-status", s.j(s.indexingStatus))
 
 	// Config
-	m.HandleFunc("GET /v1/explorer/config/backend-version", s.j(s.backendVersion))
-	m.HandleFunc("GET /v1/explorer/config/backend", s.j(s.backendConfig))
+	m.HandleFunc("GET /config/backend-version", s.j(s.backendVersion))
+	m.HandleFunc("GET /config/backend", s.j(s.backendConfig))
 
 	// Address sub-resources
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-transfers", s.j(s.addrTokenTransfers))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/internal-transactions", s.j(s.addrInternalTxs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/logs", s.j(s.addrLogs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/tokens", s.j(s.addrTokens))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-balances", s.j(s.addrTokens))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/coin-balance-history", s.j(s.addrCoinHistory))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/coin-balance-history-by-day", s.j(s.addrCoinHistory))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/tabs-counters", s.j(s.addrCounters))
+	m.HandleFunc("GET /addresses/{hash}/token-transfers", s.j(s.addrTokenTransfers))
+	m.HandleFunc("GET /addresses/{hash}/internal-transactions", s.j(s.addrInternalTxs))
+	m.HandleFunc("GET /addresses/{hash}/logs", s.j(s.addrLogs))
+	m.HandleFunc("GET /addresses/{hash}/tokens", s.j(s.addrTokens))
+	m.HandleFunc("GET /addresses/{hash}/token-balances", s.j(s.addrTokens))
+	m.HandleFunc("GET /addresses/{hash}/coin-balance-history", s.j(s.addrCoinHistory))
+	m.HandleFunc("GET /addresses/{hash}/coin-balance-history-by-day", s.j(s.addrCoinHistory))
+	m.HandleFunc("GET /addresses/{hash}/tabs-counters", s.j(s.addrCounters))
 
 	// Token sub-resources
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/transfers", s.j(s.tokenTransfers))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/instances", s.j(s.emptyList))
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/counters", s.j(s.tokenCounters))
+	m.HandleFunc("GET /tokens/{addr}/transfers", s.j(s.tokenTransfers))
+	m.HandleFunc("GET /tokens/{addr}/instances", s.j(s.emptyList))
+	m.HandleFunc("GET /tokens/{addr}/counters", s.j(s.tokenCounters))
 
 	// Smart contract sub-resources
-	m.HandleFunc("GET /v1/explorer/smart-contracts", s.j(s.listContracts))
-	m.HandleFunc("GET /v1/explorer/smart-contracts/counters", s.j(s.contractCounters))
+	m.HandleFunc("GET /smart-contracts", s.j(s.listContracts))
+	m.HandleFunc("GET /smart-contracts/counters", s.j(s.contractCounters))
 
 	// Token transfers list
-	m.HandleFunc("GET /v1/explorer/token-transfers", s.j(s.allTokenTransfers))
+	m.HandleFunc("GET /token-transfers", s.j(s.allTokenTransfers))
 
 	// Internal transactions list
-	m.HandleFunc("GET /v1/explorer/internal-transactions", s.j(s.allInternalTxs))
+	m.HandleFunc("GET /internal-transactions", s.j(s.allInternalTxs))
 
 	// CSV exports
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/transactions/csv", s.csvHandler(s.csvAddrTxs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/internal-transactions/csv", s.csvHandler(s.csvAddrInternalTxs))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-transfers/csv", s.csvHandler(s.csvAddrTokenTransfers))
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/logs/csv", s.csvHandler(s.csvAddrLogs))
-	m.HandleFunc("GET /v1/explorer/token-transfers/csv", s.csvHandler(s.csvAllTokenTransfers))
+	m.HandleFunc("GET /addresses/{hash}/transactions/csv", s.csvHandler(s.csvAddrTxs))
+	m.HandleFunc("GET /addresses/{hash}/internal-transactions/csv", s.csvHandler(s.csvAddrInternalTxs))
+	m.HandleFunc("GET /addresses/{hash}/token-transfers/csv", s.csvHandler(s.csvAddrTokenTransfers))
+	m.HandleFunc("GET /addresses/{hash}/logs/csv", s.csvHandler(s.csvAddrLogs))
+	m.HandleFunc("GET /token-transfers/csv", s.csvHandler(s.csvAllTokenTransfers))
 
 	// Unified account timeline
-	m.HandleFunc("GET /v1/explorer/addresses/{hash}/timeline", s.j(s.addrTimeline))
+	m.HandleFunc("GET /addresses/{hash}/timeline", s.j(s.addrTimeline))
 
 	// DEX endpoints
-	m.HandleFunc("GET /v1/explorer/dex/markets", s.j(s.dexMarkets))
-	m.HandleFunc("GET /v1/explorer/dex/markets/{pair}", s.j(s.dexMarketDetail))
-	m.HandleFunc("GET /v1/explorer/dex/trades", s.j(s.dexTrades))
-	m.HandleFunc("GET /v1/explorer/dex/trades/{pair}", s.j(s.dexTradesByPair))
-	m.HandleFunc("GET /v1/explorer/dex/orderbook/{pair}", s.j(s.dexOrderbook))
-	m.HandleFunc("GET /v1/explorer/dex/candles/{pair}", s.j(s.dexCandles))
+	m.HandleFunc("GET /dex/markets", s.j(s.dexMarkets))
+	m.HandleFunc("GET /dex/markets/{pair}", s.j(s.dexMarketDetail))
+	m.HandleFunc("GET /dex/trades", s.j(s.dexTrades))
+	m.HandleFunc("GET /dex/trades/{pair}", s.j(s.dexTradesByPair))
+	m.HandleFunc("GET /dex/orderbook/{pair}", s.j(s.dexOrderbook))
+	m.HandleFunc("GET /dex/candles/{pair}", s.j(s.dexCandles))
 
 	// Pool endpoints
-	m.HandleFunc("GET /v1/explorer/pools", s.j(s.poolList))
-	m.HandleFunc("GET /v1/explorer/pools/{id}", s.j(s.poolDetail))
-	m.HandleFunc("GET /v1/explorer/pools/{id}/swaps", s.j(s.poolSwaps))
+	m.HandleFunc("GET /pools", s.j(s.poolList))
+	m.HandleFunc("GET /pools/{id}", s.j(s.poolDetail))
+	m.HandleFunc("GET /pools/{id}/swaps", s.j(s.poolSwaps))
 
 	// Token distribution (Gini coefficient)
-	m.HandleFunc("GET /v1/explorer/tokens/{addr}/distribution", s.j(s.tokenDistribution))
+	m.HandleFunc("GET /tokens/{addr}/distribution", s.j(s.tokenDistribution))
 
 	// Webhooks (notification subscriptions)
-	m.HandleFunc("POST /v1/explorer/webhooks", s.j(s.registerWebhook))
-	m.HandleFunc("GET /v1/explorer/webhooks", s.j(s.listWebhooks))
+	m.HandleFunc("POST /webhooks", s.j(s.registerWebhook))
+	m.HandleFunc("GET /webhooks", s.j(s.listWebhooks))
 	m.HandleFunc("DELETE /v1/explorer/webhooks", s.j(s.deleteWebhook))
 }
 
