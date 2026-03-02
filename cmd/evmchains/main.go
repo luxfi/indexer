@@ -151,6 +151,12 @@ func runChain(ctx context.Context, db *sql.DB, chain ChainDef) {
 	log.Printf("[%s] Starting API server on port %d (chain_id=%d, rpc=%s)",
 		chain.Slug, chain.Port, chain.ChainID, chain.RPC)
 
+	// Ensure all required tables exist for this chain prefix
+	if err := api.EnsureTables(db, chain.Slug); err != nil {
+		log.Printf("[%s] Failed to ensure tables: %v", chain.Slug, err)
+		return
+	}
+
 	cfg := api.Config{
 		HTTPPort:    chain.Port,
 		ChainID:     chain.ChainID,
