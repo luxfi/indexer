@@ -558,7 +558,7 @@ func TestParseBlock(t *testing.T) {
 
 ### 5. **Pluggable Storage Backend**
 
-- Clean abstraction for PostgreSQL, BadgerDB, Dgraph
+- Clean abstraction for PostgreSQL, ZapDB, Dgraph
 - Transaction support interface
 - Easy to add new backends
 

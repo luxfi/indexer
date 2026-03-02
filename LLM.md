@@ -23,15 +23,15 @@ explorer (single binary)
 │   ├── /v1/explorer/ws     WebSocket/SSE realtime
 │   └── /*                  Embedded Next.js frontend (go:embed)
 ├── Replicate sidecar       WAL → S3 (age PQ encrypted)
-└── BadgerDB KV             Fast hash/height lookups
+└── ZapDB KV             Fast hash/height lookups
 ```
 
 ### Storage
 
 - **SQLite WAL**: default, zero-config, concurrent readers
-- **BadgerDB**: KV layer for O(1) hash lookups
+- **ZapDB**: KV layer for O(1) hash lookups
 - **PostgreSQL**: optional via `-tags postgres`
-- **No Redis**: BadgerDB replaces it
+- **No Redis**: ZapDB replaces it
 
 ### PQ Encrypted Streaming Backups
 
@@ -95,7 +95,7 @@ evm/                    EVM indexer
 
 storage/                Dual-layer storage
   unified.go            KV + Query combined
-  kv/                   BadgerDB
+  kv/                   ZapDB
   query/sqlite.go       SQLite (default)
   query/postgres.go     PostgreSQL (build tag)
 
@@ -174,7 +174,7 @@ go test ./storage/...            # Storage backends
 | `hanzoai/base` | HTTP server, collections, SSE, IAM |
 | `hanzoai/replicate` | SQLite WAL streaming to S3 |
 | `luxfi/age` | PQ encryption (ML-KEM-768 + X25519) |
-| `luxfi/database` | BadgerDB KV wrapper |
+| `luxfi/database` | ZapDB KV wrapper |
 | `luxfi/zap` | Zero-copy wire protocol |
 
 ## What This Replaced
@@ -185,5 +185,5 @@ go test ./storage/...            # Storage backends
 | Rust verifier | `evm/contracts/verifier.go` |
 | Rust sig-provider | `evm/contracts/abi.go` |
 | PostgreSQL | SQLite WAL |
-| Redis | BadgerDB KV |
+| Redis | ZapDB KV |
 | Graph Node + subgraphs | G-Chain native GraphQL |
