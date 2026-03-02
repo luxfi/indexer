@@ -30,12 +30,12 @@ var version = "dev"
 
 // ChainDef defines a single EVM chain to index.
 type ChainDef struct {
-	Slug     string `yaml:"slug"`
-	Name     string `yaml:"name"`
-	ChainID  int64  `yaml:"chain_id"`
-	Port     int    `yaml:"port"`
-	RPC      string `yaml:"rpc"`
-	Enabled  bool   `yaml:"enabled"`
+	Slug    string `yaml:"slug"`
+	Name    string `yaml:"name"`
+	ChainID int64  `yaml:"chain_id"`
+	Port    int    `yaml:"port"`
+	RPC     string `yaml:"rpc"`
+	Enabled bool   `yaml:"enabled"`
 }
 
 // Config is the top-level config for the multi-chain EVM indexer.
