@@ -106,10 +106,10 @@ func Register(app core.App, config Config) error {
 }
 
 type plugin struct {
-	app          core.App
-	config       Config
-	db           *sql.DB // read-only connection to indexer's SQLite
-	gchainProxy  *graphqlProxy
+	app         core.App
+	config      Config
+	db          *sql.DB // read-only connection to indexer's SQLite
+	gchainProxy *graphqlProxy
 }
 
 // openIndexerDB opens a read-only connection to the indexer's SQLite database.
@@ -194,7 +194,7 @@ func (p *plugin) registerRoutes(r *router.Router[*core.RequestEvent]) {
 	v2.GET("/stats/charts/market", p.handleChartMarket)
 
 	// GraphQL
-	v2.Any("/graphql", p.handleFederatedGraphQL)           // G-Chain proxy (consensus-backed federated)
+	v2.Any("/graphql", p.handleFederatedGraphQL)            // G-Chain proxy (consensus-backed federated)
 	v2.Any("/local/graphql", p.handleLocalGraphQL)          // local SQLite (per-chain, fast)
 	v2.GET("/search/cross-chain", p.handleCrossChainSearch) // parallel multi-chain SQLite search
 

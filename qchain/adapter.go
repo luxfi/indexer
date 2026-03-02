@@ -33,8 +33,8 @@ const (
 type QuasarCert struct {
 	ID         string    `json:"id"`
 	VertexID   string    `json:"vertexId"`
-	BLS        []byte    `json:"bls"`        // BLS aggregate signature (48 bytes)
-	PQProof    []byte    `json:"pqProof"`    // STARK proof aggregating N ML-DSA sigs (~200 bytes)
+	BLS        []byte    `json:"bls"`     // BLS aggregate signature (48 bytes)
+	PQProof    []byte    `json:"pqProof"` // STARK proof aggregating N ML-DSA sigs (~200 bytes)
 	Epoch      uint64    `json:"epoch"`
 	Finality   time.Time `json:"finality"`
 	Validators int       `json:"validators"` // Count of validators proven by PQProof

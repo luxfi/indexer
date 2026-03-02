@@ -13,9 +13,9 @@ import (
 	"sync"
 
 	"github.com/luxfi/database"
-	"github.com/luxfi/database/zapdb"
 	"github.com/luxfi/database/memdb"
 	"github.com/luxfi/database/prefixdb"
+	"github.com/luxfi/database/zapdb"
 )
 
 // Prefixes for different data types in the KV store
