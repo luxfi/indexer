@@ -1,0 +1,42 @@
+# Lux EVM Chains Indexer Configuration
+# Runs all 5 Lux mainnet EVM chains in a single process.
+# Each chain gets its own Blockscout-compatible API on a dedicated port.
+# All chains share one PostgreSQL database with table prefixes.
+
+database_url: "${DATABASE_URL:-postgres://indexer:indexer-lux-2026@indexer-postgres.lux-explorer.svc:5432/indexer?sslmode=disable}"
+
+chains:
+  - slug: cchain
+    name: "Lux C-Chain"
+    chain_id: 96369
+    port: 4000
+    rpc: "${CCHAIN_RPC:-http://luxd-headless.lux-mainnet.svc:9630/ext/bc/C/rpc}"
+    enabled: true
+
+  - slug: zoo
+    name: "Zoo"
+    chain_id: 200200
+    port: 5000
+    rpc: "${ZOO_RPC:-http://luxd-headless.lux-mainnet.svc:9630/ext/bc/2m7XTBQ1knXzpTd5tD5mKhBoBGfYzLjgWCy4UPBZFrJwJi9PDn/rpc}"
+    enabled: true
+
+  - slug: hanzo
+    name: "Hanzo"
+    chain_id: 36963
+    port: 5100
+    rpc: "${HANZO_RPC:-http://luxd-headless.lux-mainnet.svc:9630/ext/bc/2qGPCad983bniHe6MxKYcHqhGnATAYnY78TiDVSmjGFfmUpoAq/rpc}"
+    enabled: true
+
+  - slug: spc
+    name: "SPC"
+    chain_id: 36911
+    port: 5200
+    rpc: "${SPC_RPC:-http://luxd-headless.lux-mainnet.svc:9630/ext/bc/2GWgFPEeVAoivJdbBfJrmY2DDtn8TCSV7R7diwqVbMDhPkSiYn/rpc}"
+    enabled: true
+
+  - slug: pars
+    name: "Pars"
+    chain_id: 494949
+    port: 5300
+    rpc: "${PARS_RPC:-http://luxd-headless.lux-mainnet.svc:9630/ext/bc/2ouFvjHhVc3qX3wJNBMERvrE9fHBPf3dQd6n1fyxNyhwi52YhY/rpc}"
+    enabled: true
