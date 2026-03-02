@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+// col returns the first non-nil value from a map for the given key names.
+// Handles schema variations (EVM tables use different column names than test/PG schema).
+func col(m map[string]any, keys ...string) any {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
 // scanMaps scans all rows from a query into []map[string]any.
 func scanMaps(rows *sql.Rows) ([]map[string]any, error) {
 	cols, err := rows.Columns()
@@ -67,7 +78,7 @@ func fmtNum(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// fmtTimestamp formats a unix timestamp for the explorer API v2 response.
+// fmtTimestamp formats a timestamp for the explorer API v2 response as ISO 8601.
 func fmtTimestamp(v any) string {
 	switch ts := v.(type) {
 	case int64:
@@ -80,7 +91,28 @@ func fmtTimestamp(v any) string {
 			return ""
 		}
 		return time.Unix(int64(ts), 0).UTC().Format(time.RFC3339)
+	case time.Time:
+		if ts.IsZero() {
+			return ""
+		}
+		return ts.UTC().Format(time.RFC3339)
+	case string:
+		// Try parsing common Go time formats
+		for _, layout := range []string{
+			time.RFC3339,
+			"2006-01-02 15:04:05 +0000 UTC",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02 15:04:05",
+		} {
+			if t, err := time.Parse(layout, ts); err == nil {
+				return t.UTC().Format(time.RFC3339)
+			}
+		}
+		return ts
 	default:
+		if v == nil {
+			return ""
+		}
 		return fmt.Sprintf("%v", v)
 	}
 }
@@ -92,7 +124,7 @@ func formatBlock(b map[string]any) map[string]any {
 		"hash":             bytesToHex(b["hash"]),
 		"parent_hash":      bytesToHex(b["parent_hash"]),
 		"nonce":            bytesToHex(b["nonce"]),
-		"miner":            map[string]any{"hash": bytesToHex(b["miner"])},
+		"miner":            map[string]any{"hash": bytesToHex(col(b, "miner", "miner_hash"))},
 		"difficulty":       fmtNum(b["difficulty"]),
 		"total_difficulty": fmtNum(b["total_difficulty"]),
 		"size":             b["size"],
@@ -100,8 +132,8 @@ func formatBlock(b map[string]any) map[string]any {
 		"gas_used":         fmtNum(b["gas_used"]),
 		"base_fee_per_gas": fmtNum(b["base_fee"]),
 		"timestamp":        fmtTimestamp(b["timestamp"]),
-		"tx_count":         b["transaction_count"],
-		"state_root":       bytesToHex(b["state_root"]),
+		"tx_count":         col(b, "tx_count", "transaction_count"),
+		"state_root":       nil,
 		"type":             "block",
 	}
 }
@@ -112,7 +144,7 @@ func formatTx(t map[string]any) map[string]any {
 		"hash":                     bytesToHex(t["hash"]),
 		"block_number":             t["block_number"],
 		"block_hash":               bytesToHex(t["block_hash"]),
-		"from":                     map[string]any{"hash": bytesToHex(t["from_address_hash"])},
+		"from":                     map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
 		"to":                       nil,
 		"value":                    fmtNum(t["value"]),
 		"gas_limit":                fmtNum(t["gas"]),
@@ -121,20 +153,20 @@ func formatTx(t map[string]any) map[string]any {
 		"max_fee_per_gas":          fmtNum(t["max_fee_per_gas"]),
 		"max_priority_fee_per_gas": fmtNum(t["max_priority_fee_per_gas"]),
 		"nonce":                    t["nonce"],
-		"position":                 t["transaction_index"],
+		"position":                 t["tx_index"],
 		"type":                     t["type"],
 		"status":                   txStatusStr(t["status"]),
-		"timestamp":                fmtTimestamp(t["block_timestamp"]),
+		"timestamp":                fmtTimestamp(t["timestamp"]),
 		"method":                   txMethodStr(t["input"]),
 		"result":                   txResultStr(t),
 	}
 
-	if to := t["to_address_hash"]; to != nil {
+	if to := col(t, "to_addr", "to_address_hash", "to_address"); to != nil {
 		if s := bytesToHex(to); s != "" {
 			resp["to"] = map[string]any{"hash": s}
 		}
 	}
-	if ca := t["created_contract_address_hash"]; ca != nil {
+	if ca := col(t, "contract_addr", "created_contract_address_hash", "created_contract_address"); ca != nil {
 		if s := bytesToHex(ca); s != "" {
 			resp["created_contract"] = map[string]any{"hash": s}
 		}
@@ -168,7 +200,7 @@ func formatInternalTx(t map[string]any) map[string]any {
 		"transaction_hash": bytesToHex(t["transaction_hash"]),
 		"type":             t["type"],
 		"call_type":        t["call_type"],
-		"from":             map[string]any{"hash": bytesToHex(t["from_address_hash"])},
+		"from":             map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
 		"to":               nil,
 		"value":            fmtNum(t["value"]),
 		"gas_limit":        fmtNum(t["gas"]),
@@ -177,9 +209,9 @@ func formatInternalTx(t map[string]any) map[string]any {
 		"output":           bytesToHex(t["output"]),
 		"error":            errField,
 		"success":          success,
-		"timestamp":        fmtTimestamp(t["block_timestamp"]),
+		"timestamp":        fmtTimestamp(t["timestamp"]),
 	}
-	if to := t["to_address_hash"]; to != nil {
+	if to := col(t, "to_addr", "to_address_hash", "to_address"); to != nil {
 		if s := bytesToHex(to); s != "" {
 			resp["to"] = map[string]any{"hash": s}
 		}
@@ -198,7 +230,7 @@ func formatLog(l map[string]any) map[string]any {
 		}
 	}
 	return map[string]any{
-		"address":          map[string]any{"hash": bytesToHex(l["address_hash"])},
+		"address":          map[string]any{"hash": bytesToHex(col(l, "address", "address_hash"))},
 		"data":             bytesToHex(l["data"]),
 		"topics":           topics,
 		"index":            l["index"],
@@ -211,21 +243,21 @@ func formatLog(l map[string]any) map[string]any {
 // formatTokenTransfer formats a token transfer row.
 func formatTokenTransfer(t map[string]any) map[string]any {
 	return map[string]any{
-		"from":             map[string]any{"hash": bytesToHex(t["from_address_hash"])},
-		"to":               map[string]any{"hash": bytesToHex(t["to_address_hash"])},
-		"token":            map[string]any{"address": bytesToHex(t["token_contract_address_hash"]), "type": t["token_type"]},
+		"from":             map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
+		"to":               map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
+		"token":            map[string]any{"address": bytesToHex(t["token_address"]), "type": t["token_type"]},
 		"total":            map[string]any{"value": fmtNum(t["amount"]), "decimals": nil},
 		"log_index":        t["log_index"],
 		"block_number":     t["block_number"],
 		"transaction_hash": bytesToHex(t["transaction_hash"]),
-		"timestamp":        fmtTimestamp(t["block_timestamp"]),
+		"timestamp":        fmtTimestamp(t["timestamp"]),
 	}
 }
 
 // formatToken formats a token row.
 func formatToken(t map[string]any) map[string]any {
 	return map[string]any{
-		"address":                bytesToHex(t["contract_address_hash"]),
+		"address":                bytesToHex(col(t, "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
 		"name":                   t["name"],
 		"symbol":                 t["symbol"],
 		"total_supply":           fmtNum(t["total_supply"]),
@@ -242,7 +274,7 @@ func formatToken(t map[string]any) map[string]any {
 // formatContract formats a smart contract row.
 func formatContract(c map[string]any) map[string]any {
 	return map[string]any{
-		"address":            map[string]any{"hash": bytesToHex(c["address_hash"])},
+		"address":            map[string]any{"hash": bytesToHex(c["address"])},
 		"name":               c["name"],
 		"compiler_version":   c["compiler_version"],
 		"optimization":       c["optimization"],
