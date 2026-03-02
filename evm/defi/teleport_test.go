@@ -33,7 +33,7 @@ func TestParseLiquidFeesReceived(t *testing.T) {
 		TxHash:      "0xfff",
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
@@ -72,7 +72,7 @@ func TestParseLiquidValidatorRewards(t *testing.T) {
 		BlockNumber: 510,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "validator_rewards" {
 		t.Fatal("expected validator_rewards event")
 	}
@@ -92,7 +92,7 @@ func TestParseLiquidSlashing(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "slashing" {
 		t.Fatal("expected slashing event")
 	}
@@ -113,7 +113,7 @@ func TestParseLiquidEmergencyWithdrawal(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "emergency_withdrawal" {
 		t.Fatal("expected emergency_withdrawal event")
 	}
@@ -128,7 +128,7 @@ func TestParseLiquidTokenPaused(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "paused" {
 		t.Fatal("expected paused event")
 	}
@@ -146,7 +146,7 @@ func TestParseLiquidTokenWhitelisted(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "whitelisted" {
 		t.Fatal("expected whitelisted event")
 	}
@@ -163,7 +163,7 @@ func TestParseSetFlashMintFee(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "set_flash_mint_fee" {
 		t.Fatal("expected set_flash_mint_fee event")
 	}
@@ -183,7 +183,7 @@ func TestParseDepositMinted(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "deposit_minted" {
 		t.Fatal("expected deposit_minted event")
 	}
@@ -208,7 +208,7 @@ func TestParseYieldMinted(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "yield_minted" {
 		t.Fatal("expected yield_minted event")
 	}
@@ -227,7 +227,7 @@ func TestParseBurnedForWithdraw(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "burned_for_withdraw" {
 		t.Fatal("expected burned_for_withdraw event")
 	}
@@ -247,7 +247,7 @@ func TestParseBackingUpdated(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "backing_updated" {
 		t.Fatal("expected backing_updated event")
 	}
@@ -265,7 +265,7 @@ func TestParseMPCOracleSet(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "mpc_oracle_set" {
 		t.Fatal("expected mpc_oracle_set event")
 	}
@@ -283,7 +283,7 @@ func TestParseStrategyAllocated(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "strategy_allocated" {
 		t.Fatal("expected strategy_allocated event")
 	}
@@ -303,7 +303,7 @@ func TestParseYieldHarvested(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "yield_harvested" {
 		t.Fatal("expected yield_harvested event")
 	}
@@ -321,7 +321,7 @@ func TestParseStrategyAdded(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "strategy_added" {
 		t.Fatal("expected strategy_added event")
 	}
@@ -338,7 +338,7 @@ func TestParseStrategyRemoved(t *testing.T) {
 		Data:   "0x",
 	}}
 
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 1 || events[0].Event != "strategy_removed" {
 		t.Fatal("expected strategy_removed event")
 	}
@@ -348,7 +348,7 @@ func TestParseStrategyRemoved(t *testing.T) {
 }
 
 func TestLiquidProtocolEmptyLogs(t *testing.T) {
-	events := ParseLiquidProtocolEvents(nil)
+	events := ParseTeleportEvents(nil)
 	if events != nil {
 		t.Error("expected nil for nil input")
 	}
@@ -359,7 +359,7 @@ func TestLiquidProtocolInsufficientTopics(t *testing.T) {
 		Topics: []string{TopicLiquidFeesReceived}, // needs 3 topics
 		Data:   "0x",
 	}}
-	events := ParseLiquidProtocolEvents(logs)
+	events := ParseTeleportEvents(logs)
 	if len(events) != 0 {
 		t.Error("expected 0 events for insufficient topics")
 	}
