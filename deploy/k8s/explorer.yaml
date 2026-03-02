@@ -25,7 +25,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: explorer
-          image: ghcr.io/luxfi/indexer:main
+          image: ghcr.io/luxfi/explorer:main
           args:
             - --config=/etc/explorer/chains.yaml
           ports:
