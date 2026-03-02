@@ -1,41 +1,77 @@
-# Build stage - use BUILDPLATFORM to run Go natively on host (avoids QEMU segfaults)
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
-ARG TARGETOS TARGETARCH
+# Single-image explorer: Go binary + embedded Next.js static export
+#
+# Build:
+#   docker build -f Dockerfile.explorer -t ghcr.io/luxfi/explorer .
+#
+# Run:
+#   docker run -p 8090:8090 -v explorer-data:/data \
+#     -e RPC_ENDPOINT=http://node:9650/ext/bc/C/rpc \
+#     ghcr.io/luxfi/explorer
+#
+# Multi-chain:
+#   docker run -p 8090:8090 -v explorer-data:/data \
+#     -v ./chains.yaml:/etc/explorer/chains.yaml \
+#     ghcr.io/luxfi/explorer --config=/etc/explorer/chains.yaml
 
-RUN apk add --no-cache git ca-certificates
+ARG GO_VERSION=1.26
+ARG NODE_VERSION=22
+ARG FRONTEND_REPO=https://github.com/luxfi/explore.git
+ARG FRONTEND_REF=main
 
+# ---- Stage 1: Build frontend ----
+FROM node:${NODE_VERSION}-alpine AS frontend
+ARG FRONTEND_REPO
+ARG FRONTEND_REF
+
+RUN apk add --no-cache git
 WORKDIR /app
+RUN git clone --depth=1 --branch=${FRONTEND_REF} ${FRONTEND_REPO} .
+RUN corepack enable && pnpm install --frozen-lockfile
 
-# Copy go mod files first for caching
+# Force static export mode
+RUN sed -i "s/output: 'standalone'/output: 'export'/" next.config.js
+
+# Build with default env (override at runtime via NEXT_PUBLIC_* at deploy)
+ENV NEXT_PUBLIC_API_BASE_PATH=/v1/explorer
+RUN pnpm build
+
+# ---- Stage 2: Build Go binary ----
+FROM golang:${GO_VERSION}-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev
+
+ARG VERSION=dev
+WORKDIR /src
+
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source
 COPY . .
 
-# Build with version info - cross-compile via GOOS/GOARCH
-ARG VERSION=dev
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -tags postgres -ldflags "-X main.version=${VERSION}" -o /indexer ./cmd/indexer
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -tags postgres -ldflags "-X main.version=${VERSION}" -o /evmchains ./cmd/evmchains
+# Embed frontend static export
+COPY --from=frontend /app/out /src/cmd/explorer/static
 
-# Runtime stage
-FROM --platform=linux/amd64 alpine:3.19
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -ldflags="-s -w -X main.version=${VERSION}" \
+    -o /explorer ./cmd/explorer/
 
-RUN apk add --no-cache ca-certificates tzdata
+# ---- Stage 3: Runtime ----
+FROM alpine:3.21
 
-WORKDIR /app
+RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /indexer /usr/local/bin/indexer
-COPY --from=builder /evmchains /usr/local/bin/evmchains
-COPY configs/ /app/configs/
+COPY --from=builder /explorer /usr/local/bin/explorer
 
-# Default environment
-ENV RPC_ENDPOINT=""
-ENV DATABASE_URL=""
-ENV HTTP_PORT="4200"
-ENV POLL_INTERVAL="30s"
+RUN adduser -D -u 65532 explorer
+USER explorer
 
-EXPOSE 4000 4100 4200 4300 4400 4500 4600 4700 5000 5100 5200 5300 9000
+VOLUME /data
+ENV DATA_DIR=/data
+ENV HTTP_ADDR=:8090
 
-ENTRYPOINT ["indexer"]
-CMD ["--help"]
+EXPOSE 8090
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD wget -qO- http://localhost:8090/health || exit 1
+
+ENTRYPOINT ["explorer"]
