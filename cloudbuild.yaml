@@ -1,0 +1,10 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-docker.pkg.dev/liquidity-chains/backend/explorer-backend:${_TAG}', '.']
+images:
+  - 'us-docker.pkg.dev/liquidity-chains/backend/explorer-backend:${_TAG}'
+substitutions:
+  _TAG: dev
+options:
+  machineType: E2_HIGHCPU_8
+timeout: 600s

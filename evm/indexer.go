@@ -313,10 +313,51 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		return fmt.Errorf("store block: %w", err)
 	}
 
+	// Index transactions: fetch receipts for each tx hash
+	for i, txHash := range block.Transactions {
+		tx, _, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
+		if err != nil {
+			continue // skip failed receipt fetches
+		}
+		if tx == nil {
+			continue
+		}
+		status := 0
+		if tx.Status != nil {
+			status = *tx.Status
+		}
+		txQ := idx.upsertTxSQL()
+		txArgs := []interface{}{
+			tx.Hash, tx.BlockHash, int64(block.Number), i,
+			tx.From, tx.To, tx.Value,
+			int64(tx.Gas), tx.GasPrice, int64(tx.GasUsed),
+			int64(tx.Nonce), tx.Input, status, tx.ContractAddress,
+			block.Timestamp, time.Now(),
+		}
+		if err := idx.store.Exec(ctx, txQ, txArgs...); err != nil {
+			continue
+		}
+	}
+
 	// Broadcast new block
 	idx.subscriber.BroadcastBlock(block)
 
 	return nil
+}
+
+// upsertTxSQL returns the correct upsert SQL for transactions
+func (idx *Indexer) upsertTxSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_transactions (hash, block_hash, block_number, tx_index,
+			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			ON CONFLICT (hash) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_transactions (hash, block_hash, block_number, tx_index,
+			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	}
 }
 
 // upsertBlockSQL returns the correct upsert SQL for the backend
