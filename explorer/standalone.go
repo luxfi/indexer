@@ -49,8 +49,26 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	return s, nil
 }
 
-func (s *StandaloneServer) Handler() http.Handler { return s.mux }
-func (s *StandaloneServer) Close()                { s.db.Close() }
+// Handler returns the http.Handler with CORS and trailing-slash normalization.
+func (s *StandaloneServer) Handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORS preflight
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// Normalize trailing slashes: /v1/explorer/blocks/ → /v1/explorer/blocks
+		if len(r.URL.Path) > 1 && r.URL.Path[len(r.URL.Path)-1] == '/' {
+			r.URL.Path = r.URL.Path[:len(r.URL.Path)-1]
+		}
+		s.mux.ServeHTTP(w, r)
+	})
+}
+func (s *StandaloneServer) Close() { s.db.Close() }
 
 func (s *StandaloneServer) detectTables() {
 	var c int
