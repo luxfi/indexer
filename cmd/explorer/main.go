@@ -15,7 +15,7 @@
 //
 //	{data_dir}/
 //	├── cchain/query/indexer.db     ← C-Chain SQLite
-//	├── zoo/query/indexer.db        ← Zoo subnet SQLite
+//	├── zoo/query/indexer.db        ← Zoo chain SQLite
 //	├── ethereum/query/indexer.db   ← Ethereum SQLite
 //	├── solana/query/indexer.db     ← Solana SQLite
 //	└── ...                         ← one per chain, isolated
