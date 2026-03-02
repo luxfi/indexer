@@ -162,15 +162,21 @@ func printChainList(config *multichain.Config) {
 		multichain.ChainTypeTron:      "Tron",
 		multichain.ChainTypeTon:       "TON",
 		multichain.ChainTypeSubstrate: "Substrate (Polkadot)",
-		// Lux Native Chains
-		multichain.ChainTypeLuxAI:        "Lux A-Chain (AI/Oracle)",
-		multichain.ChainTypeLuxBridge:    "Lux B-Chain (Bridge)",
-		multichain.ChainTypeLuxThreshold: "Lux T-Chain (Threshold)",
-		multichain.ChainTypeLuxZK:        "Lux Z-Chain (ZK)",
-		multichain.ChainTypeLuxGraph:     "Lux G-Chain (Graph)",
-		multichain.ChainTypeLuxIdentity:  "Lux I-Chain (Identity)",
-		multichain.ChainTypeLuxKey:       "Lux K-Chain (Key)",
-		multichain.ChainTypeLuxDEX:       "Lux D-Chain (DEX)",
+		// Purpose-built native chains
+		multichain.ChainTypePlatform:  "P-Chain (Platform)",
+		multichain.ChainTypeUTXO:      "X-Chain (UTXO)",
+		multichain.ChainTypeAI:        "A-Chain (AI)",
+		multichain.ChainTypeBridge:    "B-Chain (Bridge)",
+		multichain.ChainTypeDEX:       "D-Chain (DEX)",
+		multichain.ChainTypeGraph:     "G-Chain (Graph)",
+		multichain.ChainTypeIdentity:  "I-Chain (Identity)",
+		multichain.ChainTypeKey:       "K-Chain (Key)",
+		multichain.ChainTypeMPC:       "M-Chain (MPC)",
+		multichain.ChainTypeOracle:    "O-Chain (Oracle)",
+		multichain.ChainTypeQuantum:   "Q-Chain (Quantum)",
+		multichain.ChainTypeRelay:     "R-Chain (Relay)",
+		multichain.ChainTypeThreshold: "T-Chain (Threshold)",
+		multichain.ChainTypeZK:        "Z-Chain (ZK)",
 	}
 
 	for chainType, name := range typeNames {

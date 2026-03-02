@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -152,7 +153,7 @@ func (b *BlobIndexer) ProcessBlock(ctx context.Context, blockNumber uint64) erro
 	excessBlobGas := hexToUint64(block.ExcessBlobGas)
 
 	var blobTxCount, totalBlobs int
-	blobGasPrice := b.calculateBlobGasPrice(excessBlobGas)
+	fallbackBlobGasPrice := fakeExponential(excessBlobGas)
 
 	// Process blob transactions
 	for _, tx := range block.Transactions {
@@ -164,6 +165,12 @@ func (b *BlobIndexer) ProcessBlock(ctx context.Context, blockNumber uint64) erro
 		blobTxCount++
 		blobCount := len(tx.BlobVersionedHashes)
 		totalBlobs += blobCount
+
+		// Read blobGasPrice from receipt (available since Dencun); fall back to calculation
+		blobGasPrice := b.receiptBlobGasPrice(ctx, tx.Hash)
+		if blobGasPrice == "" {
+			blobGasPrice = fallbackBlobGasPrice
+		}
 
 		blobTx := BlobTransaction{
 			Hash:                tx.Hash,
@@ -239,33 +246,49 @@ func (b *BlobIndexer) ProcessBlock(ctx context.Context, blockNumber uint64) erro
 	return nil
 }
 
-// calculateBlobGasPrice calculates the blob gas price using EIP-4844 formula
-func (b *BlobIndexer) calculateBlobGasPrice(excessBlobGas uint64) string {
-	// Base fee calculation using exponential formula
-	// blob_base_fee = MIN_BLOB_BASE_FEE * e^(excess_blob_gas / BLOB_BASE_FEE_UPDATE_FRACTION)
-	// Simplified: we use the excess blob gas directly for now
-	// Real calculation would use big integer exponential
+// receiptBlobGasPrice fetches the blobGasPrice field from a transaction receipt.
+// Returns "" if the field is absent or the RPC call fails.
+func (b *BlobIndexer) receiptBlobGasPrice(ctx context.Context, txHash string) string {
+	result, err := b.adapter.call(ctx, "eth_getTransactionReceipt", []interface{}{txHash})
+	if err != nil {
+		return ""
+	}
+	var receipt struct {
+		BlobGasPrice string `json:"blobGasPrice"`
+	}
+	if err := json.Unmarshal(result, &receipt); err != nil || receipt.BlobGasPrice == "" {
+		return ""
+	}
+	return hexToBigInt(receipt.BlobGasPrice).String()
+}
 
-	minBlobBaseFee := uint64(1)       // 1 wei minimum
-	updateFraction := uint64(3338477) // BLOB_BASE_FEE_UPDATE_FRACTION
+// fakeExponential implements the EIP-4844 fake_exponential(factor, numerator, denominator)
+// using big.Int series: sum_{i=0..} factor * numerator^i / (denominator^i * i!)
+// with factor=1 (MIN_BLOB_BASE_FEE), numerator=excessBlobGas, denominator=3338477.
+func fakeExponential(excessBlobGas uint64) string {
+	factor := big.NewInt(1)
+	denom := big.NewInt(3338477) // BLOB_BASE_FEE_UPDATE_FRACTION
+	num := new(big.Int).SetUint64(excessBlobGas)
 
 	if excessBlobGas == 0 {
-		return fmt.Sprintf("%d", minBlobBaseFee)
+		return factor.String()
 	}
 
-	// Simplified calculation
-	// In production, use proper exponential calculation
-	multiplier := excessBlobGas / updateFraction
-	if multiplier > 20 {
-		multiplier = 20 // Cap to prevent overflow
+	output := new(big.Int).Set(factor)
+	term := new(big.Int).Set(factor)
+	for i := int64(1); ; i++ {
+		term.Mul(term, num)
+		di := new(big.Int).Mul(denom, big.NewInt(i))
+		term.Div(term, di)
+		if term.Sign() == 0 {
+			break
+		}
+		output.Add(output, term)
 	}
-
-	price := minBlobBaseFee
-	for i := uint64(0); i < multiplier; i++ {
-		price = price * 112 / 100 // ~e^(1/8) approximation
+	if output.Sign() <= 0 {
+		return "1"
 	}
-
-	return fmt.Sprintf("%d", price)
+	return output.String()
 }
 
 // StoreBlobTransaction stores a blob transaction
@@ -328,8 +351,6 @@ func (b *BlobIndexer) storeBlockBlobGas(ctx context.Context, blockGas struct {
 
 // fetchBlobFromBeacon fetches blob data from the beacon node
 func (b *BlobIndexer) fetchBlobFromBeacon(ctx context.Context, versionedHash string, blockNumber uint64) (commitment, proof, data string) {
-	// This would call the beacon node's /eth/v1/beacon/blob_sidecars/{slot} endpoint
-	// For now, return empty - would be implemented based on beacon node availability
 	return "", "", ""
 }
 
@@ -514,7 +535,6 @@ func (b *BlobIndexer) GetBlockBlobGas(ctx context.Context, blockNumber uint64) (
 
 // PruneOldBlobs removes blob data older than retention period
 func (b *BlobIndexer) PruneOldBlobs(ctx context.Context, retentionDays int) (int64, error) {
-	// Mark blobs as pruned and remove data
 	result, err := b.db.ExecContext(ctx, `
 		UPDATE blob_data
 		SET data = NULL, is_pruned = TRUE

@@ -3,7 +3,7 @@
 
 // Package evm provides a unified EVM indexer for all Lux EVM chains.
 // Indexes blocks, transactions, addresses, tokens, smart contracts, and more.
-// Designed to be a complete Go-native replacement for Blockscout.
+// Indexes blocks, transactions, addresses, tokens, smart contracts, and more.
 //
 // Supported chains:
 //   - Lux C-Chain (mainnet: 96369, testnet: 96368)
@@ -13,7 +13,6 @@
 package evm
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/luxfi/indexer/chain"
+	"github.com/luxfi/indexer/evm/transport"
 	"github.com/luxfi/indexer/storage"
 )
 
@@ -54,7 +54,7 @@ type Transaction struct {
 	Input            string    `json:"input"`
 	TransactionIndex uint64    `json:"transactionIndex"`
 	Type             uint8     `json:"type"`
-	Status           uint8     `json:"status"` // 1 = success, 0 = fail
+	Status           *int      `json:"status"` // nil = pending, 1 = success, 0 = fail
 	ContractAddress  string    `json:"contractAddress,omitempty"`
 	Timestamp        time.Time `json:"timestamp"`
 }
@@ -171,6 +171,14 @@ var (
 	TopicTransferSingle = "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62"
 	// ERC1155 TransferBatch(address,address,address,uint256[],uint256[])
 	TopicTransferBatch = "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb"
+	// ERC-404 ERC20Transfer(address,address,uint256)
+	TopicERC404ERC20Transfer = "0xe59fdd36d0d223c0c7d996db7ad796571571382a6e90d1a1bcc1b3d98f725407"
+	// ERC-404 ERC721Transfer
+	TopicERC404ERC721Transfer = "0xe5f815dc84b8cecdfd4a3a44d5ebb970e4a227bada3008d09589bdb082a5551f"
+	// WETH Deposit(address indexed dst, uint256 wad)
+	TopicWETHDeposit = "0xe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c"
+	// WETH Withdrawal(address indexed src, uint256 wad)
+	TopicWETHWithdrawal = "0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65"
 )
 
 // TracerType specifies which tracer to use
@@ -179,7 +187,7 @@ type TracerType string
 const (
 	// TracerCallTracer uses geth's built-in callTracer (recommended)
 	TracerCallTracer TracerType = "callTracer"
-	// TracerJS uses custom JavaScript tracer for Blockscout compatibility
+	// TracerJS uses custom JavaScript tracer for internal transaction tracing
 	TracerJS TracerType = "js"
 	// TracerParity uses trace_replayBlockTransactions (Parity/Nethermind)
 	TracerParity TracerType = "parity"
@@ -188,7 +196,8 @@ const (
 // Adapter implements the chain.Adapter interface for C-Chain
 type Adapter struct {
 	rpcEndpoint  string
-	httpClient   *http.Client
+	transport    transport.Transport
+	httpClient   *http.Client // kept for legacy callers; unused when transport is set
 	tracerType   TracerType
 	traceTimeout string // e.g. "120s"
 	prefix       string // table name prefix, e.g. "cchain", "zoo", "hanzo"
@@ -229,8 +238,17 @@ func WithPrefix(prefix string) AdapterOption {
 	}
 }
 
+// WithTransport sets an explicit transport (ZAP or HTTP).
+// If not set, the constructor auto-detects based on the endpoint URL.
+func WithTransport(t transport.Transport) AdapterOption {
+	return func(a *Adapter) {
+		a.transport = t
+	}
+}
+
 // New creates a new EVM chain adapter.
-// Defaults to "cchain" prefix for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
+// Auto-detects ZAP transport for luxd endpoints; falls back to HTTP.
 func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	a := &Adapter{
 		rpcEndpoint:  rpcEndpoint,
@@ -243,6 +261,10 @@ func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	}
 	for _, opt := range opts {
 		opt(a)
+	}
+	// Auto-detect transport if not explicitly set
+	if a.transport == nil {
+		a.transport = transport.New(rpcEndpoint)
 	}
 	return a
 }
@@ -361,7 +383,7 @@ func (a *Adapter) GetLatestBlock(ctx context.Context) (*EVMBlock, error) {
 // GetBlockByNumber fetches a specific block by number and returns a parsed EVMBlock
 func (a *Adapter) GetBlockByNumber(ctx context.Context, number uint64) (*EVMBlock, error) {
 	blockNum := fmt.Sprintf("0x%x", number)
-	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, false})
 	if err != nil {
 		return nil, err
 	}
@@ -460,8 +482,15 @@ func (a *Adapter) GetTransactionReceipt(ctx context.Context, txHash string) (*Tr
 		TransactionIndex: hexToUint64(receipt.TransactionIndex),
 		ContractAddress:  strings.ToLower(receipt.ContractAddress),
 	}
-	if receipt.Status == "0x1" {
-		tx.Status = 1
+	switch receipt.Status {
+	case "0x1":
+		v := 1
+		tx.Status = &v
+	case "0x0":
+		v := 0
+		tx.Status = &v
+	default:
+		// missing or empty = pending (nil)
 	}
 
 	var logs []Log
@@ -565,12 +594,15 @@ func flattenCallFrame(frame *CallFrame, txHash string, blockNumber uint64, times
 	}
 	copy(itx.TraceAddress, traceAddr)
 
-	// Handle create opcodes
+	// Handle create opcodes -- only set contract code if creation succeeded.
+	// A failed create (frame.Error set) produces no deployed code.
 	if callType == "create" || callType == "create2" {
-		itx.CreatedContractAddress = itx.To
-		itx.CreatedContractCode = frame.Output
 		itx.Init = frame.Input
 		itx.Output = ""
+		if frame.Error == "" {
+			itx.CreatedContractAddress = itx.To
+			itx.CreatedContractCode = frame.Output
+		}
 	}
 
 	*traces = append(*traces, itx)
@@ -586,7 +618,7 @@ func flattenCallFrame(frame *CallFrame, txHash string, blockNumber uint64, times
 	return *traces
 }
 
-// normalizeCallType normalizes call type from geth to Blockscout format
+// normalizeCallType normalizes call type from geth to standard explorer format
 func normalizeCallType(t string) string {
 	switch strings.ToLower(t) {
 	case "call":
@@ -616,9 +648,9 @@ func normalizeValue(v string) string {
 	return v
 }
 
-// traceTransactionJS uses custom JavaScript tracer (Blockscout compatible)
+// traceTransactionJS uses custom JavaScript tracer for internal transaction tracing
 func (a *Adapter) traceTransactionJS(ctx context.Context, txHash string, blockNumber uint64, timestamp time.Time, timeout string) ([]InternalTransaction, error) {
-	// JavaScript tracer that mimics Blockscout's tracer.js
+	// Standard JavaScript tracer for internal call tracing
 	tracer := `{
 		callStack: [{}],
 		descended: false,
@@ -1227,51 +1259,13 @@ func (a *Adapter) GetBalanceAtBlock(ctx context.Context, address string, blockNu
 	return hexToBigInt(balanceHex), nil
 }
 
-// call makes a JSON-RPC call to the C-Chain node
+// call makes an RPC call to the EVM node via the configured transport (ZAP or HTTP).
 func (a *Adapter) call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"jsonrpc": "2.0",
-		"method":  method,
-		"params":  params,
-		"id":      1,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+	// Convert params to []any for the transport interface
+	if p, ok := params.([]interface{}); ok {
+		return a.transport.Call(ctx, method, p...)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", a.rpcEndpoint, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http status %d from %s", resp.StatusCode, a.rpcEndpoint)
-	}
-
-	var result struct {
-		Result json.RawMessage `json:"result"`
-		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	if result.Error != nil {
-		return nil, fmt.Errorf("rpc error %d: %s", result.Error.Code, result.Error.Message)
-	}
-
-	return result.Result, nil
+	return a.transport.Call(ctx, method, params)
 }
 
 // InitSchema creates chain-specific database tables using unified storage
@@ -1920,7 +1914,7 @@ func parseTokenTransfers(log Log, timestamp time.Time) []TokenTransfer {
 
 	switch topic0 {
 	case TopicTransferERC20:
-		// ERC20/ERC721 Transfer
+		// ERC20/ERC721 Transfer(address,address,uint256)
 		if len(log.Topics) >= 3 {
 			from := topicToAddress(log.Topics[1])
 			to := topicToAddress(log.Topics[2])
@@ -1929,7 +1923,7 @@ func parseTokenTransfers(log Log, timestamp time.Time) []TokenTransfer {
 			tokenType := "ERC20"
 
 			if len(log.Topics) == 4 {
-				// ERC721: indexed tokenId
+				// ERC721: indexed tokenId in topic[3]
 				tokenType = "ERC721"
 				tokenID = log.Topics[3]
 				value = "1"
@@ -1951,15 +1945,89 @@ func parseTokenTransfers(log Log, timestamp time.Time) []TokenTransfer {
 				TokenID:      tokenID,
 				Timestamp:    timestamp,
 			})
+		} else if len(log.Topics) == 1 {
+			// Non-standard ERC-721: all params in data (from, to, tokenId) = 3 x 32 bytes
+			data := strings.TrimPrefix(log.Data, "0x")
+			if len(data) == 192 {
+				from := topicToAddress("0x" + data[:64])
+				to := topicToAddress("0x" + data[64:128])
+				tokenID := hexToBigInt("0x" + data[128:192]).String()
+
+				transfers = append(transfers, TokenTransfer{
+					ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+					TxHash:       log.TxHash,
+					LogIndex:     log.LogIndex,
+					BlockNumber:  log.BlockNumber,
+					TokenAddress: log.Address,
+					TokenType:    "ERC721",
+					From:         from,
+					To:           to,
+					Value:        "1",
+					TokenID:      tokenID,
+					Timestamp:    timestamp,
+				})
+			}
 		}
 
 	case TopicTransferSingle:
-		// ERC1155 TransferSingle
-		if len(log.Topics) >= 4 && len(log.Data) >= 64 {
+		// ERC1155 TransferSingle(address operator, address from, address to, uint256 id, uint256 value)
+		if len(log.Topics) >= 4 {
+			data := strings.TrimPrefix(log.Data, "0x")
+			if len(data) >= 128 {
+				from := topicToAddress(log.Topics[2])
+				to := topicToAddress(log.Topics[3])
+				tokenID := hexToBigInt("0x" + data[:64]).String()
+				value := hexToBigInt("0x" + data[64:128]).String()
+
+				transfers = append(transfers, TokenTransfer{
+					ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+					TxHash:       log.TxHash,
+					LogIndex:     log.LogIndex,
+					BlockNumber:  log.BlockNumber,
+					TokenAddress: log.Address,
+					TokenType:    "ERC1155",
+					From:         from,
+					To:           to,
+					Value:        value,
+					TokenID:      tokenID,
+					Timestamp:    timestamp,
+				})
+			}
+		}
+
+	case TopicTransferBatch:
+		// ERC1155 TransferBatch(address operator, address from, address to, uint256[] ids, uint256[] values)
+		if len(log.Topics) >= 4 {
 			from := topicToAddress(log.Topics[2])
 			to := topicToAddress(log.Topics[3])
-			tokenID := hexToBigInt(log.Data[:66]).String()
-			value := hexToBigInt("0x" + log.Data[66:]).String()
+			ids, values := decodeBatchData(log.Data)
+			for i := range ids {
+				val := "0"
+				if i < len(values) {
+					val = values[i]
+				}
+				transfers = append(transfers, TokenTransfer{
+					ID:           fmt.Sprintf("%s-%d-%d", log.TxHash, log.LogIndex, i),
+					TxHash:       log.TxHash,
+					LogIndex:     log.LogIndex,
+					BlockNumber:  log.BlockNumber,
+					TokenAddress: log.Address,
+					TokenType:    "ERC1155",
+					From:         from,
+					To:           to,
+					Value:        val,
+					TokenID:      ids[i],
+					Timestamp:    timestamp,
+				})
+			}
+		}
+
+	case TopicERC404ERC20Transfer:
+		// ERC-404 ERC20Transfer(address,address,uint256)
+		if len(log.Topics) >= 3 {
+			from := topicToAddress(log.Topics[1])
+			to := topicToAddress(log.Topics[2])
+			value := hexToBigInt(log.Data).String()
 
 			transfers = append(transfers, TokenTransfer{
 				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
@@ -1967,17 +2035,112 @@ func parseTokenTransfers(log Log, timestamp time.Time) []TokenTransfer {
 				LogIndex:     log.LogIndex,
 				BlockNumber:  log.BlockNumber,
 				TokenAddress: log.Address,
-				TokenType:    "ERC1155",
+				TokenType:    "ERC20",
 				From:         from,
 				To:           to,
 				Value:        value,
+				Timestamp:    timestamp,
+			})
+		}
+
+	case TopicERC404ERC721Transfer:
+		// ERC-404 ERC721Transfer — from/to indexed, tokenId in data
+		if len(log.Topics) >= 3 {
+			from := topicToAddress(log.Topics[1])
+			to := topicToAddress(log.Topics[2])
+			tokenID := hexToBigInt(log.Data).String()
+
+			transfers = append(transfers, TokenTransfer{
+				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+				TxHash:       log.TxHash,
+				LogIndex:     log.LogIndex,
+				BlockNumber:  log.BlockNumber,
+				TokenAddress: log.Address,
+				TokenType:    "ERC721",
+				From:         from,
+				To:           to,
+				Value:        "1",
 				TokenID:      tokenID,
+				Timestamp:    timestamp,
+			})
+		}
+
+	case TopicWETHDeposit:
+		// Deposit(address indexed dst, uint256 wad)
+		if len(log.Topics) >= 2 {
+			to := topicToAddress(log.Topics[1])
+			value := hexToBigInt(log.Data).String()
+
+			transfers = append(transfers, TokenTransfer{
+				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+				TxHash:       log.TxHash,
+				LogIndex:     log.LogIndex,
+				BlockNumber:  log.BlockNumber,
+				TokenAddress: log.Address,
+				TokenType:    "ERC20",
+				From:         "0x0000000000000000000000000000000000000000",
+				To:           to,
+				Value:        value,
+				Timestamp:    timestamp,
+			})
+		}
+
+	case TopicWETHWithdrawal:
+		// Withdrawal(address indexed src, uint256 wad)
+		if len(log.Topics) >= 2 {
+			from := topicToAddress(log.Topics[1])
+			value := hexToBigInt(log.Data).String()
+
+			transfers = append(transfers, TokenTransfer{
+				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+				TxHash:       log.TxHash,
+				LogIndex:     log.LogIndex,
+				BlockNumber:  log.BlockNumber,
+				TokenAddress: log.Address,
+				TokenType:    "ERC20",
+				From:         from,
+				To:           "0x0000000000000000000000000000000000000000",
+				Value:        value,
 				Timestamp:    timestamp,
 			})
 		}
 	}
 
 	return transfers
+}
+
+// decodeBatchData ABI-decodes (uint256[], uint256[]) from hex log data.
+func decodeBatchData(data string) (ids []string, values []string) {
+	d := strings.TrimPrefix(data, "0x")
+	if len(d) < 256 {
+		return nil, nil
+	}
+	idsOffsetBytes := hexToUint64("0x" + d[:64])
+	valsOffsetBytes := hexToUint64("0x" + d[64:128])
+	idsOffset := idsOffsetBytes * 2
+	valsOffset := valsOffsetBytes * 2
+
+	ids = decodeUint256Array(d, idsOffset)
+	values = decodeUint256Array(d, valsOffset)
+	return ids, values
+}
+
+// decodeUint256Array reads an ABI-encoded uint256[] at the given hex-char offset.
+func decodeUint256Array(data string, offset uint64) []string {
+	if offset+64 > uint64(len(data)) {
+		return nil
+	}
+	count := hexToUint64("0x" + data[offset:offset+64])
+	start := offset + 64
+	result := make([]string, 0, count)
+	for i := uint64(0); i < count; i++ {
+		pos := start + i*64
+		if pos+64 > uint64(len(data)) {
+			break
+		}
+		result = append(result, hexToBigInt("0x"+data[pos:pos+64]).String())
+	}
+	return result
 }
 
 // Helper functions

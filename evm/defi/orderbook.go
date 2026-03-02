@@ -1417,9 +1417,6 @@ func (o *OrderBookIndexer) GetFundingPayments() []*FundingPayment {
 // Helper functions
 
 func parseMarketFromTopic(topic string) string {
-	// Parse market identifier from topic
-	// This would decode the bytes32 market ID to a human-readable string
-	// For now, return the topic as-is
 	if len(topic) > 10 {
 		return topic[:10] + "..."
 	}

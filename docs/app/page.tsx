@@ -10,7 +10,7 @@ export default function HomePage() {
           </h1>
           <p className="max-w-2xl text-lg text-muted-foreground">
             Unified blockchain indexer for all Lux Network chains.
-            Complete Blockscout replacement with full API compatibility.
+            Single-binary explorer with full API compatibility.
           </p>
         </div>
         <div className="flex gap-4">

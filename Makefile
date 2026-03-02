@@ -1,14 +1,14 @@
-.PHONY: build build-all test test-coverage clean docker lint
+.PHONY: build build-indexer test test-coverage clean docker lint
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 # Build targets
 build:
-	go build $(LDFLAGS) -o bin/indexer ./cmd/indexer
+	go build $(LDFLAGS) -o bin/explorer ./cmd/explorer
 
-build-all: build
-	@echo "Built lux-indexer $(VERSION)"
+build-indexer:
+	go build $(LDFLAGS) -o bin/indexer ./cmd/indexer
 
 # Test targets
 test:
@@ -22,14 +22,10 @@ test-coverage:
 test-integration:
 	go test -v -tags=integration ./test/...
 
-# Docker targets
+# Docker — single binary with embedded frontend
 docker:
-	docker build -t luxfi/indexer:$(VERSION) .
-	docker tag luxfi/indexer:$(VERSION) luxfi/indexer:latest
-
-docker-push: docker
-	docker push luxfi/indexer:$(VERSION)
-	docker push luxfi/indexer:latest
+	docker build -f Dockerfile.explorer -t ghcr.io/luxfi/explorer:$(VERSION) .
+	docker tag ghcr.io/luxfi/explorer:$(VERSION) ghcr.io/luxfi/explorer:latest
 
 # Code quality
 lint:
@@ -42,14 +38,11 @@ vet:
 	go vet ./...
 
 # Development
-dev-xchain:
-	go run ./cmd/indexer -chain xchain -rpc http://localhost:9630/ext/bc/X -db "postgres://blockscout:blockscout@localhost:5432/explorer_xchain" -port 4200
+dev:
+	go run ./cmd/explorer --rpc=http://localhost:9630/ext/bc/C/rpc --chain-name="C-Chain" --coin=LUX --chain-id=96369
 
-dev-pchain:
-	go run ./cmd/indexer -chain pchain -rpc http://localhost:9630/ext/bc/P -db "postgres://blockscout:blockscout@localhost:5432/explorer_pchain" -port 4100
-
-dev-zchain:
-	go run ./cmd/indexer -chain zchain -rpc http://localhost:9630/ext/bc/Z -db "postgres://blockscout:blockscout@localhost:5432/explorer_zchain" -port 4400
+dev-config:
+	go run ./cmd/explorer --config=chains.example.yaml
 
 # Clean
 clean:

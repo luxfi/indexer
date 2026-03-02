@@ -218,23 +218,36 @@ func parseChainType(s string) ChainType {
 		return ChainTypeICP
 	case "multiversx":
 		return ChainTypeMultiversX
-	// Lux Native Chains
-	case "lux_ai", "aivm", "achain", "a-chain":
-		return ChainTypeLuxAI
-	case "lux_bridge", "bridgevm", "bchain", "b-chain":
-		return ChainTypeLuxBridge
-	case "lux_threshold", "thresholdvm", "tchain", "t-chain":
-		return ChainTypeLuxThreshold
-	case "lux_zk", "zkvm", "zchain", "z-chain":
-		return ChainTypeLuxZK
-	case "lux_graph", "graphvm", "gchain", "g-chain":
-		return ChainTypeLuxGraph
-	case "lux_identity", "identityvm", "ichain", "i-chain":
-		return ChainTypeLuxIdentity
-	case "lux_key", "keyvm", "kchain", "k-chain":
-		return ChainTypeLuxKey
-	case "lux_dex", "dexvm", "dchain", "d-chain":
-		return ChainTypeLuxDEX
+	// Purpose-built native chains — legacy "lux_*" aliases preserved for
+	// backwards compatibility with existing yaml configs.
+	case "platform", "platformvm", "pchain", "p-chain", "lux_platform":
+		return ChainTypePlatform
+	case "utxo", "xvm", "xchain", "x-chain", "lux_xvm":
+		return ChainTypeUTXO
+	case "ai", "aivm", "achain", "a-chain", "lux_ai":
+		return ChainTypeAI
+	case "bridge", "bridgevm", "bchain", "b-chain", "lux_bridge":
+		return ChainTypeBridge
+	case "dex", "dexvm", "dchain", "d-chain", "lux_dex":
+		return ChainTypeDEX
+	case "graph", "graphvm", "gchain", "g-chain", "lux_graph":
+		return ChainTypeGraph
+	case "identity", "identityvm", "ichain", "i-chain", "lux_identity":
+		return ChainTypeIdentity
+	case "key", "keyvm", "kchain", "k-chain", "lux_key":
+		return ChainTypeKey
+	case "mpc", "mpcvm", "mchain", "m-chain", "lux_mpc":
+		return ChainTypeMPC
+	case "oracle", "oraclevm", "ochain", "o-chain", "lux_oracle":
+		return ChainTypeOracle
+	case "quantum", "quantumvm", "qchain", "q-chain", "lux_quantum":
+		return ChainTypeQuantum
+	case "relay", "relayvm", "rchain", "r-chain", "lux_relay":
+		return ChainTypeRelay
+	case "threshold", "thresholdvm", "tchain", "t-chain", "lux_threshold":
+		return ChainTypeThreshold
+	case "zk", "zkvm", "zchain", "z-chain", "lux_zk":
+		return ChainTypeZK
 	default:
 		return ChainTypeEVM
 	}

@@ -1,6 +1,6 @@
 # Lux EVM Chains Indexer Configuration
 # Runs all 5 Lux mainnet EVM chains in a single process.
-# Each chain gets its own Blockscout-compatible API on a dedicated port.
+# Each chain gets its own explorer API on a dedicated port.
 # All chains share one PostgreSQL database with table prefixes.
 
 database_url: "${DATABASE_URL:-postgres://indexer:indexer-lux-2026@indexer-postgres.lux-explorer.svc:5432/indexer?sslmode=disable}"

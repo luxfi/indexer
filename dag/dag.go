@@ -38,7 +38,7 @@ type Config struct {
 	ChainType    ChainType
 	ChainName    string
 	RPCEndpoint  string
-	RPCMethod    string // xvm, avm, bvm, qvm, tvm
+	RPCMethod    string // xvm, bvm, qvm, tvm
 	HTTPPort     int
 	PollInterval time.Duration
 	DataDir      string // For default storage, defaults to ~/.lux/indexer/<chain>
@@ -47,16 +47,17 @@ type Config struct {
 // Vertex represents a DAG vertex (from luxfi/consensus)
 // Multiple parents allowed (DAG structure)
 type Vertex struct {
-	ID        string                 `json:"id"`
-	Type      string                 `json:"type"`
-	ParentIDs []string               `json:"parentIds"` // Multiple parents (DAG)
-	Height    uint64                 `json:"height"`
-	Epoch     uint32                 `json:"epoch,omitempty"`
-	TxIDs     []string               `json:"txIds,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
-	Status    Status                 `json:"status"`
-	Data      json.RawMessage        `json:"data,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	ParentIDs  []string               `json:"parentIds"` // Multiple parents (DAG)
+	Height     uint64                 `json:"height"`
+	Epoch      uint32                 `json:"epoch,omitempty"`
+	TxIDs      []string               `json:"txIds,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Status     Status                 `json:"status"`
+	Data       json.RawMessage        `json:"data,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	QuasarCert json.RawMessage        `json:"quasarCert,omitempty"` // Triple consensus cert (Q-Chain)
 }
 
 // Edge represents a DAG edge (parent relationship)
@@ -264,7 +265,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 
 	go idx.subscriber.Run(ctx)
-	log.Printf("[%s] WebSocket streaming at /api/v2/dag/subscribe", idx.config.ChainType)
+	log.Printf("[%s] WebSocket streaming at /v1/explorer/dag/subscribe", idx.config.ChainType)
 
 	go idx.poller.Run(ctx)
 	log.Printf("[%s] Poller started", idx.config.ChainType)
@@ -286,7 +287,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 func (idx *Indexer) startHTTP(ctx context.Context) {
 	r := mux.NewRouter()
-	api := r.PathPrefix("/api/v2").Subrouter()
+	api := r.PathPrefix("/v1/explorer").Subrouter()
 
 	api.HandleFunc("/stats", idx.handleStats).Methods("GET")
 	api.HandleFunc("/vertices", idx.handleVertices).Methods("GET")
@@ -437,6 +438,8 @@ type Subscriber struct {
 	unregister chan *websocket.Conn
 	mu         sync.RWMutex
 	upgrader   websocket.Upgrader
+	maxClients int
+	clientSem  chan struct{}
 }
 
 func NewSubscriber(ct ChainType) *Subscriber {
@@ -444,9 +447,11 @@ func NewSubscriber(ct ChainType) *Subscriber {
 		chainType:  ct,
 		clients:    make(map[*websocket.Conn]bool),
 		broadcast:  make(chan interface{}, 100),
-		register:   make(chan *websocket.Conn),
-		unregister: make(chan *websocket.Conn),
-		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		register:   make(chan *websocket.Conn, 16),
+		unregister: make(chan *websocket.Conn, 16),
+		upgrader:   websocket.Upgrader{HandshakeTimeout: 10 * time.Second},
+		maxClients: 1024,
+		clientSem:  make(chan struct{}, 1024),
 	}
 }
 
@@ -482,18 +487,38 @@ func (s *Subscriber) Run(ctx context.Context) {
 }
 
 func (s *Subscriber) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := s.upgrader.Upgrade(w, r, nil)
-	if err != nil {
+	select {
+	case s.clientSem <- struct{}{}:
+	default:
+		http.Error(w, `{"error":"too many connections"}`, http.StatusServiceUnavailable)
 		return
 	}
+
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		<-s.clientSem
+		return
+	}
+
+	conn.SetReadLimit(65536)
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	s.register <- conn
 	_ = conn.WriteJSON(map[string]interface{}{"type": "connected", "chain": s.chainType})
 	go func() {
-		defer func() { s.unregister <- conn }()
+		defer func() {
+			s.unregister <- conn
+			<-s.clientSem
+		}()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				break
 			}
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		}
 	}()
 }

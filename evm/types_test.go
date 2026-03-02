@@ -197,7 +197,7 @@ func TestBlobTransactionSerialization(t *testing.T) {
 }
 
 // TestWithdrawalSerialization tests Withdrawal JSON serialization
-func TestWithdrawalSerialization(t *testing.T) {
+func TestWithdrawalSerialization_Types(t *testing.T) {
 	w := Withdrawal{
 		Index:          100,
 		ValidatorIndex: 50,
