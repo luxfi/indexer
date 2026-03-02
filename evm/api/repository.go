@@ -29,7 +29,7 @@ type Repository struct {
 }
 
 // NewRepository creates a new repository with chain-specific table prefix.
-// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 func NewRepository(db *sql.DB, chainID int64, chainSlug ...string) *Repository {
 	prefix := "cchain"
 	if len(chainSlug) > 0 && chainSlug[0] != "" {
@@ -293,7 +293,8 @@ func (r *Repository) scanTransaction(rows *sql.Rows) (*Transaction, error) {
 	var value, gasPrice string
 	var blockNumber, gas, gasUsed, nonce uint64
 	var txIndex int
-	var txType, status uint8
+	var txType uint8
+	var status sql.NullInt64
 	var input string
 	var timestamp time.Time
 
@@ -313,7 +314,8 @@ func (r *Repository) scanTransactionRow(row *sql.Row) (*Transaction, error) {
 	var value, gasPrice string
 	var blockNumber, gas, gasUsed, nonce uint64
 	var txIndex int
-	var txType, status uint8
+	var txType uint8
+	var status sql.NullInt64
 	var input string
 	var timestamp time.Time
 
@@ -332,7 +334,7 @@ func (r *Repository) scanTransactionRow(row *sql.Row) (*Transaction, error) {
 
 func (r *Repository) buildTransaction(hash, blockHash string, blockNumber uint64, from string, to sql.NullString,
 	value string, gas uint64, gasPrice string, gasUsed uint64, nonce uint64, input string,
-	txIndex int, txType, status uint8, contractAddr sql.NullString, timestamp time.Time) (*Transaction, error) {
+	txIndex int, txType uint8, status sql.NullInt64, contractAddr sql.NullString, timestamp time.Time) (*Transaction, error) {
 
 	tx := &Transaction{
 		Hash:             hash,
@@ -359,7 +361,10 @@ func (r *Repository) buildTransaction(hash, blockHash string, blockNumber uint64
 		tx.CreatedContract = &Address{Hash: contractAddr.String, IsContract: true}
 	}
 
-	if status == 1 {
+	if !status.Valid {
+		tx.Status = "pending"
+		tx.Result = "pending"
+	} else if status.Int64 == 1 {
 		tx.Status = "ok"
 		tx.Result = "success"
 	} else {
@@ -928,7 +933,13 @@ func (r *Repository) GetInternalTransactions(ctx context.Context, txHash string,
 			Value:       value,
 			Gas:         gas,
 			GasUsed:     &gasUsed,
-			Success:     errMsg.String == "",
+		}
+
+		// Success is non-nil only for finalized (mined) transactions.
+		// Pending internal transactions have Success = nil (null in JSON).
+		if blockNumber > 0 {
+			s := errMsg.String == ""
+			itx.Success = &s
 		}
 
 		if to.Valid {
@@ -942,7 +953,8 @@ func (r *Repository) GetInternalTransactions(ctx context.Context, txHash string,
 		}
 		if errMsg.Valid && errMsg.String != "" {
 			itx.Error = errMsg.String
-			itx.Success = false
+			f := false
+			itx.Success = &f
 		}
 
 		itxs = append(itxs, itx)

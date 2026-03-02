@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package storage provides a pluggable storage interface for the LUX indexer.
-// Supported backends: PostgreSQL, MySQL, SQLite, MongoDB, BadgerDB, Dgraph
+// Supported backends: PostgreSQL, MySQL, SQLite, MongoDB, ZapDB, Dgraph
 package storage
 
 import (
@@ -30,7 +30,7 @@ type Config struct {
 	URL      string            // Connection URL (postgres://, mysql://, mongo://, etc.)
 	Database string            // Database name (for MongoDB)
 	Options  map[string]string // Backend-specific options
-	DataDir  string            // For file-based backends (BadgerDB, SQLite)
+	DataDir  string            // For file-based backends (ZapDB, SQLite)
 }
 
 // Store is the main storage interface for indexed data
@@ -183,7 +183,7 @@ var (
 )
 
 // New creates a new unified storage backend based on config
-// The unified storage uses a KV layer (BadgerDB) + Query layer (SQLite/PostgreSQL)
+// The unified storage uses a KV layer (ZapDB) + Query layer (SQLite/PostgreSQL)
 func New(cfg Config) (Store, error) {
 	// Determine data directory
 	dataDir := cfg.DataDir
@@ -224,7 +224,7 @@ func ParseBackend(s string) (Backend, error) {
 		return BackendSQLite, nil
 	case "mongo", "mongodb":
 		return BackendMongo, nil
-	case "badger", "badgerdb":
+	case "badger", "zapdb":
 		return BackendBadger, nil
 	case "dgraph":
 		return BackendDgraph, nil

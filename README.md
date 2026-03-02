@@ -1,318 +1,227 @@
-# LUX Indexer
+# Explorer
 
-Go-based indexers for LUX Network's native chains (DAG and linear). Works alongside Blockscout for C-Chain EVM.
-
-## Architecture
+Single-binary block explorer for EVM and multi-chain networks. Indexes, serves API, embeds frontend. Zero external dependencies.
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                     LUX Explorer Frontend                             │
-│                     Next.js (explore.lux.network)                     │
-└───────────────────────────────┬──────────────────────────────────────┘
-                                │
-          ┌─────────────────────┴─────────────────────┐
-          │                                           │
-          ▼                                           ▼
-┌─────────────────────┐               ┌───────────────────────────────┐
-│   Blockscout        │               │   LUX Indexer (this repo)     │
-│   (Elixir)          │               │   (Go)                        │
-│                     │               │                               │
-│   C-Chain (EVM)     │               │   DAG: X, A, B, Q, T, Z, K    │
-│   Port 4000         │               │   Linear: P, C                │
-│                     │               │   Ports 4000-4900             │
-└─────────┬───────────┘               └───────────────┬───────────────┘
-          │                                           │
-          └─────────────────────┬─────────────────────┘
-                                ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                         PostgreSQL                                    │
-│  explorer_cchain │ explorer_xchain │ explorer_pchain │ explorer_*    │
-└──────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                          LUX Node (luxd)                              │
-│                            Port 9630                                  │
-│  RPC: xvm.* │ pvm.* │ avm.* │ bvm.* │ qvm.* │ tvm.* │ zvm.* │ kvm.* │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-## Chain Types
-
-### DAG-based Chains (Vertex/Parent model)
-Uses `luxfi/consensus/engine/dag/vertex` - multiple parents per vertex.
-DAG enables fast consensus convergence through parallel vertex processing.
-
-| Chain | Port | Database | Description |
-|-------|------|----------|-------------|
-| X-Chain | 4200 | explorer_xchain | Asset exchange, UTXOs |
-| A-Chain | 4500 | explorer_achain | AI compute, attestations |
-| B-Chain | 4600 | explorer_bchain | Cross-chain bridge |
-| Q-Chain | 4300 | explorer_qchain | Quantum finality proofs |
-| T-Chain | 4700 | explorer_tchain | MPC threshold signatures |
-| Z-Chain | 4400 | explorer_zchain | Privacy, ZK transactions (DAG for fast finality) |
-| K-Chain | 4900 | explorer_kchain | Key management, post-quantum cryptography |
-
-### Linear Chains (Block/Parent model)
-Uses `luxfi/consensus/engine/chain/block` - single parent per block.
-Platform chain requires strict ordering for validator/staking operations.
-
-| Chain | Port | Database | Description |
-|-------|------|----------|-------------|
-| P-Chain | 4100 | explorer_pchain | Platform, validators, staking |
-| C-Chain | 4000 | explorer_cchain | EVM smart contracts (Go native) |
-
-### EVM Options
-The C-Chain can be indexed using either:
-- **Blockscout (Elixir)** - Full-featured block explorer with UI
-- **LUX Indexer (Go)** - Lightweight Go indexer for API-only use
-
-| Chain | Port | Database | Description |
-|-------|------|----------|-------------|
-| C-Chain (Blockscout) | 4000 | explorer_cchain | Smart contracts (Blockscout/Elixir) |
-| C-Chain (Go) | 4001 | explorer_cchain | Smart contracts (Go native indexer) |
-
-## Directory Structure
-
-```
-indexer/
-├── dag/               # Shared DAG indexer library
-│   ├── dag.go         # DAG vertex/edge types
-│   ├── websocket.go   # Live DAG streaming
-│   └── http.go        # REST API handlers
-├── chain/             # Shared linear chain library
-│   ├── chain.go       # Block types
-│   └── http.go        # REST API handlers
-├── cchain/            # C-Chain (EVM) - Linear
-├── xchain/            # X-Chain (Exchange) - DAG
-├── achain/            # A-Chain (AI) - DAG
-├── bchain/            # B-Chain (Bridge) - DAG
-├── qchain/            # Q-Chain (Quantum) - DAG
-├── tchain/            # T-Chain (Threshold/MPC) - DAG
-├── zchain/            # Z-Chain (Privacy) - DAG
-├── kchain/            # K-Chain (KMS) - DAG
-├── pchain/            # P-Chain (Platform) - Linear
-├── cmd/               # CLI entry points
-│   └── indexer/       # Multi-chain indexer CLI
-├── deploy/            # Deployment configs
-│   ├── docker/
-│   └── k8s/
-└── test/              # Integration tests
+explorer
+├── /v1/explorer/*        Explorer API v2 REST endpoints
+├── /v1/explorer/graphql   GraphQL endpoint
+├── /v1/explorer/ws        WebSocket / SSE realtime subscriptions
+├── /*                     Embedded frontend (Next.js static export)
+├── /health                Healthcheck
+│
+├── SQLite (WAL)           Zero-config embedded database
+├── ZapDB               Fast KV layer for hot lookups
+└── Replicate → S3         E2E PQ encrypted streaming backups
 ```
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.21+
-- PostgreSQL 14+
-- Running LUX node (luxd) on port 9630
-
-### Build
-
 ```bash
-# Build all indexers
-make build
+# Build
+go build -o explorer ./cmd/explorer/
 
-# Build specific chain
-make build-xchain
-make build-pchain
+# Run — indexes chain, serves API + frontend on :8090
+./explorer --rpc=http://localhost:9650/ext/bc/C/rpc
 
-# Build multi-chain binary
-make build-all-in-one
-```
-
-### Run
-
-```bash
-# Run X-Chain indexer
-./bin/xchain \
-  --rpc http://localhost:9630/ext/bc/X \
-  --db "postgres://blockscout:blockscout@localhost:5432/explorer_xchain" \
-  --port 4200
-
-# Run all indexers (single binary)
-./bin/indexer --config config.yaml
+# That's it. Open http://localhost:8090
 ```
 
 ### Docker
 
 ```bash
-# Build image
-docker build -t luxfi/indexer .
-
-# Run
-docker run -d \
-  -e RPC_ENDPOINT=http://host.docker.internal:9630 \
-  -e DATABASE_URL=postgres://... \
-  -p 4200:4200 \
-  luxfi/indexer xchain
+docker build -f Dockerfile.explorer -t explorer .
+docker run -p 8090:8090 -v explorer-data:/data \
+  -e RPC_ENDPOINT=http://node:9650/ext/bc/C/rpc \
+  explorer
 ```
 
-## API Endpoints
+### E2E Post-Quantum Encrypted Streaming Backups
 
-All indexers expose Blockscout-compatible `/api/v2/` endpoints:
+Every SQLite write is continuously streamed to S3, encrypted end-to-end before leaving the process:
+
+```
+SQLite WAL → Replicate → age (ML-KEM-768 ∥ X25519) → S3
+                          ↑
+                          NIST FIPS 203 lattice KEM
+                          + classical ECDH (defense-in-depth)
+                          + ChaCha20-Poly1305 AEAD (64KB chunks)
+                          + fresh ephemeral keys per segment
+                          + forward secrecy (keys zeroed after use)
+```
+
+- **Quantum-resistant**: ML-KEM-768 protects against harvest-now-decrypt-later
+- **Hybrid**: secure if either classical or post-quantum algorithm holds
+- **Streaming**: never buffers the full database — 64KB encrypted chunks
+- **Point-in-time**: restore to any transaction ID, not just the latest snapshot
+- **No key rotation**: each WAL segment generates fresh ephemeral keypairs
+- **Zero trust S3**: data is ciphertext before it leaves the process, S3 never sees plaintext
+
+```bash
+# Generate PQ keypair
+age-keygen -pq -o explorer.key
+
+# Enable streaming backups
+export REPLICATE_S3_ENDPOINT=https://s3.amazonaws.com
+export REPLICATE_S3_BUCKET=explorer-backups
+export REPLICATE_AGE_RECIPIENT=age1pq1...  # from explorer.key
+
+# Restore to point-in-time
+explorer restore --from=s3://explorer-backups/mainnet --to=./restored.db \
+  --age-identity=explorer.key --txid=12345
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      explorer binary                     │
+│                                                           │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │  Indexer      │  │  API Server   │  │  Frontend    │  │
+│  │  goroutines   │  │  (Base)       │  │  (embedded)  │  │
+│  │               │  │               │  │              │  │
+│  │  EVM blocks   │  │ /v1/explorer  │  │  Next.js     │  │
+│  │  txs, logs    │  │  REST, GQL    │  │  static      │  │
+│  │  tokens       │  │  WebSocket    │  │  export      │  │
+│  │  traces       │  │  SSE          │  │  go:embed    │  │
+│  │  DeFi, NFTs   │  │  JSON-RPC     │  │              │  │
+│  └───────┬───────┘  └───────┬───────┘  └──────────────┘  │
+│          │ write             │ read-only                   │
+│          ▼                   ▼                             │
+│  ┌─────────────────────────────────────┐                  │
+│  │  SQLite (WAL)  +  ZapDB (KV)     │                  │
+│  └──────────────────┬──────────────────┘                  │
+│                     │ continuous WAL stream                │
+│  ┌──────────────────▼──────────────────┐                  │
+│  │  S3 (E2E PQ encrypted)              │                  │
+│  │  ML-KEM-768 + X25519 + ChaCha20    │                  │
+│  │  point-in-time restore to any TXID  │                  │
+│  └─────────────────────────────────────┘                  │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Rust Static Libraries (Optional)
+
+Pure Go covers everything by default. The Rust verification services can optionally be compiled as a static library and linked via CGO:
+
+```
+explorer-rs/ffi/ → libexplorer_ffi.a
+  explorer_verify_solidity()     smart-contract-verifier
+  explorer_verify_vyper()        vyper verification
+  explorer_lookup_signature()    sig-provider (4-byte selectors)
+  explorer_lookup_event()        event signature lookup
+  explorer_free()                memory management
+```
+
+```bash
+# Pure Go (default)
+go build -o explorer ./cmd/explorer/
+
+# With Rust linked
+cd explorer-rs/ffi && cargo build --release
+CGO_ENABLED=1 CGO_LDFLAGS="-L... -lexplorer_ffi" go build -tags rustffi -o explorer ./cmd/explorer/
+```
+
+## Chains
+
+### EVM (C-Chain + Subnet Chains)
+
+Full EVM explorer feature parity:
+
+- Blocks (consensus, uncle, EIP-4844 blobs, Lux extended header)
+- Transactions (type 0-3, internal traces via 3 tracer types, state changes)
+- Tokens (ERC-20, ERC-721, ERC-1155, batch transfers, historical balances)
+- Smart contracts (Solidity/Vyper verification, proxy detection, ABI decode)
+- Account Abstraction (ERC-4337 UserOps, bundlers, paymasters)
+- MEV (sandwich, frontrun, backrun, liquidation detection)
+- DeFi (AMM V2/V3, perps, lending, staking, bridges, CLOB, NFT marketplaces)
+- Search, statistics, gas oracle, charts, user accounts, API keys, watchlists
 
 ### DAG Chains (X, A, B, Q, T, Z, K)
 
+| Chain | Purpose |
+|-------|---------|
+| X-Chain | Asset exchange, UTXOs, atomic swaps |
+| A-Chain | AI compute, attestations, model registration |
+| B-Chain | Cross-chain bridge, proof validation |
+| Q-Chain | Quantum finality, lattice proofs |
+| T-Chain | Threshold MPC, key shares |
+| Z-Chain | Zero-knowledge, shielded transfers |
+| K-Chain | PQ key management, certificate lifecycle |
+
+### Multi-Chain (100+ External)
+
+Parallel indexer: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Solana, Bitcoin (Ordinals/Runes/BRC-20), Cosmos, Aptos, Sui, NEAR, Tron, TON, and more.
+
+## API
+
+All endpoints under `/v1/explorer/`.
+
 ```
-GET  /api/v2/stats                    # Chain statistics
-GET  /api/v2/vertices                 # List DAG vertices
-GET  /api/v2/vertices/:id             # Get vertex by ID
-GET  /api/v2/edges                    # List DAG edges
-WS   /api/v2/dag/subscribe            # Live DAG stream
-GET  /health                          # Health check
-```
-
-### Linear Chains (P)
-
-```
-GET  /api/v2/stats                    # Chain statistics
-GET  /api/v2/blocks                   # List blocks
-GET  /api/v2/blocks/:id               # Get block by ID
-GET  /api/v2/blocks/height/:height    # Get block by height
-WS   /api/v2/blocks/subscribe         # Live block stream
-GET  /health                          # Health check
-```
-
-### Chain-Specific
-
-See individual chain READMEs for chain-specific endpoints.
-
-## Live DAG Visualization
-
-WebSocket endpoint for real-time DAG updates:
-
-```javascript
-const ws = new WebSocket('ws://localhost:4200/api/v2/dag/subscribe');
-
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-  switch (msg.type) {
-    case 'vertex_added':
-      console.log('New vertex:', msg.data.vertex);
-      break;
-    case 'edge_added':
-      console.log('New edge:', msg.data.edge);
-      break;
-    case 'vertex_accepted':
-      console.log('Accepted:', msg.data.vertex.id);
-      break;
-  }
-};
+GET  /v1/explorer/blocks
+GET  /v1/explorer/blocks/{hash_or_number}
+GET  /v1/explorer/transactions
+GET  /v1/explorer/transactions/{hash}
+GET  /v1/explorer/transactions/{hash}/token-transfers
+GET  /v1/explorer/transactions/{hash}/internal-transactions
+GET  /v1/explorer/transactions/{hash}/logs
+GET  /v1/explorer/addresses/{hash}
+GET  /v1/explorer/addresses/{hash}/transactions
+GET  /v1/explorer/addresses/{hash}/tokens
+GET  /v1/explorer/tokens
+GET  /v1/explorer/tokens/{address}/holders
+GET  /v1/explorer/smart-contracts/{address}
+POST /v1/explorer/smart-contracts/{address}/verify
+GET  /v1/explorer/search
+GET  /v1/explorer/stats
+POST /v1/explorer/graphql
+WS   /v1/explorer/ws
+POST /v1/explorer/rpc  (Etherscan-compatible)
 ```
 
-## Database Schema
+## White-Label
 
-### DAG Vertices
+Zero branding in code. Everything at runtime:
 
-```sql
-CREATE TABLE {chain}_vertices (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  parent_ids JSONB DEFAULT '[]',
-  timestamp TIMESTAMPTZ NOT NULL,
-  status TEXT DEFAULT 'pending',
-  data JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE {chain}_edges (
-  source TEXT NOT NULL,
-  target TEXT NOT NULL,
-  type TEXT NOT NULL,
-  PRIMARY KEY (source, target, type)
-);
+```bash
+explorer --chain-name="My Chain" --coin=MYC --chain-id=12345
 ```
 
-### Linear Blocks
+## Configuration
 
-```sql
-CREATE TABLE {chain}_blocks (
-  id TEXT PRIMARY KEY,
-  parent_id TEXT,
-  height BIGINT NOT NULL,
-  timestamp TIMESTAMPTZ NOT NULL,
-  status TEXT DEFAULT 'pending',
-  data JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+```bash
+# Required
+RPC_ENDPOINT=http://localhost:9650/ext/bc/C/rpc
+
+# Optional
+DATA_DIR=~/.explorer/data
+HTTP_ADDR=:8090
+CHAIN_ID=96369
+CHAIN_NAME=My Chain
+COIN_SYMBOL=ETH
+
+# PQ Encrypted Backups
+REPLICATE_S3_ENDPOINT=https://s3.amazonaws.com
+REPLICATE_S3_BUCKET=explorer-backups
+REPLICATE_AGE_RECIPIENT=age1pq1...
 ```
 
 ## Testing
 
 ```bash
-# Unit tests
-make test
-
-# Integration tests (requires running node)
-make test-integration
-
-# Coverage
-make test-coverage
+go test ./...                  # 431+ tests, 22 packages
+go test ./explorer/...         # API layer (35 tests)
+go test ./evm/...              # EVM indexer
+go test ./storage/...          # Storage backends
 ```
-
-## CI/CD
-
-GitHub Actions builds and pushes Docker images on:
-- Push to `main` → `luxfi/indexer:latest`
-- Tags `v*` → `luxfi/indexer:v1.2.3`
-
-```yaml
-# .github/workflows/build.yml
-name: Build and Push
-on:
-  push:
-    branches: [main]
-    tags: ['v*']
-```
-
-## Configuration
-
-### Environment Variables
-
-```bash
-RPC_ENDPOINT=http://localhost:9630/ext/bc/X
-DATABASE_URL=postgres://blockscout:blockscout@localhost:5432/explorer_xchain
-HTTP_PORT=4200
-POLL_INTERVAL=30s
-LOG_LEVEL=info
-```
-
-### Config File
-
-```yaml
-# config.yaml
-chains:
-  - name: xchain
-    type: dag
-    rpc: http://localhost:9630/ext/bc/X
-    database: postgres://...@localhost:5432/explorer_xchain
-    port: 4200
-  - name: pchain
-    type: linear
-    rpc: http://localhost:9630/ext/bc/P
-    database: postgres://...@localhost:5432/explorer_pchain
-    port: 4100
-```
-
-## Network Configs
-
-### Mainnet
-- RPC: `http://api.lux.network:9630/ext/bc/{X,P,A,...}`
-- Databases: `explorer_{chain}`
-
-### Testnet
-- RPC: `http://api-test.lux.network:9630/ext/bc/{X,P,A,...}`
-- Databases: `explorer_{chain}_testnet`
 
 ## Related
 
-- [LUX Consensus](https://github.com/luxfi/consensus) - DAG/Chain data structures
-- [LUX Node](https://github.com/luxfi/node) - Blockchain node
-- [LUX Explorer](https://github.com/luxfi/explore) - Frontend
-- [LP-0038: Native Chain Indexer Architecture](https://github.com/luxfi/lps/blob/main/LPs/lp-0038-native-chain-indexer-architecture.md)
+- [`luxfi/explore`](https://github.com/luxfi/explore) — Frontend (Next.js, targets this API)
+- [`luxfi/explorer-v1`](https://github.com/luxfi/explorer-v1) — Legacy Elixir stack (archived, targets same frontend)
+- [`luxfi/explorer-rs`](https://github.com/luxfi/explorer-rs) — Rust services (optional staticlib for CGO linking)
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT

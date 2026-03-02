@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // Verifier handles smart contract verification.
@@ -545,8 +547,7 @@ func (v *Verifier) getCode(ctx context.Context, address string) (string, error) 
 
 // getCreationBytecode fetches contract creation transaction input.
 func (v *Verifier) getCreationBytecode(ctx context.Context, address string) (string, error) {
-	// This requires trace API or indexing creation transactions
-	// For now, return empty if not available
+	// Requires trace API or creation tx indexing.
 	return "", nil
 }
 
@@ -712,9 +713,6 @@ func hexToInt(s string) int {
 	return n
 }
 
-// Simple Keccak256 implementation using stdlib
-// In production, use crypto/sha3
-
 type keccak256Hasher struct {
 	data []byte
 }
@@ -729,28 +727,13 @@ func (h *keccak256Hasher) Write(data []byte) (int, error) {
 }
 
 func (h *keccak256Hasher) Sum(b []byte) []byte {
-	// Use a simple implementation for now
-	// In production, use proper keccak256
 	result := sha3Keccak256(h.data)
 	return append(b, result...)
 }
 
-// sha3Keccak256 implements Keccak-256 hash.
-// This is a simplified version; use crypto/sha3 in production.
+// sha3Keccak256 computes the Keccak-256 hash of data.
 func sha3Keccak256(data []byte) []byte {
-	// For now, use a placeholder that can be replaced with actual implementation
-	// In real code, import "golang.org/x/crypto/sha3"
-	// h := sha3.NewLegacyKeccak256()
-	// h.Write(data)
-	// return h.Sum(nil)
-
-	// Placeholder - compute a deterministic hash for testing
-	// Real implementation should use proper keccak256
-	result := make([]byte, 32)
-	for i, b := range data {
-		result[i%32] ^= b
-		result[(i+1)%32] ^= b << 3
-		result[(i+2)%32] ^= b >> 2
-	}
-	return result
+	h := sha3.NewLegacyKeccak256()
+	h.Write(data)
+	return h.Sum(nil)
 }
