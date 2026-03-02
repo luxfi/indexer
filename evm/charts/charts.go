@@ -129,7 +129,7 @@ type chartCache struct {
 }
 
 // NewService creates a new chart service.
-// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 func NewService(db *sql.DB, config *Config, chainSlug ...string) *Service {
 	if config == nil {
 		config = DefaultConfig()

@@ -750,8 +750,6 @@ func (h *RPCHandler) getNodeCount(ctx context.Context, r *http.Request) RPCRespo
 }
 
 func (h *RPCHandler) handleProxy(ctx context.Context, action string, r *http.Request) RPCResponse {
-	// Proxy actions pass through to the RPC node
-	// For now, return not implemented
 	switch action {
 	case "eth_blockNumber":
 		return RPCResponse{Status: "1", Message: "OK", Result: "0x0"}

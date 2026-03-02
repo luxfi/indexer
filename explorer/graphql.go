@@ -185,9 +185,8 @@ func searchTxHash(db *sql.DB, hash string) (any, error) {
 // executeLocalGraphQL runs a simple GraphQL-like query against the local SQLite.
 // Supports basic block/transaction/address lookups.
 func (p *plugin) executeLocalGraphQL(e *core.RequestEvent) error {
-	// For now, return a simple introspection-compatible response.
-	// The local SQLite is queried via the REST API endpoints;
-	// this handler exists for GraphQL playground compatibility.
+	// Stub: returns typename for GraphQL playground introspection.
+	// Actual queries served via REST endpoints.
 	return e.JSON(http.StatusOK, map[string]any{
 		"data": map[string]any{
 			"__typename": "Query",

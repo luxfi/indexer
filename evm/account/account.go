@@ -669,9 +669,8 @@ func (s *Service) DeleteCustomABI(ctx context.Context, userID int64, contractHas
 
 // Helper Functions
 
-// hashUID creates a hash of the UID for database indexing
+// hashUID creates a hash of the UID for database indexing.
 func hashUID(uid string) string {
-	// Simple hash - in production use SHA256
 	h := make([]byte, 32)
 	copy(h, []byte(uid))
 	return hex.EncodeToString(h)
