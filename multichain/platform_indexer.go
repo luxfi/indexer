@@ -386,7 +386,7 @@ func (idx *PlatformIndexer) fetchGraphBlock(ctx context.Context) error {
 // fetchIdentityBlock fetches blocks from I-Chain (Identity VM)
 func (idx *PlatformIndexer) fetchIdentityBlock(ctx context.Context) error {
 	// I-Chain RPC methods: identity.getLatestBlock, identity.getIdentities
-	block, err := idx.rpcCall(ctx, "identity.Health", nil)
+	block, err := idx.rpcCall(ctx, "identity.getLatestBlock", nil)
 	if err != nil {
 		return err
 	}
