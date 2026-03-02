@@ -141,10 +141,10 @@ func (p *PredictionIndexer) indexAssertionMade(log *LogEntry) error {
 	assertionID := log.Topics[1]
 	domainID := log.Topics[2]
 
-	// Bond is at offset 256 (word 8) in data (after claim offset, asserter, callback, escalation, caller, expiry, currency)
+	// Bond is at offset 224 (word 7) in data: claim_offset(0), asserter(1), callback(2), escalation(3), caller(4), expiry(5), currency(6), bond(7)
 	var bond *big.Int
-	if len(data) >= 288 { // 9 * 32
-		bond = new(big.Int).SetBytes(data[256:288])
+	if len(data) >= 256 { // 8 * 32
+		bond = new(big.Int).SetBytes(data[224:256])
 	}
 
 	// Asserter is at offset 32 in data (word 1, after claim offset)
