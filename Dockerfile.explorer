@@ -1,54 +1,77 @@
-# Multi-stage build: Go binary + Next.js static export → minimal image
-# No Rust needed — all services implemented in pure Go.
+# Single-image explorer: Go binary + embedded Next.js static export
 #
-# Build: docker build -f Dockerfile.explorer -t explorer .
-# Run:   docker run -p 8090:8090 explorer
-#        explorer serve --http=:8090 --rpc=http://node:9650/ext/bc/C/rpc
+# Build:
+#   docker build -f Dockerfile.explorer -t ghcr.io/luxfi/explorer .
+#
+# Run:
+#   docker run -p 8090:8090 -v explorer-data:/data \
+#     -e RPC_ENDPOINT=http://node:9650/ext/bc/C/rpc \
+#     ghcr.io/luxfi/explorer
+#
+# Multi-chain:
+#   docker run -p 8090:8090 -v explorer-data:/data \
+#     -v ./chains.yaml:/etc/explorer/chains.yaml \
+#     ghcr.io/luxfi/explorer --config=/etc/explorer/chains.yaml
 
-# ---- Stage 1: Build Next.js frontend as static export ----
-FROM node:22-alpine AS frontend
+ARG GO_VERSION=1.26
+ARG NODE_VERSION=22
+ARG FRONTEND_REPO=https://github.com/luxfi/explore.git
+ARG FRONTEND_REF=main
+
+# ---- Stage 1: Build frontend ----
+FROM node:${NODE_VERSION}-alpine AS frontend
+ARG FRONTEND_REPO
+ARG FRONTEND_REF
+
+RUN apk add --no-cache git
 WORKDIR /app
-ARG FRONTEND_DIR=../explore
-
-# Copy frontend source (set via build context or --build-arg)
-COPY ${FRONTEND_DIR}/package.json ${FRONTEND_DIR}/pnpm-lock.yaml* ./
+RUN git clone --depth=1 --branch=${FRONTEND_REF} ${FRONTEND_REPO} .
 RUN corepack enable && pnpm install --frozen-lockfile
 
-COPY ${FRONTEND_DIR}/ .
-
-# Override output mode for static export
+# Force static export mode
 RUN sed -i "s/output: 'standalone'/output: 'export'/" next.config.js
+
+# Build with default env (override at runtime via NEXT_PUBLIC_* at deploy)
+ENV NEXT_PUBLIC_API_BASE_PATH=/v1/explorer
 RUN pnpm build
 
 # ---- Stage 2: Build Go binary ----
-FROM golang:1.26-alpine AS builder
-RUN apk add --no-cache gcc musl-dev sqlite-dev
+FROM golang:${GO_VERSION}-alpine AS builder
 
+RUN apk add --no-cache gcc musl-dev
+
+ARG VERSION=dev
 WORKDIR /src
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-# Copy static frontend into embed directory
+# Embed frontend static export
 COPY --from=frontend /app/out /src/cmd/explorer/static
 
-# Build with CGO for SQLite
 RUN CGO_ENABLED=1 GOOS=linux go build \
-    -ldflags="-s -w -X main.version=$(git describe --tags --always 2>/dev/null || echo dev)" \
+    -ldflags="-s -w -X main.version=${VERSION}" \
     -o /explorer ./cmd/explorer/
 
-# ---- Stage 3: Minimal runtime ----
+# ---- Stage 3: Runtime ----
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates sqlite-libs
+
+RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /explorer /usr/local/bin/explorer
 
-# Default data directory
+RUN adduser -D -u 65532 explorer
+USER explorer
+
 VOLUME /data
 ENV DATA_DIR=/data
+ENV HTTP_ADDR=:8090
 
 EXPOSE 8090
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD wget -qO- http://localhost:8090/health || exit 1
+
 ENTRYPOINT ["explorer"]
-CMD ["serve"]

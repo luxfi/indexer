@@ -16,7 +16,7 @@ Single-binary omni-chain block explorer. Clean-room Go implementation. Indexes a
 |---|---|
 | Elixir backend + 4 Rust microservices | Single Go binary |
 | PostgreSQL (managed) | SQLite WAL (embedded, per-chain) |
-| Redis (caching) | BadgerDB KV (embedded) |
+| Redis (caching) | ZapDB KV (embedded) |
 | 6 Docker containers | 1 container, 1 binary |
 | EVM only | 9 native chain types + 100+ external |
 | GPG/plaintext backups | E2E PQ encrypted streaming (ML-KEM-768) |
@@ -65,7 +65,7 @@ Each chain gets its own directory with independent SQLite + KV:
 {data_dir}/
 ├── cchain/
 │   ├── query/indexer.db    SQLite (blocks, txs, tokens, traces, contracts)
-│   └── kv/                 BadgerDB (hash→data, height→block fast lookups)
+│   └── kv/                 ZapDB (hash→data, height→block fast lookups)
 ├── pchain/
 │   ├── query/indexer.db    Validators, delegators, staking, subnets
 │   └── kv/

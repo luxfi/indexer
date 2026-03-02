@@ -928,7 +928,13 @@ func (r *Repository) GetInternalTransactions(ctx context.Context, txHash string,
 			Value:       value,
 			Gas:         gas,
 			GasUsed:     &gasUsed,
-			Success:     errMsg.String == "",
+		}
+
+		// Success is non-nil only for finalized (mined) transactions.
+		// Pending internal transactions have Success = nil (null in JSON).
+		if blockNumber > 0 {
+			s := errMsg.String == ""
+			itx.Success = &s
 		}
 
 		if to.Valid {
@@ -942,7 +948,8 @@ func (r *Repository) GetInternalTransactions(ctx context.Context, txHash string,
 		}
 		if errMsg.Valid && errMsg.String != "" {
 			itx.Error = errMsg.String
-			itx.Success = false
+			f := false
+			itx.Success = &f
 		}
 
 		itxs = append(itxs, itx)

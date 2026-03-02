@@ -1978,6 +1978,105 @@ func TestTraceTransactionCreate(t *testing.T) {
 	}
 }
 
+// TestTraceTransactionFailedCreate verifies that a failed CREATE does not set
+// CreatedContractAddress or CreatedContractCode (upstream fix: ap-fix-internal-transaction-error-field).
+func TestTraceTransactionFailedCreate(t *testing.T) {
+	txHash := "0xtxfailedcreate"
+	blockNumber := uint64(200)
+	timestamp := time.Now()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result": map[string]interface{}{
+				"type":    "CREATE",
+				"from":    "0xdeployer",
+				"to":      "0xnewcontract",
+				"value":   "0x0",
+				"gas":     "0x100000",
+				"gasUsed": "0x100000",
+				"input":   "0x608060405234801561001057600080fd5b50",
+				"output":  "0x",
+				"error":   "execution reverted",
+			},
+		})
+	}))
+	defer server.Close()
+
+	adapter := New(server.URL, WithTracerType(TracerCallTracer))
+	ctx := context.Background()
+
+	traces, err := adapter.TraceTransaction(ctx, txHash, blockNumber, timestamp)
+	if err != nil {
+		t.Fatalf("TraceTransaction failed: %v", err)
+	}
+
+	if len(traces) != 1 {
+		t.Fatalf("expected 1 trace, got %d", len(traces))
+	}
+
+	trace := traces[0]
+	if trace.CallType != "create" {
+		t.Errorf("CallType = %q, want create", trace.CallType)
+	}
+	if trace.Error != "execution reverted" {
+		t.Errorf("Error = %q, want 'execution reverted'", trace.Error)
+	}
+	if trace.CreatedContractAddress != "" {
+		t.Errorf("CreatedContractAddress = %q, want empty (failed create)", trace.CreatedContractAddress)
+	}
+	if trace.CreatedContractCode != "" {
+		t.Errorf("CreatedContractCode = %q, want empty (failed create)", trace.CreatedContractCode)
+	}
+	if trace.Init != "0x608060405234801561001057600080fd5b50" {
+		t.Errorf("Init = %q, want init code preserved even on failure", trace.Init)
+	}
+}
+
+// TestFlattenCallFrameNestedError verifies error propagation: parent succeeds,
+// child fails -- child's error is preserved, parent has no error.
+func TestFlattenCallFrameNestedError(t *testing.T) {
+	timestamp := time.Now()
+	txHash := "0xtxnestederror"
+	blockNumber := uint64(300)
+
+	frame := &CallFrame{
+		Type:    "CALL",
+		From:    "0xa",
+		To:      "0xb",
+		Gas:     "0x10000",
+		GasUsed: "0x8000",
+		// Parent succeeds (no error)
+		Calls: []*CallFrame{
+			{
+				Type:    "CALL",
+				From:    "0xb",
+				To:      "0xc",
+				Gas:     "0x5000",
+				GasUsed: "0x5000",
+				Error:   "out of gas", // Child fails
+			},
+		},
+	}
+
+	var traces []InternalTransaction
+	flattenCallFrame(frame, txHash, blockNumber, timestamp, []int{}, &traces, 0)
+
+	if len(traces) != 2 {
+		t.Fatalf("expected 2 traces, got %d", len(traces))
+	}
+
+	// Parent: no error
+	if traces[0].Error != "" {
+		t.Errorf("parent Error = %q, want empty", traces[0].Error)
+	}
+	// Child: error preserved
+	if traces[1].Error != "out of gas" {
+		t.Errorf("child Error = %q, want 'out of gas'", traces[1].Error)
+	}
+}
+
 // ============================================================================
 // Phase 1 Tests: ERC1155 TransferSingle Parsing
 // ============================================================================

@@ -243,7 +243,7 @@ func runChain(ctx context.Context, baseDir string, chain ChainConfig) {
 		return
 	}
 
-	// Create per-chain unified storage (SQLite + BadgerDB KV)
+	// Create per-chain unified storage (SQLite + ZapDB KV)
 	store, err := storage.NewUnified(storage.DefaultUnifiedConfig(chainDir))
 	if err != nil {
 		log.Printf("[%s] failed to create storage: %v", chain.Slug, err)

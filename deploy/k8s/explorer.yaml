@@ -1,0 +1,173 @@
+# Single explorer deployment — replaces 10 broken pods (5 backend + 5 frontend)
+# with 1 pod serving all chains + embedded frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: explorer
+  namespace: lux-explorer
+  labels:
+    app: explorer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # SQLite — single writer
+  selector:
+    matchLabels:
+      app: explorer
+  template:
+    metadata:
+      labels:
+        app: explorer
+    spec:
+      securityContext:
+        runAsUser: 65532
+        runAsNonRoot: true
+        fsGroup: 65532
+      containers:
+        - name: explorer
+          image: ghcr.io/luxfi/explorer:main
+          args:
+            - --config=/etc/explorer/chains.yaml
+          ports:
+            - name: http
+              containerPort: 8090
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: HTTP_ADDR
+              value: ":8090"
+            - name: LUX_RPC
+              value: http://luxd-0.luxd-headless.lux-mainnet.svc:9630
+            # PQ encrypted backups
+            - name: REPLICATE_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: explorer-s3
+                  key: endpoint
+                  optional: true
+            - name: REPLICATE_S3_BUCKET
+              value: explorer-backups
+            - name: REPLICATE_S3_PATH
+              value: mainnet
+            - name: REPLICATE_AGE_RECIPIENT
+              valueFrom:
+                secretKeyRef:
+                  name: explorer-age
+                  key: recipient
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/explorer
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 4Gi
+              cpu: 4
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: explorer-data
+        - name: config
+          configMap:
+            name: explorer-config
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: explorer-data
+  namespace: lux-explorer
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: explorer
+  namespace: lux-explorer
+spec:
+  selector:
+    app: explorer
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: explorer-config
+  namespace: lux-explorer
+data:
+  chains.yaml: |
+    data_dir: /data
+    http_addr: :8090
+    chains:
+      # Lux native chains
+      - slug: cchain
+        name: Lux C-Chain
+        chain_id: 96369
+        type: evm
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/C/rpc
+        coin: LUX
+        enabled: true
+        default: true
+      - slug: zoo
+        name: Zoo
+        chain_id: 200200
+        type: evm
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Zoo/rpc
+        coin: ZOO
+        enabled: true
+      - slug: hanzo
+        name: Hanzo AI
+        chain_id: 36963
+        type: evm
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Hanzo/rpc
+        coin: HANZO
+        enabled: true
+      - slug: spc
+        name: SPC
+        chain_id: 36911
+        type: evm
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/SPC/rpc
+        coin: SPC
+        enabled: true
+      - slug: pars
+        name: Pars
+        chain_id: 494949
+        type: evm
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Pars/rpc
+        coin: PARS
+        enabled: true
+      # DAG chains
+      - slug: xchain
+        name: X-Chain
+        type: dag
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/X
+        coin: LUX
+        enabled: true
+      - slug: pchain
+        name: P-Chain
+        type: linear
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/P
+        coin: LUX
+        enabled: true

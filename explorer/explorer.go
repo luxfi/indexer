@@ -48,9 +48,10 @@ type Config struct {
 	// Set via GCHAIN_ENDPOINT env var.
 	GChainEndpoint string
 
-	// NodeEndpoint is the base URL for the Lux node (used for per-chain GraphQL proxy).
-	// Default: http://localhost:9650
-	NodeEndpoint string
+	// ChainDBPaths maps chain names to their SQLite DB paths for cross-chain search.
+	// Example: {"C": "/data/cchain/indexer.db", "Zoo": "/data/zoo/indexer.db"}
+	// When empty, cross-chain search only queries the local IndexerDBPath.
+	ChainDBPaths map[string]string
 }
 
 // MustRegister registers the explorer plugin and panics on failure.
@@ -193,8 +194,9 @@ func (p *plugin) registerRoutes(r *router.Router[*core.RequestEvent]) {
 	v2.GET("/stats/charts/market", p.handleChartMarket)
 
 	// GraphQL
-	v2.Any("/graphql", p.handleGChainGraphQL)
-	v2.Any("/{chain}/graphql", p.handlePerChainGraphQL)
+	v2.Any("/graphql", p.handleFederatedGraphQL)           // G-Chain proxy (consensus-backed federated)
+	v2.Any("/local/graphql", p.handleLocalGraphQL)          // local SQLite (per-chain, fast)
+	v2.GET("/search/cross-chain", p.handleCrossChainSearch) // parallel multi-chain SQLite search
 
 	// Health
 	r.GET("/health", p.handleHealth)
@@ -203,6 +205,6 @@ func (p *plugin) registerRoutes(r *router.Router[*core.RequestEvent]) {
 		slog.Int64("chain_id", p.config.ChainID),
 		slog.String("chain", p.config.ChainName),
 		slog.String("gchain_endpoint", p.config.GChainEndpoint),
-		slog.Int("endpoints", 32),
+		slog.Int("endpoints", 33),
 	)
 }

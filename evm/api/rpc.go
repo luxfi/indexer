@@ -236,7 +236,7 @@ func (h *RPCHandler) getInternalTxList(ctx context.Context, r *http.Request) RPC
 		if itx.To != nil {
 			etx["to"] = itx.To.Hash
 		}
-		if !itx.Success {
+		if itx.Success != nil && !*itx.Success {
 			etx["isError"] = "1"
 			etx["errCode"] = itx.Error
 		}
