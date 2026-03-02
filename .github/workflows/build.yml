@@ -11,7 +11,7 @@ on:
 env:
   GO_VERSION: '1.26.1'
   REGISTRY: ghcr.io
-  IMAGE_NAME: luxfi/explorer
+  IMAGE_NAME: luxfi/indexer
 
 jobs:
   test:
