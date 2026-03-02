@@ -1,1041 +1,296 @@
-# Lux EVM Indexer Architecture
+# Explorer Architecture
 
-**Version**: 2.0.0
-**Status**: IMPLEMENTATION GUIDE
-**Date**: 2025-12-25
-**Author**: Architecture Team
-
----
-
-## 1. Executive Summary
-
-This document defines the architecture for the **Lux EVM Indexer**, a high-performance Go-based blockchain indexer that provides **100% Blockscout API v2 compatibility** while adding native support for Lux-specific features (Warp messaging, 19-field headers, Quasar consensus).
-
-### Supported Chains
-
-| Chain | Chain ID | Purpose | RPC Port |
-|-------|----------|---------|----------|
-| C-Chain Mainnet | 96369 | Smart contracts, DeFi | 9630 |
-| C-Chain Testnet | 96368 | Development | 9640 |
-| Zoo Mainnet | 200200 | NFT/Gaming | 9630 |
-| Zoo Testnet | 200201 | Development | 9640 |
-| Hanzo AI | 36963 | AI compute | 9630 |
-
-### Design Goals
-
-1. **Blockscout API v2 Compatibility** - Drop-in replacement for Blockscout frontend
-2. **High Performance** - 10,000+ blocks/second indexing, 50K+ RPS API
-3. **Horizontal Scalability** - Stateless API workers, sharded by chain
-4. **Real-time Updates** - Sub-second block notifications via WebSocket
-5. **Native Lux Support** - Warp messaging, ExtDataHash, precompile awareness
+**Version**: 3.0.0
+**Status**: PRODUCTION
+**Date**: 2026-04-10
 
 ---
 
-## 2. Module Structure
+## 1. Overview
 
-### Implementation Status (as of 2025-12-25)
+Single-binary omni-chain block explorer. Clean-room Go implementation. Indexes all Lux native chains (EVM, DAG, linear, DEX, FHE, PQ, ZK) plus 100+ external chains for bridge/MPC/threshold operations. E2E post-quantum encrypted streaming backups to S3.
+
+### What Changed (v2 → v3)
+
+| v2 (explorer-v1) | v3 (this) |
+|---|---|
+| Elixir backend + 4 Rust microservices | Single Go binary |
+| PostgreSQL (managed) | SQLite WAL (embedded, per-chain) |
+| Redis (caching) | ZapDB KV (embedded) |
+| 6 Docker containers | 1 container, 1 binary |
+| EVM only | 9 native chain types + 100+ external |
+| GPG/plaintext backups | E2E PQ encrypted streaming (ML-KEM-768) |
+| Graph Node + subgraphs | G-Chain native GraphQL |
+| Explorer API v2 at `/api/v2` | Same API at `/v1/explorer` |
+
+## 2. Architecture
 
 ```
-github.com/luxfi/indexer/
-├── cmd/indexer/main.go          # CLI entry point
-├── chain/                        # Linear chain indexer (P-Chain)
-│   ├── chain.go                 # Linear consensus indexer
-│   └── chain_test.go
-├── dag/                          # DAG indexer (X,A,B,Q,T,Z chains)
-│   ├── dag.go                   # DAG consensus indexer
-│   └── dag_test.go
-├── storage/                      # Storage backends
-│   ├── storage.go               # Storage interfaces
-│   ├── postgres.go              # PostgreSQL implementation
-│   ├── badger.go                # BadgerDB implementation
-│   └── dgraph.go                # Dgraph graph database
-│
-├── evm/                          # EVM indexer (IMPLEMENTED)
-│   ├── adapter.go               # Core EVM adapter (2,000+ lines)
-│   ├── adapter_test.go          # Comprehensive tests
-│   ├── types.go                 # Type definitions
-│   ├── erc4337.go               # Account abstraction support
-│   ├── mev.go                   # MEV detection/tracking
-│   │
-│   ├── api/                     # API layer (IMPLEMENTED)
-│   │   ├── server.go            # HTTP/WebSocket server (1,042 lines)
-│   │   │                        # - 40+ Blockscout v2 endpoints
-│   │   │                        # - WebSocket subscriptions
-│   │   │                        # - Etherscan RPC compatibility
-│   │   │                        # - GraphQL playground
-│   │   ├── types.go             # API response types (406 lines)
-│   │   │                        # - Block, Transaction, Address
-│   │   │                        # - Token, TokenTransfer, Log
-│   │   │                        # - SmartContract, NFT, SearchResult
-│   │   └── repository.go        # Database queries (961 lines)
-│   │                            # - Blocks, Transactions
-│   │                            # - Addresses, Tokens
-│   │                            # - Search, Stats
-│   │
-│   ├── contracts/               # Contract verification (IMPLEMENTED)
-│   │   ├── types.go             # Contract types
-│   │   ├── verifier.go          # Solc-based verification (757 lines)
-│   │   │                        # - Standard JSON compilation
-│   │   │                        # - Bytecode comparison
-│   │   │                        # - Constructor args extraction
-│   │   ├── abi.go               # ABI parsing and decoding
-│   │   ├── proxy.go             # Proxy contract detection
-│   │   └── store.go             # Contract storage
-│   │
-│   ├── search/                  # Search functionality (IMPLEMENTED)
-│   │   ├── search.go            # Universal search
-│   │   └── search_test.go
-│   │
-│   ├── stats/                   # Statistics service (IMPLEMENTED)
-│   │   ├── stats.go             # Gas prices, counters (715 lines)
-│   │   │                        # - Gas price oracle
-│   │   │                        # - Block time stats
-│   │   │                        # - Daily/hourly charts
-│   │   ├── stats_test.go
-│   │   └── prometheus.go        # Prometheus metrics
-│   │
-│   └── account/                 # Account abstraction
-│       └── account.go           # ERC-4337 support
-│
-├── *chain/adapter.go            # Chain-specific adapters
-│   ├── achain/                  # A-Chain (Attestation)
-│   ├── bchain/                  # B-Chain (Bridge)
-│   ├── dex/                     # DEX indexer
-│   ├── kchain/                  # K-Chain
-│   ├── pchain/                  # P-Chain (Platform)
-│   ├── qchain/                  # Q-Chain (Quantum)
-│   ├── tchain/                  # T-Chain
-│   ├── xchain/                  # X-Chain (Exchange)
-│   └── zchain/                  # Z-Chain (Zoo)
-│
-├── migrations/                   # PostgreSQL migrations (IMPLEMENTED)
-│   ├── 001_initial_schema.sql   # Core schema (477 lines)
-│   ├── 002_indexes.sql          # Index definitions (343 lines)
-│   └── 003_functions.sql        # Database functions (454 lines)
-│
-└── docs/
-    └── architecture/
-        └── evm-indexer-architecture.md  # This document
+┌───────────────────────────────────────────────────────────┐
+│                       explorer binary                      │
+│                                                             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐      ┌────────────┐ │
+│  │ C-Chain  │ │ P-Chain │ │ X-Chain │ ...  │ Ethereum   │ │
+│  │ indexer  │ │ indexer │ │ indexer │ N    │ indexer    │ │
+│  │ (EVM)   │ │ (linear)│ │ (DAG)   │ chains│ (bridge)   │ │
+│  └────┬────┘ └────┬────┘ └────┬────┘      └─────┬──────┘ │
+│       │ write      │ write     │ write           │ write   │
+│       ▼            ▼           ▼                 ▼         │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐      ┌──────────┐  │
+│  │ SQLite  │ │ SQLite  │ │ SQLite  │      │ SQLite   │  │
+│  │ cchain/ │ │ pchain/ │ │ xchain/ │      │ ethereum/│  │
+│  └────┬────┘ └────┬────┘ └────┬────┘      └─────┬────┘  │
+│       │            │           │                  │        │
+│       └────────────┴───────────┴──────────────────┘        │
+│                            │                                │
+│  ┌─────────────────────────▼──────────────────────────┐    │
+│  │  API Server (Base)                                  │    │
+│  │  /v1/explorer/{chain}/*   per-chain REST/GQL/WS     │    │
+│  │  /v1/explorer/*           default chain             │    │
+│  │  /*                       embedded frontend          │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                            │                                │
+│  ┌─────────────────────────▼──────────────────────────┐    │
+│  │  Replicate → S3 (per-chain WAL streams)             │    │
+│  │  E2E PQ encrypted: ML-KEM-768 + X25519 + ChaCha20  │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Implementation Statistics
+## 3. Per-Chain Storage Isolation
 
-| Component | Lines of Code | Status |
-|-----------|---------------|--------|
-| evm/adapter.go | 2,000+ | Production |
-| evm/api/server.go | 1,042 | Production |
-| evm/api/repository.go | 961 | Production |
-| evm/contracts/verifier.go | 757 | Production |
-| evm/stats/stats.go | 715 | Production |
-| evm/api/types.go | 406 | Production |
-| migrations/*.sql | 1,274 | Production |
-| **Total EVM Package** | **~7,000** | Production |
-
----
-
-## 3. PostgreSQL Schema (Blockscout-Compatible)
-
-### Core Tables
-
-The schema is designed to match Blockscout's table structure for frontend compatibility while adding Lux-specific fields.
-
-```sql
--- migrations/001_initial_schema.sql
-
--- Enable extensions
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";       -- Fuzzy search
-CREATE EXTENSION IF NOT EXISTS "btree_gist";    -- GiST indexes
-CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
-
--- Chain configuration (multi-chain support)
-CREATE TABLE chains (
-    chain_id        BIGINT PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
-    symbol          VARCHAR(20) NOT NULL,
-    decimals        INTEGER DEFAULT 18,
-    rpc_url         TEXT NOT NULL,
-    ws_url          TEXT,
-    explorer_url    TEXT,
-    is_active       BOOLEAN DEFAULT true,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-INSERT INTO chains (chain_id, name, symbol, rpc_url) VALUES
-    (96369, 'Lux C-Chain', 'LUX', 'http://localhost:9630/ext/bc/C/rpc'),
-    (96368, 'Lux Testnet', 'LUX', 'http://localhost:9640/ext/bc/C/rpc'),
-    (200200, 'Zoo Mainnet', 'ZOO', 'http://localhost:9630/ext/bc/Zoo/rpc'),
-    (200201, 'Zoo Testnet', 'ZOO', 'http://localhost:9640/ext/bc/Zoo/rpc'),
-    (36963, 'Hanzo AI', 'HANZO', 'http://localhost:9630/ext/bc/Hanzo/rpc');
-
--- Blocks table (partitioned by chain_id)
-CREATE TABLE blocks (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL REFERENCES chains(chain_id),
-    number          BIGINT NOT NULL,
-    hash            BYTEA NOT NULL,
-    parent_hash     BYTEA NOT NULL,
-    nonce           BYTEA,
-    miner           BYTEA NOT NULL,
-    difficulty      NUMERIC(78),
-    total_difficulty NUMERIC(78),
-    size            INTEGER NOT NULL,
-    gas_limit       BIGINT NOT NULL,
-    gas_used        BIGINT NOT NULL,
-    base_fee        NUMERIC(78),
-    timestamp       BIGINT NOT NULL,
-    transaction_count INTEGER NOT NULL DEFAULT 0,
-
-    -- Lux-specific fields (19-field header)
-    ext_data_hash   BYTEA,
-    ext_data_gas_used BIGINT,
-    block_gas_cost  NUMERIC(78),
-
-    -- Standard Ethereum fields
-    extra_data      BYTEA,
-    logs_bloom      BYTEA,
-    state_root      BYTEA,
-    transactions_root BYTEA,
-    receipts_root   BYTEA,
-
-    -- Indexing metadata
-    indexed_at      TIMESTAMPTZ DEFAULT NOW(),
-    consensus_state VARCHAR(20) DEFAULT 'finalized',
-
-    PRIMARY KEY (chain_id, number)
-) PARTITION BY LIST (chain_id);
-
--- Create partitions for known chains
-CREATE TABLE blocks_96369 PARTITION OF blocks FOR VALUES IN (96369);
-CREATE TABLE blocks_96368 PARTITION OF blocks FOR VALUES IN (96368);
-CREATE TABLE blocks_200200 PARTITION OF blocks FOR VALUES IN (200200);
-CREATE TABLE blocks_200201 PARTITION OF blocks FOR VALUES IN (200201);
-CREATE TABLE blocks_36963 PARTITION OF blocks FOR VALUES IN (36963);
-
--- Transactions table
-CREATE TABLE transactions (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    hash            BYTEA NOT NULL,
-    block_number    BIGINT NOT NULL,
-    block_hash      BYTEA NOT NULL,
-    transaction_index INTEGER NOT NULL,
-
-    -- Core fields
-    from_address    BYTEA NOT NULL,
-    to_address      BYTEA,
-    value           NUMERIC(78) NOT NULL,
-    gas             BIGINT NOT NULL,
-    gas_price       NUMERIC(78),
-    gas_used        BIGINT,
-
-    -- EIP-1559 fields
-    max_fee_per_gas NUMERIC(78),
-    max_priority_fee NUMERIC(78),
-    effective_gas_price NUMERIC(78),
-
-    -- EIP-4844 blob fields
-    max_fee_per_blob_gas NUMERIC(78),
-    blob_gas_used   BIGINT,
-    blob_gas_price  NUMERIC(78),
-
-    -- TX data
-    input           BYTEA,
-    nonce           BIGINT NOT NULL,
-    type            SMALLINT NOT NULL DEFAULT 0,
-
-    -- Status
-    status          SMALLINT,
-    error           TEXT,
-    revert_reason   TEXT,
-
-    -- Contract creation
-    created_contract BYTEA,
-
-    -- Timestamps
-    timestamp       BIGINT NOT NULL,
-    indexed_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, hash),
-    FOREIGN KEY (chain_id, block_number) REFERENCES blocks(chain_id, number) ON DELETE CASCADE
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE transactions_96369 PARTITION OF transactions FOR VALUES IN (96369);
-CREATE TABLE transactions_96368 PARTITION OF transactions FOR VALUES IN (96368);
-CREATE TABLE transactions_200200 PARTITION OF transactions FOR VALUES IN (200200);
-CREATE TABLE transactions_200201 PARTITION OF transactions FOR VALUES IN (200201);
-CREATE TABLE transactions_36963 PARTITION OF transactions FOR VALUES IN (36963);
-
--- Internal transactions (traces)
-CREATE TABLE internal_transactions (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    transaction_hash BYTEA NOT NULL,
-    block_number    BIGINT NOT NULL,
-    trace_address   INTEGER[] NOT NULL,
-
-    type            VARCHAR(20) NOT NULL,
-    call_type       VARCHAR(20),
-    from_address    BYTEA NOT NULL,
-    to_address      BYTEA,
-    value           NUMERIC(78) NOT NULL,
-    gas             BIGINT,
-    gas_used        BIGINT,
-    input           BYTEA,
-    output          BYTEA,
-    error           TEXT,
-    created_contract BYTEA,
-
-    indexed_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, transaction_hash, trace_address)
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE internal_transactions_96369 PARTITION OF internal_transactions FOR VALUES IN (96369);
-CREATE TABLE internal_transactions_96368 PARTITION OF internal_transactions FOR VALUES IN (96368);
-CREATE TABLE internal_transactions_200200 PARTITION OF internal_transactions FOR VALUES IN (200200);
-CREATE TABLE internal_transactions_200201 PARTITION OF internal_transactions FOR VALUES IN (200201);
-CREATE TABLE internal_transactions_36963 PARTITION OF internal_transactions FOR VALUES IN (36963);
-
--- Event logs
-CREATE TABLE logs (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    block_number    BIGINT NOT NULL,
-    block_hash      BYTEA NOT NULL,
-    transaction_hash BYTEA NOT NULL,
-    transaction_index INTEGER NOT NULL,
-    log_index       INTEGER NOT NULL,
-
-    address         BYTEA NOT NULL,
-    data            BYTEA,
-    topic0          BYTEA,
-    topic1          BYTEA,
-    topic2          BYTEA,
-    topic3          BYTEA,
-    topics          BYTEA[],
-
-    -- Decoded event (Blockscout compatibility)
-    decoded_name    VARCHAR(100),
-    decoded_params  JSONB,
-
-    removed         BOOLEAN DEFAULT FALSE,
-    timestamp       BIGINT NOT NULL,
-    indexed_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, block_number, log_index)
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE logs_96369 PARTITION OF logs FOR VALUES IN (96369);
-CREATE TABLE logs_96368 PARTITION OF logs FOR VALUES IN (96368);
-CREATE TABLE logs_200200 PARTITION OF logs FOR VALUES IN (200200);
-CREATE TABLE logs_200201 PARTITION OF logs FOR VALUES IN (200201);
-CREATE TABLE logs_36963 PARTITION OF logs FOR VALUES IN (36963);
-
--- Addresses table (Blockscout: addresses)
-CREATE TABLE addresses (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    hash            BYTEA NOT NULL,  -- Blockscout uses 'hash' not 'address'
-
-    -- Fetched balance
-    fetched_coin_balance NUMERIC(100),
-    fetched_coin_balance_block_number BIGINT,
-
-    -- Contract info
-    contract_code   BYTEA,
-
-    -- Verification
-    verified        BOOLEAN DEFAULT FALSE,
-
-    -- Stats
-    transactions_count INTEGER DEFAULT 0,
-    token_transfers_count INTEGER DEFAULT 0,
-    gas_used        NUMERIC(100),
-
-    -- Timestamps
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, hash)
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE addresses_96369 PARTITION OF addresses FOR VALUES IN (96369);
-CREATE TABLE addresses_96368 PARTITION OF addresses FOR VALUES IN (96368);
-CREATE TABLE addresses_200200 PARTITION OF addresses FOR VALUES IN (200200);
-CREATE TABLE addresses_200201 PARTITION OF addresses FOR VALUES IN (200201);
-CREATE TABLE addresses_36963 PARTITION OF addresses FOR VALUES IN (36963);
-
--- Smart contract source verification (Blockscout: smart_contracts)
-CREATE TABLE smart_contracts (
-    id              BIGSERIAL PRIMARY KEY,
-    chain_id        BIGINT NOT NULL,
-    address_hash    BYTEA NOT NULL,
-
-    name            VARCHAR(255) NOT NULL,
-    compiler_version VARCHAR(255) NOT NULL,
-    optimization    BOOLEAN DEFAULT FALSE,
-    optimization_runs INTEGER,
-    contract_source_code TEXT,
-    abi             JSONB,
-    constructor_arguments TEXT,
-    evm_version     VARCHAR(50),
-
-    -- Multi-file support
-    external_libraries JSONB,
-    secondary_sources JSONB,
-
-    -- Verification metadata
-    verified_via    VARCHAR(50),  -- sourcify, manual, etc.
-    is_vyper_contract BOOLEAN DEFAULT FALSE,
-
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    UNIQUE (chain_id, address_hash)
-);
-
--- Tokens (Blockscout: tokens)
-CREATE TABLE tokens (
-    id              BIGSERIAL PRIMARY KEY,
-    chain_id        BIGINT NOT NULL,
-    contract_address_hash BYTEA NOT NULL,
-
-    name            VARCHAR(255),
-    symbol          VARCHAR(255),
-    total_supply    NUMERIC(100),
-    decimals        SMALLINT,
-    type            VARCHAR(50) NOT NULL,  -- ERC-20, ERC-721, ERC-1155
-
-    holder_count    INTEGER DEFAULT 0,
-
-    -- Metadata
-    cataloged       BOOLEAN DEFAULT FALSE,
-    skip_metadata   BOOLEAN DEFAULT FALSE,
-
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    UNIQUE (chain_id, contract_address_hash)
-);
-
--- Token transfers (Blockscout: token_transfers)
-CREATE TABLE token_transfers (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    transaction_hash BYTEA NOT NULL,
-    log_index       INTEGER NOT NULL,
-    block_number    BIGINT NOT NULL,
-
-    from_address_hash BYTEA NOT NULL,
-    to_address_hash BYTEA NOT NULL,
-    token_contract_address_hash BYTEA NOT NULL,
-
-    amount          NUMERIC(100),
-    token_id        NUMERIC(78),
-    token_ids       NUMERIC(78)[],
-    amounts         NUMERIC(100)[],
-
-    block_hash      BYTEA NOT NULL,
-
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, transaction_hash, log_index)
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE token_transfers_96369 PARTITION OF token_transfers FOR VALUES IN (96369);
-CREATE TABLE token_transfers_96368 PARTITION OF token_transfers FOR VALUES IN (96368);
-CREATE TABLE token_transfers_200200 PARTITION OF token_transfers FOR VALUES IN (200200);
-CREATE TABLE token_transfers_200201 PARTITION OF token_transfers FOR VALUES IN (200201);
-CREATE TABLE token_transfers_36963 PARTITION OF token_transfers FOR VALUES IN (36963);
-
--- Address token balances (Blockscout: address_token_balances)
-CREATE TABLE address_token_balances (
-    id              BIGSERIAL,
-    chain_id        BIGINT NOT NULL,
-    address_hash    BYTEA NOT NULL,
-    token_contract_address_hash BYTEA NOT NULL,
-    block_number    BIGINT NOT NULL,
-
-    value           NUMERIC(100),
-    value_fetched_at TIMESTAMPTZ,
-    token_id        NUMERIC(78),
-    token_type      VARCHAR(50),
-
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    PRIMARY KEY (chain_id, address_hash, token_contract_address_hash, block_number, COALESCE(token_id, 0))
-) PARTITION BY LIST (chain_id);
-
-CREATE TABLE address_token_balances_96369 PARTITION OF address_token_balances FOR VALUES IN (96369);
-CREATE TABLE address_token_balances_96368 PARTITION OF address_token_balances FOR VALUES IN (96368);
-CREATE TABLE address_token_balances_200200 PARTITION OF address_token_balances FOR VALUES IN (200200);
-CREATE TABLE address_token_balances_200201 PARTITION OF address_token_balances FOR VALUES IN (200201);
-CREATE TABLE address_token_balances_36963 PARTITION OF address_token_balances FOR VALUES IN (36963);
-
--- Indexer checkpoints
-CREATE TABLE indexer_status (
-    id              SERIAL PRIMARY KEY,
-    chain_id        BIGINT NOT NULL,
-    indexer_type    VARCHAR(50) NOT NULL,
-
-    min_block       BIGINT,
-    max_block       BIGINT,
-
-    inserted_at     TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
-
-    UNIQUE (chain_id, indexer_type)
-);
-
--- Method signatures (4-byte database)
-CREATE TABLE transaction_actions (
-    hash            BYTEA PRIMARY KEY,  -- 4-byte selector
-    text            TEXT NOT NULL,      -- function signature
-    inserted_at     TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Event signatures
-CREATE TABLE logs_actions (
-    hash            BYTEA PRIMARY KEY,  -- 32-byte topic0
-    text            TEXT NOT NULL,      -- event signature
-    inserted_at     TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### Index Definitions
-
-```sql
--- migrations/002_indexes.sql
-
--- Block indexes
-CREATE INDEX idx_blocks_hash ON blocks USING HASH (hash);
-CREATE INDEX idx_blocks_timestamp ON blocks (chain_id, timestamp DESC);
-CREATE INDEX idx_blocks_miner ON blocks (chain_id, miner);
-CREATE INDEX idx_blocks_consensus_state ON blocks (chain_id, consensus_state);
-
--- Transaction indexes (critical for address queries)
-CREATE INDEX idx_tx_block ON transactions (chain_id, block_number DESC);
-CREATE INDEX idx_tx_from ON transactions (chain_id, from_address, block_number DESC);
-CREATE INDEX idx_tx_to ON transactions (chain_id, to_address, block_number DESC);
-CREATE INDEX idx_tx_created_contract ON transactions (chain_id, created_contract)
-    WHERE created_contract IS NOT NULL;
-CREATE INDEX idx_tx_timestamp ON transactions (chain_id, timestamp DESC);
-CREATE INDEX idx_tx_status ON transactions (chain_id, status) WHERE status = 0;
-
--- Internal transaction indexes
-CREATE INDEX idx_internal_tx_block ON internal_transactions (chain_id, block_number DESC);
-CREATE INDEX idx_internal_tx_from ON internal_transactions (chain_id, from_address);
-CREATE INDEX idx_internal_tx_to ON internal_transactions (chain_id, to_address);
-
--- Log indexes (critical for event filtering)
-CREATE INDEX idx_logs_address ON logs (chain_id, address, block_number DESC);
-CREATE INDEX idx_logs_topic0 ON logs (chain_id, topic0, block_number DESC);
-CREATE INDEX idx_logs_topic0_address ON logs (chain_id, topic0, address, block_number DESC);
-CREATE INDEX idx_logs_tx ON logs (chain_id, transaction_hash);
-CREATE INDEX idx_logs_block_range ON logs (chain_id, block_number)
-    INCLUDE (address, topic0);
-
--- Address indexes
-CREATE INDEX idx_addresses_balance ON addresses (chain_id, fetched_coin_balance DESC NULLS LAST);
-CREATE INDEX idx_addresses_tx_count ON addresses (chain_id, transactions_count DESC);
-CREATE INDEX idx_addresses_contract ON addresses (chain_id) WHERE contract_code IS NOT NULL;
-
--- Token indexes
-CREATE INDEX idx_tokens_type ON tokens (chain_id, type);
-CREATE INDEX idx_tokens_symbol ON tokens USING GIN (symbol gin_trgm_ops);
-CREATE INDEX idx_tokens_name ON tokens USING GIN (name gin_trgm_ops);
-CREATE INDEX idx_tokens_holders ON tokens (chain_id, holder_count DESC);
-
--- Token transfer indexes
-CREATE INDEX idx_token_transfers_token ON token_transfers (chain_id, token_contract_address_hash, block_number DESC);
-CREATE INDEX idx_token_transfers_from ON token_transfers (chain_id, from_address_hash, block_number DESC);
-CREATE INDEX idx_token_transfers_to ON token_transfers (chain_id, to_address_hash, block_number DESC);
-
--- Token balance indexes
-CREATE INDEX idx_token_balances_holder ON address_token_balances (chain_id, address_hash);
-CREATE INDEX idx_token_balances_token ON address_token_balances (chain_id, token_contract_address_hash, value DESC NULLS LAST);
-
--- Smart contract indexes
-CREATE INDEX idx_smart_contracts_address ON smart_contracts (chain_id, address_hash);
-CREATE INDEX idx_smart_contracts_name ON smart_contracts USING GIN (name gin_trgm_ops);
-```
-
-### Table Partitioning Strategy
-
-For scale (millions of blocks), add range partitioning within each chain:
-
-```sql
--- migrations/003_range_partitioning.sql
-
--- For high-volume chains, sub-partition by block range (10M blocks per partition)
--- Example for C-Chain mainnet:
-
-CREATE TABLE blocks_96369_0_10m PARTITION OF blocks_96369
-    FOR VALUES FROM (0) TO (10000000);
-
-CREATE TABLE blocks_96369_10m_20m PARTITION OF blocks_96369
-    FOR VALUES FROM (10000000) TO (20000000);
-
--- Automate with pg_partman for production
-```
-
----
-
-## 4. Blockscout API v2 Contract
-
-### Required Endpoints
-
-The following endpoints MUST be implemented with **exact response format** matching Blockscout:
-
-#### Blocks
+Each chain gets its own directory with independent SQLite + KV:
 
 ```
-GET /api/v2/blocks
-GET /api/v2/blocks/{block_number_or_hash}
-GET /api/v2/blocks/{block_number_or_hash}/transactions
-GET /api/v2/blocks/{block_number_or_hash}/withdrawals
+{data_dir}/
+├── cchain/
+│   ├── query/indexer.db    SQLite (blocks, txs, tokens, traces, contracts)
+│   └── kv/                 ZapDB (hash→data, height→block fast lookups)
+├── pchain/
+│   ├── query/indexer.db    Validators, delegators, staking, subnets
+│   └── kv/
+├── xchain/
+│   ├── query/indexer.db    DAG vertices, edges, UTXOs, assets
+│   └── kv/
+├── zchain/
+│   ├── query/indexer.db    ZK proofs, shielded transfers, nullifiers
+│   └── kv/
+├── tchain/
+│   ├── query/indexer.db    FHE operations, threshold signatures, MPC keys
+│   └── kv/
+├── ethereum/
+│   ├── query/indexer.db    External chain (bridge support)
+│   └── kv/
+└── ... (N chains)
 ```
 
-**Response Schema** (blocks list):
+**Why per-chain SQLite**:
+- Zero write contention between chains (each is sole writer)
+- Restore one chain without touching others
+- Drop a chain = delete its directory
+- WAL mode: 8 concurrent readers per chain (API layer)
+- Per-chain S3 backup paths: `s3://bucket/{host}/{slug}/`
+
+## 4. Chain Support Matrix
+
+### Native Chains (9)
+
+| Chain | Type | Indexer | Specialization |
+|---|---|---|---|
+| C-Chain | EVM | `evm/adapter.go` | Full EVM parity — blocks, txs, tokens, traces, contracts, DeFi |
+| P-Chain | Linear | `pchain/adapter.go` | Validators, delegators, staking, subnet creation |
+| X-Chain | DAG | `xchain/adapter.go` | UTXOs, atomic swaps, multi-asset transfers |
+| A-Chain | DAG | `achain/adapter.go` | AI attestations, model registration, inference |
+| B-Chain | DAG | `bchain/adapter.go` | Cross-chain bridge transfers, proof validation |
+| Q-Chain | DAG | `qchain/adapter.go` | Post-quantum finality proofs, lattice signatures |
+| T-Chain | DAG | `tchain/adapter.go` | Threshold FHE, MPC key shares, decryption proofs |
+| Z-Chain | DAG | `zchain/adapter.go` | Zero-knowledge proofs, shielded transfers, nullifiers |
+| K-Chain | DAG | `kchain/adapter.go` | PQ key material, certificate lifecycle, HSM bridge |
+
+### Subnet EVM Chains
+
+| Chain | Chain ID | Purpose |
+|---|---|---|
+| Zoo | 200200 | NFT/Gaming ecosystem |
+| Hanzo AI | 36963 | AI compute chain |
+| SPC | 36911 | Specialized compute |
+| Pars | 494949 | Regional chain |
+| DEX | — | CLOB orderbook, perpetuals, AMM |
+
+### External Chains (bridge/MPC/threshold support)
+
+| Type | Chains | Indexer |
+|---|---|---|
+| EVM | Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, + 30 more | `multichain/evm_indexer.go` |
+| Solana | Mainnet, Devnet | `multichain/solana_indexer.go` |
+| Bitcoin | Mainnet (Ordinals, Runes, BRC-20) | `multichain/bitcoin_indexer.go` |
+| Cosmos | Hub, Osmosis, Injective, dYdX, Celestia | `multichain/cosmos_indexer.go` |
+| Move | Aptos, Sui | `multichain/other_indexers.go` |
+| Other | NEAR, Tron, TON, Substrate | `multichain/other_indexers.go` |
+
+## 5. E2E Post-Quantum Encrypted Streaming Backups
+
+Every chain's SQLite WAL is continuously streamed to S3, encrypted end-to-end with post-quantum cryptography before leaving the process.
+
+### Cryptographic Stack
+
+| Layer | Algorithm | Standard |
+|---|---|---|
+| Key encapsulation | ML-KEM-768 (lattice) | NIST FIPS 203 |
+| Key agreement | X25519 (classical) | RFC 7748 |
+| Hybrid derivation | ML-KEM shared ∥ X25519 shared | defense-in-depth |
+| Stream cipher | ChaCha20-Poly1305 AEAD | RFC 8439 |
+| Key derivation | HKDF-SHA256 | RFC 5869 |
+| Header auth | HMAC-SHA256 | RFC 2104 |
+| Chunk size | 64 KB | age spec |
+
+### Properties
+
+- **Quantum-resistant**: ML-KEM-768 protects against harvest-now-decrypt-later
+- **Hybrid**: secure if either ML-KEM or X25519 remains unbroken
+- **Forward secrecy**: fresh ephemeral keypairs per WAL segment, zeroed after use
+- **Streaming**: 64KB chunks, never buffers the full database in memory
+- **Point-in-time restore**: recover to any TXID, not just latest snapshot
+- **Per-chain isolation**: each chain streams to its own S3 prefix
+- **Zero-trust S3**: all data is ciphertext before network transmission
+
+### Data Flow
+
+```
+Indexer goroutine
+    │ write
+    ▼
+SQLite WAL (disk)
+    │ fsnotify
+    ▼
+Replicate (monitors WAL)
+    │ read new frames
+    ▼
+LTX segment (immutable transaction log)
+    │ encrypt
+    ▼
+age (ML-KEM-768 + X25519)
+    │ 64KB ChaCha20-Poly1305 chunks
+    ▼
+S3 PUT (ciphertext only)
+    │
+    ▼
+s3://bucket/{host}/{chain_slug}/{txid}.ltx.age
+```
+
+### Restore
+
+```
+S3 GET → age decrypt → LTX replay → SQLite rebuilt
+```
+
+Restore targets:
+- Latest state (default)
+- Specific TXID (point-in-time)
+- Specific timestamp (nearest TXID)
+
+## 6. API Layer
+
+### Route Structure
+
+```
+/v1/explorer/                    Default chain (configurable)
+/v1/explorer/{chain_slug}/       Per-chain endpoints
+/v1/explorer/{chain_slug}/blocks
+/v1/explorer/{chain_slug}/transactions/{hash}
+/v1/explorer/{chain_slug}/addresses/{hash}
+/v1/explorer/{chain_slug}/tokens
+/v1/explorer/{chain_slug}/smart-contracts/{addr}
+/v1/explorer/{chain_slug}/search
+/v1/explorer/{chain_slug}/stats
+/v1/explorer/{chain_slug}/graphql
+/v1/explorer/{chain_slug}/ws
+```
+
+### Response Format
+
+Explorer API v2 — cursor-based pagination:
+
 ```json
 {
-  "items": [
-    {
-      "base_fee_per_gas": "25000000000",
-      "burnt_fees": "0",
-      "burnt_fees_percentage": 0,
-      "difficulty": "0",
-      "extra_data": "0x",
-      "gas_limit": "30000000",
-      "gas_target_percentage": 0,
-      "gas_used": "21000",
-      "gas_used_percentage": 0.07,
-      "hash": "0x...",
-      "height": 1234567,
-      "miner": {
-        "hash": "0x...",
-        "is_contract": false,
-        "is_verified": false
-      },
-      "nonce": "0x0000000000000000",
-      "parent_hash": "0x...",
-      "priority_fee": "0",
-      "rewards": [],
-      "size": 1234,
-      "state_root": "0x...",
-      "timestamp": "2025-12-25T12:00:00.000000Z",
-      "total_difficulty": "0",
-      "tx_count": 1,
-      "tx_fees": "525000000000000",
-      "type": "block",
-      "uncles_hashes": [],
-      "withdrawals_count": 0
-    }
-  ],
+  "items": [...],
   "next_page_params": {
-    "block_number": 1234566,
+    "block_number": 12345,
+    "index": 0,
     "items_count": 50
   }
 }
 ```
 
-#### Transactions
+### Frontend
+
+The `explore` Next.js frontend is built as a static export and embedded in the binary via `go:embed`. Served at `/*` with SPA fallback routing.
+
+`NEXT_PUBLIC_API_BASE_PATH=/v1/explorer` points the frontend at the embedded API.
+
+## 7. Rust Static Libraries (Optional)
+
+Pure Go is the default for all services. Rust verification implementations available as optional static libraries linked via CGO:
 
 ```
-GET /api/v2/transactions
-GET /api/v2/transactions/{transaction_hash}
-GET /api/v2/transactions/{transaction_hash}/token-transfers
-GET /api/v2/transactions/{transaction_hash}/internal-transactions
-GET /api/v2/transactions/{transaction_hash}/logs
-GET /api/v2/transactions/{transaction_hash}/raw-trace
-GET /api/v2/transactions/{transaction_hash}/state-changes
+explorer-rs/ffi/
+├── Cargo.toml              crate-type = ["staticlib"]
+├── src/lib.rs              C ABI: explorer_verify_solidity(), etc.
+├── explorer_ffi.h          C header
+└── target/release/
+    └── libexplorer_ffi.a   ~15MB static library
+
+rustffi/
+├── explorer_ffi.h          Header copy
+└── verifier.go             Go CGO bindings (build tag: rustffi)
 ```
 
-**Response Schema** (single transaction):
-```json
-{
-  "timestamp": "2025-12-25T12:00:00.000000Z",
-  "fee": {
-    "type": "actual",
-    "value": "525000000000000"
-  },
-  "gas_limit": "21000",
-  "block": 1234567,
-  "status": "ok",
-  "method": "transfer",
-  "confirmations": 100,
-  "type": 2,
-  "exchange_rate": "1.23",
-  "to": {
-    "hash": "0x...",
-    "is_contract": false,
-    "is_verified": false
-  },
-  "tx_burnt_fee": "0",
-  "max_fee_per_gas": "30000000000",
-  "result": "success",
-  "hash": "0x...",
-  "gas_price": "25000000000",
-  "priority_fee": "0",
-  "base_fee_per_gas": "25000000000",
-  "from": {
-    "hash": "0x...",
-    "is_contract": false,
-    "is_verified": false
-  },
-  "token_transfers": [],
-  "tx_types": ["coin_transfer"],
-  "gas_used": "21000",
-  "created_contract": null,
-  "position": 0,
-  "nonce": 42,
-  "has_error_in_internal_txs": false,
-  "actions": [],
-  "decoded_input": null,
-  "token_transfers_overflow": false,
-  "raw_input": "0x",
-  "value": "1000000000000000000",
-  "max_priority_fee_per_gas": "0",
-  "revert_reason": null,
-  "confirmation_duration": [0, 1000],
-  "tx_tag": null
-}
+Build tag `rustffi` activates Rust. Without it, pure Go implementations in `evm/contracts/` are used.
+
+## 8. Scalability
+
+### Per-Chain Resource Usage
+
+| State | RAM | Disk I/O | CPU |
+|---|---|---|---|
+| Idle (no new blocks) | ~2 MB | 0 | 0 |
+| Active EVM indexing | ~50-100 MB | moderate | 1 core |
+| Active DAG indexing | ~20-50 MB | moderate | 0.5 core |
+| Active external chain | ~30-80 MB | moderate | 0.5 core |
+
+### Tested Configurations
+
+| Chains | RAM | CPU | Notes |
+|---|---|---|---|
+| 1 (single chain) | 256 MB | 1 core | Minimal dev setup |
+| 15 (all Lux native) | 1 GB | 4 cores | Full Lux ecosystem |
+| 30 (Lux + major external) | 3 GB | 8 cores | Bridge support |
+| 100+ (full multi-chain) | 10 GB | 16 cores | Exchange/aggregator |
+| 200+ (Liquidity infra) | 20 GB | 32 cores | White-label platform |
+
+### Horizontal Scaling
+
+For extreme scale, run multiple instances partitioned by chain set:
+- Instance A: Lux native chains (9)
+- Instance B: EVM external chains (50+)
+- Instance C: Non-EVM chains (Solana, Bitcoin, Cosmos, etc.)
+
+Each instance shares the same S3 backup bucket with isolated prefixes.
+
+## 9. White-Label
+
+Zero chain-specific branding in code. Runtime configuration only:
+
+```yaml
+chains:
+  - slug: mychain
+    name: "My Awesome Chain"
+    chain_id: 12345
+    type: evm
+    rpc: http://node:8545
+    coin: AWE
+    enabled: true
+    default: true
 ```
 
-#### Addresses
-
-```
-GET /api/v2/addresses/{address_hash}
-GET /api/v2/addresses/{address_hash}/transactions
-GET /api/v2/addresses/{address_hash}/token-transfers
-GET /api/v2/addresses/{address_hash}/internal-transactions
-GET /api/v2/addresses/{address_hash}/logs
-GET /api/v2/addresses/{address_hash}/tokens
-GET /api/v2/addresses/{address_hash}/token-balances
-GET /api/v2/addresses/{address_hash}/coin-balance-history
-GET /api/v2/addresses/{address_hash}/coin-balance-history-by-day
-GET /api/v2/addresses/{address_hash}/withdrawals
-GET /api/v2/addresses/{address_hash}/counters
-```
-
-**Response Schema** (address):
-```json
-{
-  "hash": "0x...",
-  "is_contract": false,
-  "is_verified": false,
-  "name": null,
-  "private_tags": [],
-  "public_tags": [],
-  "watchlist_names": [],
-  "creator_address_hash": null,
-  "creation_tx_hash": null,
-  "token": null,
-  "coin_balance": "1000000000000000000",
-  "exchange_rate": "1.23",
-  "implementation_name": null,
-  "implementation_address": null,
-  "block_number_balance_updated_at": 1234567,
-  "has_decompiled_code": false,
-  "has_validated_blocks": false,
-  "has_logs": true,
-  "has_tokens": true,
-  "has_token_transfers": true,
-  "watchlist_address_id": null,
-  "has_beacon_chain_withdrawals": false
-}
-```
-
-#### Tokens
-
-```
-GET /api/v2/tokens
-GET /api/v2/tokens/{address_hash}
-GET /api/v2/tokens/{address_hash}/transfers
-GET /api/v2/tokens/{address_hash}/holders
-GET /api/v2/tokens/{address_hash}/counters
-GET /api/v2/tokens/{address_hash}/instances  (NFT only)
-GET /api/v2/tokens/{address_hash}/instances/{id}
-```
-
-**Response Schema** (token):
-```json
-{
-  "address": "0x...",
-  "circulating_market_cap": null,
-  "decimals": "18",
-  "exchange_rate": null,
-  "holders": "1234",
-  "icon_url": null,
-  "name": "Test Token",
-  "symbol": "TEST",
-  "total_supply": "1000000000000000000000000",
-  "type": "ERC-20",
-  "volume_24h": null
-}
-```
-
-#### Smart Contracts
-
-```
-GET /api/v2/smart-contracts/{address_hash}
-GET /api/v2/smart-contracts/{address_hash}/methods-read
-GET /api/v2/smart-contracts/{address_hash}/methods-read-proxy
-GET /api/v2/smart-contracts/{address_hash}/methods-write
-GET /api/v2/smart-contracts/{address_hash}/methods-write-proxy
-POST /api/v2/smart-contracts/{address_hash}/query-read-method
-```
-
-#### Stats
-
-```
-GET /api/v2/stats
-GET /api/v2/stats/charts/transactions
-GET /api/v2/stats/charts/market
-```
-
-**Response Schema** (stats):
-```json
-{
-  "total_blocks": "1234567",
-  "total_addresses": "100000",
-  "total_transactions": "5000000",
-  "average_block_time": 2000,
-  "coin_price": "1.23",
-  "total_gas_used": "500000000000",
-  "transactions_today": "10000",
-  "gas_used_today": "1000000000",
-  "gas_prices": {
-    "slow": 25,
-    "average": 30,
-    "fast": 40
-  },
-  "static_gas_price": null,
-  "market_cap": "1000000000",
-  "network_utilization_percentage": 15.5
-}
-```
-
-#### Search
-
-```
-GET /api/v2/search?q={query}
-GET /api/v2/search/check-redirect?q={query}
-```
-
-#### Logs
-
-```
-GET /api/v2/addresses/{address_hash}/logs?topic={topic0}
-```
-
----
-
-## 5. Integration Points
-
-### EVM Node Connection (JSON-RPC)
-
-```go
-// evm/indexer/client.go
-
-type RPCClient struct {
-    endpoints []string    // Load-balanced endpoints
-    current   int         // Round-robin counter
-    client    *http.Client
-}
-
-// Required RPC methods:
-// - eth_blockNumber
-// - eth_getBlockByNumber (with full transactions)
-// - eth_getBlockReceipts (batch-optimized)
-// - eth_getTransactionReceipt
-// - eth_getCode
-// - eth_call (for token metadata)
-// - debug_traceBlockByNumber (optional, for internal txs)
-// - eth_getLogs
-
-// Batch RPC for efficiency
-func (c *RPCClient) BatchCall(requests []RPCRequest) ([]RPCResponse, error) {
-    // Send as JSON-RPC batch
-    body, _ := json.Marshal(requests)
-    resp, err := c.client.Post(c.endpoint(), "application/json", bytes.NewReader(body))
-    // ...
-}
-```
-
-### WebSocket Real-time Updates
-
-```
-WebSocket Endpoint: /api/v2/socket/websocket
-
-Subscribe messages (Blockscout format):
-{
-  "topic": "blocks:new_block",
-  "event": "phx_join",
-  "payload": {},
-  "ref": "1"
-}
-
-{
-  "topic": "addresses:0x...",
-  "event": "phx_join",
-  "payload": {},
-  "ref": "2"
-}
-
-// Server pushes:
-{
-  "topic": "blocks:new_block",
-  "event": "new_block",
-  "payload": { /* block data */ },
-  "ref": null
-}
-```
-
-### Redis Caching Strategy
-
-```
-Cache Keys:
-- block:{chain_id}:{number}              TTL: 1 hour
-- block:{chain_id}:latest                TTL: 2 seconds
-- tx:{chain_id}:{hash}                   TTL: 1 hour
-- address:{chain_id}:{hash}              TTL: 5 minutes
-- address:{chain_id}:{hash}:balance      TTL: 30 seconds
-- token:{chain_id}:{hash}                TTL: 5 minutes
-- stats:{chain_id}                       TTL: 10 seconds
-
-Pub/Sub Channels:
-- indexer:{chain_id}:new_block
-- indexer:{chain_id}:new_transaction
-- indexer:{chain_id}:token_transfer
-```
-
----
-
-## 6. Performance Requirements
-
-### Indexing Performance
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Block throughput | 10,000 blocks/sec | Backfill mode |
-| Real-time latency | < 500ms | Block notification |
-| Trace indexing | 1,000 blocks/sec | With debug_traceBlock |
-| Token tracking | 50,000 transfers/sec | ERC-20/721/1155 |
-
-### API Performance
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Request throughput | 50,000 RPS | Per API worker |
-| P50 latency | < 10ms | Cached responses |
-| P99 latency | < 100ms | Database queries |
-| WebSocket connections | 100,000 | Per worker |
-
-### Database Performance
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| Write throughput | 100,000 rows/sec | Batch inserts |
-| Read latency | < 5ms | Indexed queries |
-| Storage efficiency | < 1KB/block | Average |
-
-### Caching Strategy
-
-| Cache Layer | Hit Rate Target | TTL |
-|-------------|-----------------|-----|
-| In-memory (Go) | 95% hot data | 30 seconds |
-| Redis | 80% warm data | 5 minutes |
-| PostgreSQL | 100% cold data | Persistent |
-
----
-
-## 7. Migration Strategy
-
-### From Blockscout
-
-1. **Schema Mapping**: Use compatible table names
-2. **Data Export**: Export blocks, transactions, tokens from Blockscout DB
-3. **Import Pipeline**: Stream import with validation
-4. **API Validation**: Compare responses with Blockscout
-5. **Cutover**: DNS switch with health checks
-
-### Deployment Phases
-
-1. **Phase 1**: Core indexing (blocks, transactions)
-2. **Phase 2**: Token tracking (ERC-20/721/1155)
-3. **Phase 3**: Contract verification
-4. **Phase 4**: Search and analytics
-5. **Phase 5**: Real-time subscriptions
-
----
-
-## 8. Operational Considerations
-
-### Health Checks
-
-```
-GET /health           - Basic liveness
-GET /health/ready     - Readiness (DB, Redis connected)
-GET /api/v2/health    - Blockscout-compatible health
-```
-
-### Metrics (Prometheus)
-
-```
-indexer_blocks_indexed_total{chain_id}
-indexer_blocks_per_second{chain_id}
-indexer_reorgs_total{chain_id}
-indexer_lag_blocks{chain_id}
-
-api_requests_total{endpoint,status}
-api_request_duration_seconds{endpoint}
-api_active_websocket_connections{chain_id}
-
-db_query_duration_seconds{query}
-db_connection_pool_size
-cache_hit_rate{layer}
-```
-
-### Logging
-
-Structured JSON logging with:
-- Request IDs for tracing
-- Chain ID context
-- Block numbers for indexer logs
-- Transaction hashes for API logs
-
----
-
-## 9. Appendix: Lux-Specific Features
-
-### 19-Field Block Header
-
-Lux C-Chain uses extended headers with:
-- Field 16: `ExtDataHash` (cross-chain data)
-- Field 17: `ExtDataGasUsed`
-- Field 18: `BlockGasCost`
-
-These are indexed for Warp message tracking.
-
-### Precompile Awareness
-
-The indexer recognizes Lux precompiles:
-- `0x0200...0001-000E` - Standard precompiles
-- `0x0300` - AI Mining precompile
-- `0x0400-04FF` - DEX precompiles
-
-### Warp Message Indexing
-
-Cross-chain messages are decoded and indexed:
-- Source chain ID
-- Destination chain ID
-- Message payload
-- BLS aggregated signatures
-
----
-
-*Last Updated: 2025-12-25*
-*Architecture Version: 2.0.0*
+Frontend branding (logo, colors, footer) via Next.js environment variables at build time.

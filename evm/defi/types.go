@@ -248,8 +248,7 @@ type MarketHistory struct {
 	Volume    *big.Float `json:"volume"`
 }
 
-// Note: BridgeTransfer and AssetMovement types are defined in bridge.go
-// with more detailed fields for comprehensive bridge/cross-chain indexing
+// Note: BridgeTransfer and AssetMovement types are defined in bridge.go.
 
 // ProtocolStats represents aggregate protocol statistics
 type ProtocolStats struct {

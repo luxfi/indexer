@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// GraphQL schema matching Blockscout's GraphQL API
+// GraphQL schema for the explorer API
 const GraphQLSchema = `
 type Query {
   # Blocks

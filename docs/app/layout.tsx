@@ -20,7 +20,7 @@ export const metadata = {
     default: "Lux Indexer Documentation",
     template: "%s | Lux Indexer",
   },
-  description: "Unified blockchain indexer for Lux Network - Full Blockscout replacement",
+  description: "Unified blockchain indexer for Lux Network",
 }
 
 export default function Layout({ children }: { children: ReactNode }) {

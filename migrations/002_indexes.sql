@@ -1,13 +1,13 @@
 -- Lux EVM Indexer Index Definitions
 -- Version: 1.0.0
 -- Date: 2025-12-25
--- Optimized for Blockscout API query patterns
+-- Optimized for explorer API query patterns
 
 --------------------------------------------------------------------------------
 -- Block Indexes
 --------------------------------------------------------------------------------
 
--- Hash lookup (used by /api/v2/blocks/{hash})
+-- Hash lookup (used by /v1/explorer/blocks/{hash})
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_hash
     ON blocks USING HASH (hash);
 
@@ -15,7 +15,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_hash
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_timestamp
     ON blocks (chain_id, timestamp DESC);
 
--- Miner lookup (used by /api/v2/addresses/{address}/blocks-validated)
+-- Miner lookup (used by /v1/explorer/addresses/{address}/blocks-validated)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_miner
     ON blocks (chain_id, miner);
 
@@ -33,7 +33,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocks_empty
 -- Transaction Indexes
 --------------------------------------------------------------------------------
 
--- Block lookup (used by /api/v2/blocks/{block}/transactions)
+-- Block lookup (used by /v1/explorer/blocks/{block}/transactions)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_block
     ON transactions (chain_id, block_number DESC, transaction_index);
 
@@ -77,7 +77,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_from_nonce
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_internal_tx_block
     ON internal_transactions (chain_id, block_number DESC);
 
--- Transaction lookup (used by /api/v2/transactions/{hash}/internal-transactions)
+-- Transaction lookup (used by /v1/explorer/transactions/{hash}/internal-transactions)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_internal_tx_hash
     ON internal_transactions (chain_id, transaction_hash);
 
@@ -104,7 +104,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_internal_tx_error
 -- Log Indexes (Critical for event filtering)
 --------------------------------------------------------------------------------
 
--- Address lookup (used by /api/v2/addresses/{address}/logs)
+-- Address lookup (used by /v1/explorer/addresses/{address}/logs)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_address
     ON logs (chain_id, address_hash, block_number DESC);
 
@@ -139,7 +139,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_type
 -- Address Indexes
 --------------------------------------------------------------------------------
 
--- Balance ranking (used by /api/v2/addresses top holders)
+-- Balance ranking (used by /v1/explorer/addresses top holders)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_addresses_balance
     ON addresses (chain_id, fetched_coin_balance DESC NULLS LAST);
 
@@ -213,11 +213,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tokens_address
 -- Token Transfer Indexes
 --------------------------------------------------------------------------------
 
--- Token contract lookup (used by /api/v2/tokens/{address}/transfers)
+-- Token contract lookup (used by /v1/explorer/tokens/{address}/transfers)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_token_transfers_token
     ON token_transfers (chain_id, token_contract_address_hash, block_number DESC);
 
--- From address (used by /api/v2/addresses/{address}/token-transfers)
+-- From address (used by /v1/explorer/addresses/{address}/token-transfers)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_token_transfers_from
     ON token_transfers (chain_id, from_address_hash, block_number DESC);
 
