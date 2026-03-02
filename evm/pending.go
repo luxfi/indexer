@@ -504,8 +504,7 @@ type httpRequest struct {
 }
 
 func doHTTPRequest(req *httpRequest) (*httpResponse, error) {
-	// This is a placeholder - in production, use actual http.Client
-	return &httpResponse{}, fmt.Errorf("not implemented - use actual HTTP client")
+	return &httpResponse{}, fmt.Errorf("not implemented")
 }
 
 type httpResponse struct {

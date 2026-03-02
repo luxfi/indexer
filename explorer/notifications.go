@@ -239,14 +239,14 @@ func (w *NotificationWorker) poll() {
 	// Auto-detect column names (different schemas use different names)
 	fromCol, toCol, tsCol, idxCol := "from_addr", "to_addr", "timestamp", "tx_index"
 	// Check if using the test/PG schema with _hash suffix
-	var dummy int
-	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='from_address_hash'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+	var colCount int
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='from_address_hash'", w.table)).Scan(&colCount); err == nil && colCount > 0 {
 		fromCol, toCol = "from_address_hash", "to_address_hash"
 	}
-	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='block_timestamp'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='block_timestamp'", w.table)).Scan(&colCount); err == nil && colCount > 0 {
 		tsCol = "block_timestamp"
 	}
-	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='transaction_index'", w.table)).Scan(&dummy); err == nil && dummy > 0 {
+	if err := w.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='transaction_index'", w.table)).Scan(&colCount); err == nil && colCount > 0 {
 		idxCol = "transaction_index"
 	}
 

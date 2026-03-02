@@ -1056,8 +1056,6 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 
 // GraphQL handler
 func (s *Server) handleGraphQL(w http.ResponseWriter, r *http.Request) {
-	// For now, return a simple response
-	// Full GraphQL implementation would use gqlgen
 	if r.Method == "GET" {
 		// Return GraphQL playground
 		w.Header().Set("Content-Type", "text/html")

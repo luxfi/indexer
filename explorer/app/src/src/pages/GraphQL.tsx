@@ -44,7 +44,7 @@ export function GraphQL() {
     <div>
       <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>GraphQL Explorer</h1>
       <p style={{ color: colors.textMuted, fontSize: 14, marginBottom: 20 }}>
-        Query the Liquid chain subgraph via GraphQL.
+        Query the chain subgraph via GraphQL.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

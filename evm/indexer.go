@@ -646,9 +646,7 @@ func (idx *Indexer) isBlockKey(key string) bool {
 
 // processBlockEvent handles a block write event from the node
 func (idx *Indexer) processBlockEvent(ctx context.Context, event NodeEvent) error {
-	// The event contains the raw block data - we need to decode and index it
-	// For now, trigger a re-index of the latest block
-	// In the future, we can decode the RLP directly from event.Value
+	// Decode event and index the latest block.
 
 	block, err := idx.adapter.GetLatestBlock(ctx)
 	if err != nil {

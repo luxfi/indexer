@@ -36,31 +36,6 @@ docker run -p 8090:8090 -v explorer-data:/data \
   explorer
 ```
 
-## vs explorer-v1
-
-[`explorer-v1`](https://github.com/luxfi/explorer-v1) is the legacy Elixir stack. It targets the same [`explore`](https://github.com/luxfi/explore) frontend and is maintained for backward compatibility. This repo is the replacement.
-
-| | explorer-v1 (Elixir) | Explorer (this repo) |
-|---|---|---|
-| **Runtime** | Elixir BEAM + 4 Rust microservices | Single Go binary |
-| **Database** | PostgreSQL (managed, migrations, vacuuming) | SQLite WAL (embedded, zero-ops) |
-| **Cache** | Redis | ZapDB (embedded) |
-| **Containers** | 6 (backend, verifier, sig-provider, user-ops, stats, frontend) | 1 |
-| **Backup** | pg_dump / WAL-G (plaintext or GPG) | Continuous WAL stream to S3, E2E PQ encrypted |
-| **Encryption** | None or GPG (RSA, quantum-vulnerable) | ML-KEM-768 + X25519 hybrid (NIST FIPS 203) |
-| **Restore** | Full dump restore (minutes to hours) | Point-in-time to any TXID (seconds) |
-| **Disk** | 50-500GB+ PostgreSQL tablespace | Single SQLite file, typically 1-10GB |
-| **Memory** | 4-8GB minimum (BEAM + PG + Redis) | 256MB sufficient |
-| **Dev setup** | Docker Compose, PostgreSQL, Redis, env vars | `go run ./cmd/explorer --rpc=...` |
-| **Deploy** | Helm chart, 6 pods, PVCs, secrets | 1 pod, 1 PVC |
-| **EVM features** | Full | Full (100% parity, ported + tested) |
-| **Multi-chain** | EVM only | 9 native chains + 100+ external (Solana, Bitcoin, Cosmos, etc.) |
-| **DAG chains** | Not supported | Native vertex/edge indexing (X, A, B, Q, T, Z, K chains) |
-| **GraphQL** | Via subgraphs (Graph Node) | Native G-Chain + embedded schema |
-| **Contract verification** | Rust microservice | Go native (+ optional Rust staticlib via CGO) |
-| **White-label** | Env vars + code forks | Runtime flags, zero code changes |
-| **Frontend** | Separate container | Embedded (go:embed static export) |
-
 ### E2E Post-Quantum Encrypted Streaming Backups
 
 Every SQLite write is continuously streamed to S3, encrypted end-to-end before leaving the process:

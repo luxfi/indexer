@@ -473,7 +473,7 @@ type Delegator struct {
 	RewardOwner     string `json:"rewardOwner,omitempty"`
 }
 
-// GetNets fetches all chains from RPC (kept for backward compatibility)
+// GetNets fetches all chains from RPC.
 func (a *Adapter) GetNets(ctx context.Context) ([]Net, error) {
 	result, err := a.rpcRequest(ctx, "platform.getBlockchains", map[string]interface{}{})
 	if err != nil {
