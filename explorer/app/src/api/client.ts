@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_BASE || '/v1/explorer'
+import { getApiBase } from './chain'
 
 export class ApiError extends Error {
   constructor(
@@ -11,7 +11,7 @@ export class ApiError extends Error {
 }
 
 export async function fetcher<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(`${BASE}${path}`, window.location.origin)
+  const url = new URL(`${getApiBase()}${path}`, window.location.origin)
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== '') url.searchParams.set(k, v)

@@ -96,7 +96,7 @@ export function GasTracker() {
                     {row.gasUnits.toLocaleString()}
                   </td>
                   <td style={{ padding: '10px 0', textAlign: 'right', fontFamily: colors.mono, color: colors.textMuted }}>
-                    {costEth.toFixed(6)} LQDTY
+                    {costEth.toFixed(6)} {import.meta.env.VITE_COIN || 'ETH'}
                   </td>
                 </tr>
               )

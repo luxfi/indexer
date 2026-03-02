@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
 import { Blocks } from './pages/Blocks'
@@ -21,6 +21,7 @@ import { ApiDocs } from './pages/ApiDocs'
 import { DEX } from './pages/DEX'
 import { Bridge } from './pages/Bridge'
 import { GraphQL } from './pages/GraphQL'
+import { ChainRedirect } from './components/ChainRedirect'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,29 +32,36 @@ const queryClient = new QueryClient({
   },
 })
 
+// All explorer routes live under /:chain (evm, dex, fhe)
+// / redirects to /evm
+const explorerRoutes = [
+  { index: true, element: <Home /> },
+  { path: 'blocks', element: <Blocks /> },
+  { path: 'blocks/:id', element: <BlockDetail /> },
+  { path: 'txs', element: <Transactions /> },
+  { path: 'tx/:hash', element: <TxDetail /> },
+  { path: 'address/:hash', element: <Address /> },
+  { path: 'tokens', element: <Tokens /> },
+  { path: 'token/:address', element: <TokenDetail /> },
+  { path: 'search', element: <Search /> },
+  { path: 'internal-txs', element: <InternalTxs /> },
+  { path: 'token-transfers', element: <TokenTransfers /> },
+  { path: 'gas-tracker', element: <GasTracker /> },
+  { path: 'stats', element: <StatsPage /> },
+  { path: 'validators', element: <Validators /> },
+  { path: 'api-docs', element: <ApiDocs /> },
+  { path: 'dex', element: <DEX /> },
+  { path: 'bridge', element: <Bridge /> },
+  { path: 'graphql', element: <GraphQL /> },
+]
+
 const router = createBrowserRouter([
+  // Redirect / → /evm
+  { path: '/', element: <Navigate to="/evm" replace /> },
   {
-    element: <Layout />,
-    children: [
-      { path: '/', element: <Home /> },
-      { path: '/blocks', element: <Blocks /> },
-      { path: '/blocks/:id', element: <BlockDetail /> },
-      { path: '/txs', element: <Transactions /> },
-      { path: '/tx/:hash', element: <TxDetail /> },
-      { path: '/address/:hash', element: <Address /> },
-      { path: '/tokens', element: <Tokens /> },
-      { path: '/token/:address', element: <TokenDetail /> },
-      { path: '/search', element: <Search /> },
-      { path: '/internal-txs', element: <InternalTxs /> },
-      { path: '/token-transfers', element: <TokenTransfers /> },
-      { path: '/gas-tracker', element: <GasTracker /> },
-      { path: '/stats', element: <StatsPage /> },
-      { path: '/validators', element: <Validators /> },
-      { path: '/api-docs', element: <ApiDocs /> },
-      { path: '/dex', element: <DEX /> },
-      { path: '/bridge', element: <Bridge /> },
-      { path: '/graphql', element: <GraphQL /> },
-    ],
+    path: '/:chain',
+    element: <><ChainRedirect /><Layout /></>,
+    children: explorerRoutes,
   },
 ])
 

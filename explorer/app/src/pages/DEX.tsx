@@ -3,7 +3,7 @@ import { colors } from '../theme'
 export function DEX() {
   return (
     <div>
-      <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>Liquid DEX</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>DEX</h1>
 
       <div
         style={{
