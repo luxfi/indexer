@@ -274,6 +274,79 @@ func createSchema(db *sql.DB) error {
 		delta TEXT,
 		inserted_at TEXT DEFAULT (datetime('now'))
 	);
+
+	CREATE TABLE IF NOT EXISTS dex_orders (
+		id TEXT PRIMARY KEY,
+		owner TEXT NOT NULL,
+		symbol TEXT NOT NULL,
+		side TEXT NOT NULL,
+		type TEXT NOT NULL,
+		price INTEGER NOT NULL,
+		quantity INTEGER NOT NULL,
+		filled_qty INTEGER NOT NULL DEFAULT 0,
+		time_in_force TEXT,
+		post_only INTEGER DEFAULT 0,
+		reduce_only INTEGER DEFAULT 0,
+		status TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_dex_orders_symbol ON dex_orders(symbol);
+	CREATE INDEX IF NOT EXISTS idx_dex_orders_status ON dex_orders(status);
+
+	CREATE TABLE IF NOT EXISTS dex_trades (
+		id TEXT PRIMARY KEY,
+		symbol TEXT NOT NULL,
+		maker_order_id TEXT NOT NULL,
+		taker_order_id TEXT NOT NULL,
+		maker TEXT NOT NULL,
+		taker TEXT NOT NULL,
+		side TEXT NOT NULL,
+		price INTEGER NOT NULL,
+		quantity INTEGER NOT NULL,
+		volume INTEGER NOT NULL,
+		fee INTEGER DEFAULT 0,
+		timestamp TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_dex_trades_symbol ON dex_trades(symbol);
+	CREATE INDEX IF NOT EXISTS idx_dex_trades_timestamp ON dex_trades(timestamp);
+
+	CREATE TABLE IF NOT EXISTS dex_market_stats (
+		symbol TEXT PRIMARY KEY,
+		last_price INTEGER DEFAULT 0,
+		high_24h INTEGER DEFAULT 0,
+		low_24h INTEGER DEFAULT 0,
+		volume_24h INTEGER DEFAULT 0,
+		trade_count_24h INTEGER DEFAULT 0,
+		open_interest INTEGER DEFAULT 0,
+		updated_at TEXT DEFAULT (datetime('now'))
+	);
+
+	CREATE TABLE IF NOT EXISTS dex_pools (
+		id TEXT PRIMARY KEY,
+		token0 TEXT NOT NULL,
+		token1 TEXT NOT NULL,
+		reserve0 TEXT NOT NULL,
+		reserve1 TEXT NOT NULL,
+		lp_supply TEXT NOT NULL,
+		fee INTEGER DEFAULT 30,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS dex_swaps (
+		id TEXT PRIMARY KEY,
+		pool_id TEXT NOT NULL,
+		sender TEXT NOT NULL,
+		token_in TEXT NOT NULL,
+		token_out TEXT NOT NULL,
+		amount_in TEXT NOT NULL,
+		amount_out TEXT NOT NULL,
+		fee TEXT NOT NULL,
+		timestamp TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_dex_swaps_pool ON dex_swaps(pool_id);
+	CREATE INDEX IF NOT EXISTS idx_dex_swaps_timestamp ON dex_swaps(timestamp);
 	`
 	_, err := db.Exec(schema)
 	return err
