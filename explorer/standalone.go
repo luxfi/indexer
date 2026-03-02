@@ -244,10 +244,11 @@ func (s *StandaloneServer) q(r *http.Request, query string, args ...any) (*sql.R
 		cancel()
 		return nil, err
 	}
-	// Cancel when rows are closed via the request context chain.
-	// The 5s timeout protects against hung queries.
+	// Tie cancel to the request lifecycle — no goroutine leak.
+	// When the HTTP handler returns, r.Context() is cancelled,
+	// which cancels our derived ctx, which calls cancel().
 	go func() {
-		<-ctx.Done()
+		<-r.Context().Done()
 		cancel()
 	}()
 	return rows, nil
@@ -514,6 +515,13 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) search(r *http.Request) (any, int) {
 	q := r.URL.Query().Get("q")
+	// Strip null bytes and control characters
+	q = strings.Map(func(r rune) rune {
+		if r < 32 {
+			return -1
+		}
+		return r
+	}, q)
 	if q == "" {
 		return ep(), 200
 	}
