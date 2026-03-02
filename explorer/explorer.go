@@ -110,6 +110,7 @@ type plugin struct {
 	config      Config
 	db          *sql.DB // read-only connection to indexer's SQLite
 	gchainProxy *graphqlProxy
+	chainDBs    map[string]*sql.DB // pre-opened cross-chain DB connections
 }
 
 // openIndexerDB opens a read-only connection to the indexer's SQLite database.
@@ -130,6 +131,23 @@ func (p *plugin) openIndexerDB() error {
 	}
 
 	p.db = db
+
+	// Pre-open cross-chain DB connections for cross-chain search.
+	if len(p.config.ChainDBPaths) > 0 {
+		p.chainDBs = make(map[string]*sql.DB, len(p.config.ChainDBPaths))
+		for chain, dbPath := range p.config.ChainDBPaths {
+			cdb, err := sql.Open("sqlite3",
+				fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", dbPath))
+			if err != nil {
+				p.app.Logger().Warn("explorer: failed to open cross-chain db",
+					slog.String("chain", chain), slog.String("error", err.Error()))
+				continue
+			}
+			cdb.SetMaxOpenConns(2)
+			p.chainDBs[chain] = cdb
+		}
+	}
+
 	p.app.Logger().Info("explorer: connected to indexer database",
 		slog.String("path", p.config.IndexerDBPath),
 		slog.Int64("chain_id", p.config.ChainID),
@@ -138,6 +156,9 @@ func (p *plugin) openIndexerDB() error {
 }
 
 func (p *plugin) closeIndexerDB() {
+	for _, cdb := range p.chainDBs {
+		cdb.Close()
+	}
 	if p.db != nil {
 		p.db.Close()
 	}
