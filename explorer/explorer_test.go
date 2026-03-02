@@ -620,7 +620,7 @@ func TestSearch(t *testing.T) {
 // STATS TESTS (ported from stats_controller_test.exs)
 // =====================================================================
 
-func TestStats(t *testing.T) {
+func TestStats_Legacy(t *testing.T) {
 	_, tdb := testPlugin(t)
 	tdb.SeedChainData(t, 5)
 
