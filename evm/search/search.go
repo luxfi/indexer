@@ -83,12 +83,23 @@ type RedirectResponse struct {
 
 // Engine provides search functionality across blockchain entities
 type Engine struct {
-	db *sql.DB
+	db     *sql.DB
+	prefix string // table name prefix, e.g. "cchain", "zoo", "hanzo"
 }
 
-// NewEngine creates a new search engine
-func NewEngine(db *sql.DB) *Engine {
-	return &Engine{db: db}
+// Tbl returns the prefixed table name, e.g. Tbl("blocks") returns "cchain_blocks"
+func (e *Engine) Tbl(name string) string {
+	return e.prefix + "_" + name
+}
+
+// NewEngine creates a new search engine.
+// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+func NewEngine(db *sql.DB, chainSlug ...string) *Engine {
+	prefix := "cchain"
+	if len(chainSlug) > 0 && chainSlug[0] != "" {
+		prefix = chainSlug[0]
+	}
+	return &Engine{db: db, prefix: prefix}
 }
 
 // Config holds search configuration
@@ -262,11 +273,11 @@ func (e *Engine) searchByAddressHash(ctx context.Context, address string, limit 
 	var results []Result
 
 	// Search for address
-	row := e.db.QueryRowContext(ctx, `
+	row := e.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT hash, balance, tx_count, is_contract, created_at
-		FROM cchain_addresses
+		FROM %s
 		WHERE hash = $1
-	`, address)
+	`, e.Tbl("addresses")), address)
 
 	var addr struct {
 		Hash       string
@@ -293,11 +304,11 @@ func (e *Engine) searchByAddressHash(ctx context.Context, address string, limit 
 	}
 
 	// Search for token at this address
-	row = e.db.QueryRowContext(ctx, `
+	row = e.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT address, name, symbol, token_type, holder_count, total_supply, decimals
-		FROM cchain_tokens
+		FROM %s
 		WHERE address = $1
-	`, address)
+	`, e.Tbl("tokens")), address)
 
 	var token struct {
 		Address     string
@@ -331,11 +342,11 @@ func (e *Engine) searchByTxHash(ctx context.Context, txHash string, limit int) (
 	txHash = strings.ToLower(txHash)
 	var results []Result
 
-	row := e.db.QueryRowContext(ctx, `
+	row := e.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT hash, block_number, timestamp
-		FROM cchain_transactions
+		FROM %s
 		WHERE hash = $1
-	`, txHash)
+	`, e.Tbl("transactions")), txHash)
 
 	var tx struct {
 		Hash        string
@@ -423,16 +434,16 @@ func (e *Engine) searchByText(ctx context.Context, query string, limit int) ([]R
 	searchTerm := prepareSearchTerm(query)
 
 	// Search tokens by name or symbol
-	rows, err := e.db.QueryContext(ctx, `
+	rows, err := e.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT address, name, symbol, token_type, holder_count, total_supply
-		FROM cchain_tokens
+		FROM %s
 		WHERE
 			to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(symbol, '')) @@ to_tsquery($1)
 			OR LOWER(name) LIKE LOWER($2)
 			OR LOWER(symbol) LIKE LOWER($2)
 		ORDER BY holder_count DESC NULLS LAST
 		LIMIT $3
-	`, searchTerm, "%"+query+"%", limit)
+	`, e.Tbl("tokens")), searchTerm, "%"+query+"%", limit)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("search tokens: %w", err)
 	}
@@ -477,12 +488,12 @@ func (e *Engine) searchByText(ctx context.Context, query string, limit int) ([]R
 	}
 
 	// Search verified contracts by name (if contract verification table exists)
-	contractRows, err := e.db.QueryContext(ctx, `
+	contractRows, err := e.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT a.hash, a.is_contract, a.tx_count, a.created_at
-		FROM cchain_addresses a
+		FROM %s a
 		WHERE a.is_contract = true
 		LIMIT $1
-	`, limit)
+	`, e.Tbl("addresses")), limit)
 	if err != nil && err != sql.ErrNoRows {
 		// Contracts table might not exist, skip silently
 		return results, nil
@@ -524,16 +535,16 @@ func (e *Engine) SearchTokens(ctx context.Context, query string, limit int) ([]R
 
 	searchTerm := prepareSearchTerm(query)
 
-	rows, err := e.db.QueryContext(ctx, `
+	rows, err := e.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT address, name, symbol, token_type, holder_count, total_supply, tx_count
-		FROM cchain_tokens
+		FROM %s
 		WHERE
 			to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(symbol, '')) @@ to_tsquery($1)
 			OR LOWER(name) LIKE LOWER($2)
 			OR LOWER(symbol) LIKE LOWER($2)
 		ORDER BY holder_count DESC NULLS LAST, tx_count DESC
 		LIMIT $3
-	`, searchTerm, "%"+query+"%", limit)
+	`, e.Tbl("tokens")), searchTerm, "%"+query+"%", limit)
 	if err != nil {
 		return nil, fmt.Errorf("search tokens: %w", err)
 	}
@@ -583,13 +594,13 @@ func (e *Engine) SearchAddresses(ctx context.Context, query string, limit int) (
 		query = "0x" + query
 	}
 
-	rows, err := e.db.QueryContext(ctx, `
+	rows, err := e.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT hash, balance, tx_count, is_contract, created_at
-		FROM cchain_addresses
+		FROM %s
 		WHERE hash LIKE $1
 		ORDER BY tx_count DESC
 		LIMIT $2
-	`, query+"%", limit)
+	`, e.Tbl("addresses")), query+"%", limit)
 	if err != nil {
 		return nil, fmt.Errorf("search addresses: %w", err)
 	}
@@ -632,17 +643,17 @@ func (e *Engine) SearchAddresses(ctx context.Context, query string, limit int) (
 
 func (e *Engine) transactionExists(ctx context.Context, hash string) (bool, error) {
 	var exists bool
-	err := e.db.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM cchain_transactions WHERE hash = $1)
-	`, strings.ToLower(hash)).Scan(&exists)
+	err := e.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT EXISTS(SELECT 1 FROM %s WHERE hash = $1)
+	`, e.Tbl("transactions")), strings.ToLower(hash)).Scan(&exists)
 	return exists, err
 }
 
 func (e *Engine) addressExists(ctx context.Context, hash string) (bool, error) {
 	var exists bool
-	err := e.db.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM cchain_addresses WHERE hash = $1)
-	`, strings.ToLower(hash)).Scan(&exists)
+	err := e.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT EXISTS(SELECT 1 FROM %s WHERE hash = $1)
+	`, e.Tbl("addresses")), strings.ToLower(hash)).Scan(&exists)
 	return exists, err
 }
 
