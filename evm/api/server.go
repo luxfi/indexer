@@ -25,6 +25,7 @@ type Config struct {
 	HTTPPort    int
 	ChainID     int64
 	ChainName   string
+	ChainSlug   string // table prefix, e.g. "cchain", "zoo", "hanzo"
 	DatabaseURL string
 	RPCEndpoint string
 }
@@ -44,7 +45,7 @@ type Server struct {
 
 // NewServer creates a new API server
 func NewServer(cfg Config, db *sql.DB) *Server {
-	repo := NewRepository(db, cfg.ChainID)
+	repo := NewRepository(db, cfg.ChainID, cfg.ChainSlug)
 	wsHub := NewWebSocketHub()
 
 	// Initialize account service
@@ -393,16 +394,16 @@ func (s *Server) handleTxTokenTransfers(w http.ResponseWriter, r *http.Request) 
 	page, pageSize := getPagination(r)
 
 	// Query token transfers for this transaction
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
 		SELECT t.id, t.tx_hash, t.log_index, t.block_number, t.token_address,
 		       t.token_type, t.tx_from, t.tx_to, t.value, t.token_id, t.timestamp,
 		       COALESCE(tk.name, ''), COALESCE(tk.symbol, ''), COALESCE(tk.decimals, 18)
-		FROM cchain_token_transfers t
-		LEFT JOIN cchain_tokens tk ON t.token_address = tk.address
+		FROM %s t
+		LEFT JOIN %s tk ON t.token_address = tk.address
 		WHERE t.tx_hash = $1
 		ORDER BY t.log_index ASC
 		LIMIT $2 OFFSET $3
-	`, strings.ToLower(hash), pageSize+1, page*pageSize)
+	`, s.repo.Tbl("token_transfers"), s.repo.Tbl("tokens")), strings.ToLower(hash), pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
@@ -509,12 +510,12 @@ func (s *Server) handleAddresses(w http.ResponseWriter, r *http.Request) {
 	// List addresses with balances
 	page, pageSize := getPagination(r)
 
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
 		SELECT hash, balance, tx_count, is_contract
-		FROM cchain_addresses
+		FROM %s
 		ORDER BY CAST(balance AS NUMERIC) DESC
 		LIMIT $1 OFFSET $2
-	`, pageSize+1, page*pageSize)
+	`, s.repo.Tbl("addresses")), pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
@@ -612,15 +613,15 @@ func (s *Server) handleAddressTokens(w http.ResponseWriter, r *http.Request) {
 	hash = strings.ToLower(hash)
 	page, pageSize := getPagination(r)
 
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
 		SELECT tb.token_address, tb.balance, tb.token_id,
 		       t.name, t.symbol, t.decimals, t.token_type
-		FROM cchain_token_balances tb
-		LEFT JOIN cchain_tokens t ON tb.token_address = t.address
+		FROM %s tb
+		LEFT JOIN %s t ON tb.token_address = t.address
 		WHERE tb.holder_address = $1 AND CAST(tb.balance AS NUMERIC) > 0
 		ORDER BY CAST(tb.balance AS NUMERIC) DESC
 		LIMIT $2 OFFSET $3
-	`, hash, pageSize+1, page*pageSize)
+	`, s.repo.Tbl("token_balances"), s.repo.Tbl("tokens")), hash, pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
@@ -697,13 +698,13 @@ func (s *Server) handleAddressCounters(w http.ResponseWriter, r *http.Request) {
 	hash = strings.ToLower(hash)
 
 	var txCount, tokenTransferCount int64
-	s.db.QueryRowContext(r.Context(), `
-		SELECT COUNT(*) FROM cchain_transactions WHERE tx_from = $1 OR tx_to = $1
-	`, hash).Scan(&txCount)
+	s.db.QueryRowContext(r.Context(), fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s WHERE tx_from = $1 OR tx_to = $1
+	`, s.repo.Tbl("transactions")), hash).Scan(&txCount)
 
-	s.db.QueryRowContext(r.Context(), `
-		SELECT COUNT(*) FROM cchain_token_transfers WHERE tx_from = $1 OR tx_to = $1
-	`, hash).Scan(&tokenTransferCount)
+	s.db.QueryRowContext(r.Context(), fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s WHERE tx_from = $1 OR tx_to = $1
+	`, s.repo.Tbl("token_transfers")), hash).Scan(&tokenTransferCount)
 
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"transactions_count":    txCount,
@@ -747,13 +748,13 @@ func (s *Server) handleTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	hash = strings.ToLower(hash)
 	page, pageSize := getPagination(r)
 
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
 		SELECT id, tx_hash, log_index, block_number, tx_from, tx_to, value, token_id, timestamp
-		FROM cchain_token_transfers
+		FROM %s
 		WHERE token_address = $1
 		ORDER BY block_number DESC, log_index DESC
 		LIMIT $2 OFFSET $3
-	`, hash, pageSize+1, page*pageSize)
+	`, s.repo.Tbl("token_transfers")), hash, pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
@@ -800,13 +801,13 @@ func (s *Server) handleTokenHolders(w http.ResponseWriter, r *http.Request) {
 	hash = strings.ToLower(hash)
 	page, pageSize := getPagination(r)
 
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
 		SELECT holder_address, balance
-		FROM cchain_token_balances
+		FROM %s
 		WHERE token_address = $1 AND CAST(balance AS NUMERIC) > 0
 		ORDER BY CAST(balance AS NUMERIC) DESC
 		LIMIT $2 OFFSET $3
-	`, hash, pageSize+1, page*pageSize)
+	`, s.repo.Tbl("token_balances")), hash, pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
@@ -850,12 +851,12 @@ func (s *Server) handleTokenInstance(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSmartContracts(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := getPagination(r)
 
-	rows, err := s.db.QueryContext(r.Context(), `
-		SELECT hash, tx_count FROM cchain_addresses
+	rows, err := s.db.QueryContext(r.Context(), fmt.Sprintf(`
+		SELECT hash, tx_count FROM %s
 		WHERE is_contract = TRUE
 		ORDER BY tx_count DESC
 		LIMIT $1 OFFSET $2
-	`, pageSize+1, page*pageSize)
+	`, s.repo.Tbl("addresses")), pageSize+1, page*pageSize)
 
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())

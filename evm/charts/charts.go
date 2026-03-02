@@ -105,6 +105,12 @@ type Service struct {
 	db     *sql.DB
 	config *Config
 	cache  *chartCache
+	prefix string // table name prefix, e.g. "cchain", "zoo", "hanzo"
+}
+
+// Tbl returns the prefixed table name, e.g. Tbl("transactions") returns "cchain_transactions"
+func (s *Service) Tbl(name string) string {
+	return s.prefix + "_" + name
 }
 
 // chartCache holds cached chart data
@@ -122,15 +128,21 @@ type chartCache struct {
 	blockStatsUpdated   time.Time
 }
 
-// NewService creates a new chart service
-func NewService(db *sql.DB, config *Config) *Service {
+// NewService creates a new chart service.
+// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+func NewService(db *sql.DB, config *Config, chainSlug ...string) *Service {
 	if config == nil {
 		config = DefaultConfig()
+	}
+	prefix := "cchain"
+	if len(chainSlug) > 0 && chainSlug[0] != "" {
+		prefix = chainSlug[0]
 	}
 	return &Service{
 		db:     db,
 		config: config,
 		cache:  &chartCache{},
+		prefix: prefix,
 	}
 }
 
@@ -163,18 +175,18 @@ func (s *Service) GetTransactionChart(ctx context.Context, days int) (*ChartResp
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	startDate := today.AddDate(0, 0, -days)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE(timestamp) as date,
 			COUNT(*) as tx_count,
 			COALESCE(SUM(gas_used), 0) as gas_used,
 			COALESCE(SUM(gas_used * gas_price), 0) as total_fee,
 			COALESCE(AVG(gas_price), 0) as avg_gas_price
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp >= $1 AND timestamp < $2
 		GROUP BY DATE(timestamp)
 		ORDER BY date DESC
-	`
+	`, s.Tbl("transactions"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -245,18 +257,18 @@ func (s *Service) GetGasUsageChart(ctx context.Context, days int) (*ChartRespons
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	startDate := today.AddDate(0, 0, -days)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE(timestamp) as date,
 			COALESCE(SUM(gas_used), 0) as gas_used,
 			COALESCE(SUM(gas_limit), 0) as gas_limit,
 			COALESCE(AVG(gas_price), 0) as avg_gas_price,
 			COUNT(DISTINCT block_number) as block_count
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp >= $1 AND timestamp < $2
 		GROUP BY DATE(timestamp)
 		ORDER BY date DESC
-	`
+	`, s.Tbl("transactions"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -335,18 +347,18 @@ func (s *Service) GetTokenTransferChart(ctx context.Context, days int) (*ChartRe
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	startDate := today.AddDate(0, 0, -days)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE(timestamp) as date,
 			COUNT(*) as transfer_count,
 			COUNT(DISTINCT token_hash) as unique_tokens,
 			COUNT(DISTINCT from_address) as unique_from,
 			COUNT(DISTINCT to_address) as unique_to
-		FROM cchain_token_transfers
+		FROM %s
 		WHERE timestamp >= $1 AND timestamp < $2
 		GROUP BY DATE(timestamp)
 		ORDER BY date DESC
-	`
+	`, s.Tbl("token_transfers"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -411,15 +423,15 @@ func (s *Service) GetAddressGrowthChart(ctx context.Context, days int) (*ChartRe
 	startDate := today.AddDate(0, 0, -days)
 
 	// Query new addresses per day (addresses first seen on that day)
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE(first_seen) as date,
 			COUNT(*) as new_addresses
-		FROM cchain_addresses
+		FROM %s
 		WHERE first_seen >= $1 AND first_seen < $2
 		GROUP BY DATE(first_seen)
 		ORDER BY date DESC
-	`
+	`, s.Tbl("addresses"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -433,7 +445,7 @@ func (s *Service) GetAddressGrowthChart(ctx context.Context, days int) (*ChartRe
 	// Get total addresses before start date
 	var baseCount int64
 	err = s.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM cchain_addresses WHERE first_seen < $1", startDate).Scan(&baseCount)
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE first_seen < $1", s.Tbl("addresses")), startDate).Scan(&baseCount)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("query base address count: %w", err)
 	}
@@ -496,14 +508,14 @@ func (s *Service) GetBlockChart(ctx context.Context, days int) (*ChartResponse, 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	startDate := today.AddDate(0, 0, -days)
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH block_times AS (
 			SELECT
 				DATE(timestamp) as date,
 				block_number,
 				timestamp,
 				LAG(timestamp) OVER (ORDER BY block_number) as prev_timestamp
-			FROM cchain_transactions
+			FROM %s
 			WHERE timestamp >= $1 AND timestamp < $2
 		)
 		SELECT
@@ -514,7 +526,7 @@ func (s *Service) GetBlockChart(ctx context.Context, days int) (*ChartResponse, 
 		WHERE prev_timestamp IS NOT NULL
 		GROUP BY date
 		ORDER BY date DESC
-	`
+	`, s.Tbl("transactions"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -566,17 +578,17 @@ func (s *Service) GetContractDeploymentChart(ctx context.Context, days int) (*Ch
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	startDate := today.AddDate(0, 0, -days)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE(first_seen) as date,
 			COUNT(*) as deployments
-		FROM cchain_addresses
+		FROM %s
 		WHERE is_contract = true
 		  AND first_seen >= $1
 		  AND first_seen < $2
 		GROUP BY DATE(first_seen)
 		ORDER BY date DESC
-	`
+	`, s.Tbl("addresses"))
 
 	rows, err := s.db.QueryContext(ctx, query, startDate, today)
 	if err != nil {
@@ -626,20 +638,21 @@ func (s *Service) GetTokenHoldersChart(ctx context.Context, tokenHash string, da
 
 	// This query counts unique holders by date based on transfer history
 	// It's an approximation since we don't track historical balances
-	query := `
+	tbl := s.Tbl("token_transfers")
+	query := fmt.Sprintf(`
 		SELECT
 			date,
 			COUNT(DISTINCT holder) as holder_count
 		FROM (
-			SELECT DATE(timestamp) as date, to_address as holder FROM cchain_token_transfers
+			SELECT DATE(timestamp) as date, to_address as holder FROM %s
 			WHERE token_hash = $1 AND timestamp >= $2 AND timestamp < $3
 			UNION
-			SELECT DATE(timestamp) as date, from_address as holder FROM cchain_token_transfers
+			SELECT DATE(timestamp) as date, from_address as holder FROM %s
 			WHERE token_hash = $1 AND timestamp >= $2 AND timestamp < $3
 		) sub
 		GROUP BY date
 		ORDER BY date DESC
-	`
+	`, tbl, tbl)
 
 	rows, err := s.db.QueryContext(ctx, query, tokenHash, startDate, today)
 	if err != nil {
@@ -685,15 +698,15 @@ func (s *Service) GetHourlyTransactionChart(ctx context.Context) (*ChartResponse
 	now := time.Now().UTC()
 	startTime := now.Add(-24 * time.Hour)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE_TRUNC('hour', timestamp) as hour,
 			COUNT(*) as tx_count
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp >= $1 AND timestamp < $2
 		GROUP BY DATE_TRUNC('hour', timestamp)
 		ORDER BY hour DESC
-	`
+	`, s.Tbl("transactions"))
 
 	rows, err := s.db.QueryContext(ctx, query, startTime, now)
 	if err != nil {
@@ -728,15 +741,15 @@ func (s *Service) GetHourlyGasChart(ctx context.Context) (*ChartResponse, error)
 	now := time.Now().UTC()
 	startTime := now.Add(-24 * time.Hour)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			DATE_TRUNC('hour', timestamp) as hour,
 			COALESCE(SUM(gas_used), 0) as gas_used
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp >= $1 AND timestamp < $2
 		GROUP BY DATE_TRUNC('hour', timestamp)
 		ORDER BY hour DESC
-	`
+	`, s.Tbl("transactions"))
 
 	rows, err := s.db.QueryContext(ctx, query, startTime, now)
 	if err != nil {

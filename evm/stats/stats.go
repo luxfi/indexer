@@ -90,6 +90,12 @@ type Service struct {
 	cache       *Cache
 	updateMutex sync.Mutex
 	config      Config
+	prefix      string // table name prefix, e.g. "cchain", "zoo", "hanzo"
+}
+
+// Tbl returns the prefixed table name, e.g. Tbl("transactions") returns "cchain_transactions"
+func (s *Service) Tbl(name string) string {
+	return s.prefix + "_" + name
 }
 
 // Config holds statistics service configuration
@@ -137,12 +143,18 @@ func NewCache(ttl time.Duration) *Cache {
 	}
 }
 
-// NewService creates a new statistics service
-func NewService(db *sql.DB, config Config) *Service {
+// NewService creates a new statistics service.
+// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+func NewService(db *sql.DB, config Config, chainSlug ...string) *Service {
+	prefix := "cchain"
+	if len(chainSlug) > 0 && chainSlug[0] != "" {
+		prefix = chainSlug[0]
+	}
 	return &Service{
 		db:     db,
 		cache:  NewCache(config.CacheTTL),
 		config: config,
+		prefix: prefix,
 	}
 }
 
@@ -174,14 +186,14 @@ func (s *Service) updateGasPrices(ctx context.Context) (*GasPrices, error) {
 	s.cache.mu.RUnlock()
 
 	// Get recent transactions with gas prices
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT t.gas_price, t.gas_used, b.timestamp
-		FROM cchain_transactions t
+		FROM %s t
 		JOIN blocks b ON b.height = t.block_number
 		WHERE t.gas_price IS NOT NULL AND t.gas_price != '0'
 		ORDER BY t.block_number DESC
 		LIMIT $1
-	`, s.config.GasPriceBlocks*50) // Assume ~50 txs per block
+	`, s.Tbl("transactions")), s.config.GasPriceBlocks*50) // Assume ~50 txs per block
 	if err != nil {
 		return nil, fmt.Errorf("query gas prices: %w", err)
 	}
@@ -362,53 +374,53 @@ func (s *Service) updateCounters(ctx context.Context) (*Counters, error) {
 	}
 
 	// Total transactions
-	err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cchain_transactions`).Scan(&counters.TotalTransactions)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s`, s.Tbl("transactions"))).Scan(&counters.TotalTransactions)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count transactions: %w", err)
 	}
 
 	// Total addresses
-	err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cchain_addresses`).Scan(&counters.TotalAddresses)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s`, s.Tbl("addresses"))).Scan(&counters.TotalAddresses)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count addresses: %w", err)
 	}
 
 	// Total contracts
-	err = s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_addresses WHERE is_contract = true
-	`).Scan(&counters.TotalContracts)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s WHERE is_contract = true
+	`, s.Tbl("addresses"))).Scan(&counters.TotalContracts)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count contracts: %w", err)
 	}
 
 	// Total tokens
-	err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cchain_tokens`).Scan(&counters.TotalTokens)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s`, s.Tbl("tokens"))).Scan(&counters.TotalTokens)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count tokens: %w", err)
 	}
 
 	// Total token transfers
-	err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cchain_token_transfers`).Scan(&counters.TotalTokenTransfers)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s`, s.Tbl("token_transfers"))).Scan(&counters.TotalTokenTransfers)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count token transfers: %w", err)
 	}
 
 	// TPS 24h
-	err = s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COUNT(*)::float / 86400.0
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp > NOW() - INTERVAL '24 hours'
-	`).Scan(&counters.TPS24h)
+	`, s.Tbl("transactions"))).Scan(&counters.TPS24h)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("calculate tps: %w", err)
 	}
 
 	// Gas used 24h
-	err = s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COALESCE(SUM(gas_used), 0)
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp > NOW() - INTERVAL '24 hours'
-	`).Scan(&counters.GasUsed24h)
+	`, s.Tbl("transactions"))).Scan(&counters.GasUsed24h)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("sum gas used: %w", err)
 	}
@@ -530,17 +542,17 @@ func (s *Service) GetTokenStats(ctx context.Context, tokenAddress string) (*Toke
 	}
 
 	// Get holder count
-	err := s.db.QueryRowContext(ctx, `
-		SELECT holder_count FROM cchain_tokens WHERE address = $1
-	`, tokenAddress).Scan(&stats.HolderCount)
+	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT holder_count FROM %s WHERE address = $1
+	`, s.Tbl("tokens")), tokenAddress).Scan(&stats.HolderCount)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("get holder count: %w", err)
 	}
 
 	// Get transfer count
-	err = s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_token_transfers WHERE token_address = $1
-	`, tokenAddress).Scan(&stats.TransferCount)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s WHERE token_address = $1
+	`, s.Tbl("token_transfers")), tokenAddress).Scan(&stats.TransferCount)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("get transfer count: %w", err)
 	}
@@ -559,45 +571,45 @@ func (s *Service) GetAddressStats(ctx context.Context, address string) (*Address
 	stats := &AddressStats{Address: address}
 
 	// Get transaction count
-	err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_transactions
+	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s
 		WHERE tx_from = $1 OR tx_to = $1
-	`, address).Scan(&stats.TransactionCount)
+	`, s.Tbl("transactions")), address).Scan(&stats.TransactionCount)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count transactions: %w", err)
 	}
 
 	// Get token transfer count
-	err = s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_token_transfers
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s
 		WHERE tx_from = $1 OR tx_to = $1
-	`, address).Scan(&stats.TokenTransferCount)
+	`, s.Tbl("token_transfers")), address).Scan(&stats.TokenTransferCount)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("count token transfers: %w", err)
 	}
 
 	// Get internal tx count
-	err = s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_internal_transactions
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s
 		WHERE tx_from = $1 OR tx_to = $1
-	`, address).Scan(&stats.InternalTxCount)
+	`, s.Tbl("internal_transactions")), address).Scan(&stats.InternalTxCount)
 	if err != nil && err != sql.ErrNoRows {
 		// Table might not exist, continue
 	}
 
 	// Get total gas used
-	err = s.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(gas_used), 0) FROM cchain_transactions
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COALESCE(SUM(gas_used), 0) FROM %s
 		WHERE tx_from = $1
-	`, address).Scan(&stats.GasUsed)
+	`, s.Tbl("transactions")), address).Scan(&stats.GasUsed)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("sum gas used: %w", err)
 	}
 
 	// Get balance
-	err = s.db.QueryRowContext(ctx, `
-		SELECT balance FROM cchain_addresses WHERE hash = $1
-	`, address).Scan(&stats.Balance)
+	err = s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT balance FROM %s WHERE hash = $1
+	`, s.Tbl("addresses")), address).Scan(&stats.Balance)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("get balance: %w", err)
 	}
@@ -614,13 +626,13 @@ func (s *Service) GetDailyTransactionStats(ctx context.Context, days int) ([]Dai
 		days = 365
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT DATE(timestamp) as date, COUNT(*) as count
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp > NOW() - make_interval(days => $1)
 		GROUP BY DATE(timestamp)
 		ORDER BY date DESC
-	`, days)
+	`, s.Tbl("transactions")), days)
 	if err != nil {
 		return nil, fmt.Errorf("query daily stats: %w", err)
 	}
@@ -646,13 +658,13 @@ type DailyStats struct {
 
 // GetHourlyGasUsage returns hourly gas usage for the last 24 hours
 func (s *Service) GetHourlyGasUsage(ctx context.Context) ([]HourlyStats, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT DATE_TRUNC('hour', timestamp) as hour, COALESCE(SUM(gas_used), 0) as gas_used
-		FROM cchain_transactions
+		FROM %s
 		WHERE timestamp > NOW() - INTERVAL '24 hours'
 		GROUP BY DATE_TRUNC('hour', timestamp)
 		ORDER BY hour DESC
-	`)
+	`, s.Tbl("transactions")))
 	if err != nil {
 		return nil, fmt.Errorf("query hourly gas: %w", err)
 	}

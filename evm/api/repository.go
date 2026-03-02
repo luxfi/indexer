@@ -19,15 +19,28 @@ var (
 	ErrInvalidParam = errors.New("invalid parameter")
 )
 
-// Repository handles database queries for the API
+// Repository handles database queries for the API.
+// The prefix field determines table names (e.g. "cchain" → cchain_blocks).
+// This allows one PostgreSQL database to hold data for multiple EVM chains.
 type Repository struct {
 	db      *sql.DB
 	chainID int64
+	prefix  string // table name prefix, e.g. "cchain", "zoo", "hanzo"
 }
 
-// NewRepository creates a new repository
-func NewRepository(db *sql.DB, chainID int64) *Repository {
-	return &Repository{db: db, chainID: chainID}
+// NewRepository creates a new repository with chain-specific table prefix.
+// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+func NewRepository(db *sql.DB, chainID int64, chainSlug ...string) *Repository {
+	prefix := "cchain"
+	if len(chainSlug) > 0 && chainSlug[0] != "" {
+		prefix = chainSlug[0]
+	}
+	return &Repository{db: db, chainID: chainID, prefix: prefix}
+}
+
+// Tbl returns the prefixed table name, e.g. Tbl("blocks") → "cchain_blocks"
+func (r *Repository) Tbl(name string) string {
+	return r.prefix + "_" + name
 }
 
 // BlockFilters for block listing
@@ -39,12 +52,12 @@ type BlockFilters struct {
 func (r *Repository) GetBlocks(ctx context.Context, page, pageSize int, filters *BlockFilters) (*PaginatedResponse, error) {
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT b.id, b.parent_id, b.height, b.timestamp, b.status, b.tx_count, b.data, b.metadata
-		FROM cchain_blocks b
+		FROM %s b
 		ORDER BY b.height DESC
 		LIMIT $1 OFFSET $2
-	`
+	`, r.Tbl("blocks"))
 
 	rows, err := r.db.QueryContext(ctx, query, pageSize+1, offset)
 	if err != nil {
@@ -77,11 +90,11 @@ func (r *Repository) GetBlocks(ctx context.Context, page, pageSize int, filters 
 
 // GetBlockByNumber returns a block by height
 func (r *Repository) GetBlockByNumber(ctx context.Context, height uint64) (*Block, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT b.id, b.parent_id, b.height, b.timestamp, b.status, b.tx_count, b.data, b.metadata
-		FROM cchain_blocks b
+		FROM %s b
 		WHERE b.height = $1
-	`
+	`, r.Tbl("blocks"))
 
 	row := r.db.QueryRowContext(ctx, query, height)
 	return r.scanBlockRow(row)
@@ -89,11 +102,11 @@ func (r *Repository) GetBlockByNumber(ctx context.Context, height uint64) (*Bloc
 
 // GetBlockByHash returns a block by hash
 func (r *Repository) GetBlockByHash(ctx context.Context, hash string) (*Block, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT b.id, b.parent_id, b.height, b.timestamp, b.status, b.tx_count, b.data, b.metadata
-		FROM cchain_blocks b
+		FROM %s b
 		WHERE b.id = $1
-	`
+	`, r.Tbl("blocks"))
 
 	row := r.db.QueryRowContext(ctx, query, strings.ToLower(hash))
 	return r.scanBlockRow(row)
@@ -164,7 +177,7 @@ func (r *Repository) buildBlock(id, parentID string, height uint64, timestamp ti
 
 	// Get latest block for confirmations
 	var latestHeight uint64
-	r.db.QueryRowContext(context.Background(), "SELECT COALESCE(MAX(height), 0) FROM cchain_blocks").Scan(&latestHeight)
+	r.db.QueryRowContext(context.Background(), fmt.Sprintf("SELECT COALESCE(MAX(height), 0) FROM %s", r.Tbl("blocks"))).Scan(&latestHeight)
 	if latestHeight > height {
 		block.Confirmations = int(latestHeight - height)
 	}
@@ -182,13 +195,13 @@ type TransactionFilters struct {
 func (r *Repository) GetTransactions(ctx context.Context, page, pageSize int, filters *TransactionFilters) (*PaginatedResponse, error) {
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT hash, block_hash, block_number, tx_from, tx_to, value, gas, gas_price,
 		       gas_used, nonce, input, tx_index, tx_type, status, contract_address, timestamp
-		FROM cchain_transactions
+		FROM %s
 		ORDER BY block_number DESC, tx_index DESC
 		LIMIT $1 OFFSET $2
-	`
+	`, r.Tbl("transactions"))
 
 	rows, err := r.db.QueryContext(ctx, query, pageSize+1, offset)
 	if err != nil {
@@ -226,12 +239,12 @@ func (r *Repository) GetTransactions(ctx context.Context, page, pageSize int, fi
 
 // GetTransactionByHash returns a transaction by hash
 func (r *Repository) GetTransactionByHash(ctx context.Context, hash string) (*Transaction, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT hash, block_hash, block_number, tx_from, tx_to, value, gas, gas_price,
 		       gas_used, nonce, input, tx_index, tx_type, status, contract_address, timestamp
-		FROM cchain_transactions
+		FROM %s
 		WHERE hash = $1
-	`
+	`, r.Tbl("transactions"))
 
 	row := r.db.QueryRowContext(ctx, query, strings.ToLower(hash))
 	return r.scanTransactionRow(row)
@@ -241,14 +254,14 @@ func (r *Repository) GetTransactionByHash(ctx context.Context, hash string) (*Tr
 func (r *Repository) GetTransactionsByBlock(ctx context.Context, blockNumber uint64, page, pageSize int) (*PaginatedResponse, error) {
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT hash, block_hash, block_number, tx_from, tx_to, value, gas, gas_price,
 		       gas_used, nonce, input, tx_index, tx_type, status, contract_address, timestamp
-		FROM cchain_transactions
+		FROM %s
 		WHERE block_number = $1
 		ORDER BY tx_index ASC
 		LIMIT $2 OFFSET $3
-	`
+	`, r.Tbl("transactions"))
 
 	rows, err := r.db.QueryContext(ctx, query, blockNumber, pageSize+1, offset)
 	if err != nil {
@@ -366,12 +379,12 @@ func (r *Repository) buildTransaction(hash, blockHash string, blockNumber uint64
 func (r *Repository) GetAddress(ctx context.Context, hash string) (*Address, error) {
 	hash = strings.ToLower(hash)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT hash, balance, tx_count, is_contract, contract_code, contract_creator,
 		       contract_tx_hash, created_at, updated_at
-		FROM cchain_addresses
+		FROM %s
 		WHERE hash = $1
-	`
+	`, r.Tbl("addresses"))
 
 	var balance string
 	var txCount uint64
@@ -411,14 +424,14 @@ func (r *Repository) GetAddressTransactions(ctx context.Context, address string,
 	address = strings.ToLower(address)
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT hash, block_hash, block_number, tx_from, tx_to, value, gas, gas_price,
 		       gas_used, nonce, input, tx_index, tx_type, status, contract_address, timestamp
-		FROM cchain_transactions
+		FROM %s
 		WHERE tx_from = $1 OR tx_to = $1
 		ORDER BY block_number DESC, tx_index DESC
 		LIMIT $2 OFFSET $3
-	`
+	`, r.Tbl("transactions"))
 
 	rows, err := r.db.QueryContext(ctx, query, address, pageSize+1, offset)
 	if err != nil {
@@ -459,16 +472,16 @@ func (r *Repository) GetAddressTokenTransfers(ctx context.Context, address strin
 	address = strings.ToLower(address)
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT t.id, t.tx_hash, t.log_index, t.block_number, t.token_address,
 		       t.token_type, t.tx_from, t.tx_to, t.value, t.token_id, t.timestamp,
 		       COALESCE(tk.name, ''), COALESCE(tk.symbol, ''), COALESCE(tk.decimals, 18)
-		FROM cchain_token_transfers t
-		LEFT JOIN cchain_tokens tk ON t.token_address = tk.address
+		FROM %s t
+		LEFT JOIN %s tk ON t.token_address = tk.address
 		WHERE t.tx_from = $1 OR t.tx_to = $1
 		ORDER BY t.block_number DESC, t.log_index DESC
 		LIMIT $2 OFFSET $3
-	`
+	`, r.Tbl("token_transfers"), r.Tbl("tokens"))
 
 	rows, err := r.db.QueryContext(ctx, query, address, pageSize+1, offset)
 	if err != nil {
@@ -530,13 +543,13 @@ func (r *Repository) GetAddressTokenTransfers(ctx context.Context, address strin
 func (r *Repository) GetTokens(ctx context.Context, page, pageSize int, tokenType string) (*PaginatedResponse, error) {
 	offset := page * pageSize
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT address, name, symbol, decimals, total_supply, token_type, holder_count, tx_count
-		FROM cchain_tokens
+		FROM %s
 		WHERE ($3 = '' OR token_type = $3)
 		ORDER BY holder_count DESC
 		LIMIT $1 OFFSET $2
-	`
+	`, r.Tbl("tokens"))
 
 	rows, err := r.db.QueryContext(ctx, query, pageSize+1, offset, tokenType)
 	if err != nil {
@@ -579,11 +592,11 @@ func (r *Repository) GetTokens(ctx context.Context, page, pageSize int, tokenTyp
 func (r *Repository) GetToken(ctx context.Context, address string) (*Token, error) {
 	address = strings.ToLower(address)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT address, name, symbol, decimals, total_supply, token_type, holder_count, tx_count
-		FROM cchain_tokens
+		FROM %s
 		WHERE address = $1
-	`
+	`, r.Tbl("tokens"))
 
 	var name, symbol, totalSupply, ttype string
 	var decimals uint8
@@ -617,9 +630,9 @@ func (r *Repository) GetSmartContract(ctx context.Context, address string) (*Sma
 	// First check if address is a contract
 	var isContract bool
 	var code sql.NullString
-	err := r.db.QueryRowContext(ctx, `
-		SELECT is_contract, contract_code FROM cchain_addresses WHERE hash = $1
-	`, address).Scan(&isContract, &code)
+	err := r.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT is_contract, contract_code FROM %s WHERE hash = $1
+	`, r.Tbl("addresses")), address).Scan(&isContract, &code)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -714,12 +727,12 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) ([]Sea
 	}
 
 	// Search tokens by name/symbol
-	tokenRows, err := r.db.QueryContext(ctx, `
+	tokenRows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT address, name, symbol, token_type
-		FROM cchain_tokens
+		FROM %s
 		WHERE LOWER(name) LIKE $1 OR LOWER(symbol) LIKE $1
 		LIMIT $2
-	`, "%"+lowerQuery+"%", limit)
+	`, r.Tbl("tokens")), "%"+lowerQuery+"%", limit)
 	if err == nil {
 		defer tokenRows.Close()
 		for tokenRows.Next() {
@@ -749,11 +762,11 @@ func (r *Repository) GetStats(ctx context.Context) (*ChainStats, error) {
 	stats := &ChainStats{}
 
 	// Get extended stats
-	row := r.db.QueryRowContext(ctx, `
+	row := r.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT total_transactions, total_addresses, total_contracts, total_tokens,
 		       total_token_transfers, total_gas_used, avg_gas_price, avg_block_time, tps_24h
-		FROM cchain_extended_stats WHERE id = 1
-	`)
+		FROM %s WHERE id = 1
+	`, r.Tbl("extended_stats")))
 
 	var avgGasPrice string
 	var avgBlockTime, tps24h float64
@@ -769,13 +782,13 @@ func (r *Repository) GetStats(ctx context.Context) (*ChainStats, error) {
 	stats.GasPrice = avgGasPrice
 
 	// Get block count
-	r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM cchain_blocks").Scan(&stats.TotalBlocks)
+	r.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", r.Tbl("blocks"))).Scan(&stats.TotalBlocks)
 
 	// Calculate transactions today
-	r.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cchain_transactions
+	r.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s
 		WHERE timestamp > NOW() - INTERVAL '24 hours'
-	`).Scan(&stats.TxnsToday)
+	`, r.Tbl("transactions"))).Scan(&stats.TxnsToday)
 
 	return stats, nil
 }
@@ -822,11 +835,11 @@ func (r *Repository) GetLogs(ctx context.Context, address string, fromBlock, toB
 
 	query := fmt.Sprintf(`
 		SELECT tx_hash, log_index, block_number, address, topics, data, removed
-		FROM cchain_logs
+		FROM %s
 		%s
 		ORDER BY block_number DESC, log_index DESC
 		LIMIT $1 OFFSET $2
-	`, whereClause)
+	`, r.Tbl("logs"), whereClause)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -873,14 +886,14 @@ func (r *Repository) GetInternalTransactions(ctx context.Context, txHash string,
 	offset := page * pageSize
 	txHash = strings.ToLower(txHash)
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT id, tx_hash, block_number, trace_index, call_type, tx_from, tx_to,
 		       value, gas, gas_used, input, output, error, timestamp
-		FROM cchain_internal_transactions
+		FROM %s
 		WHERE tx_hash = $1
 		ORDER BY trace_index ASC
 		LIMIT $2 OFFSET $3
-	`
+	`, r.Tbl("internal_transactions"))
 
 	rows, err := r.db.QueryContext(ctx, query, txHash, pageSize+1, offset)
 	if err != nil {
@@ -949,9 +962,9 @@ func (r *Repository) GetAddressBalance(ctx context.Context, address string) (str
 	address = strings.ToLower(address)
 
 	var balance string
-	err := r.db.QueryRowContext(ctx, `
-		SELECT COALESCE(balance, '0') FROM cchain_addresses WHERE hash = $1
-	`, address).Scan(&balance)
+	err := r.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COALESCE(balance, '0') FROM %s WHERE hash = $1
+	`, r.Tbl("addresses")), address).Scan(&balance)
 
 	if err == sql.ErrNoRows {
 		return "0", nil
