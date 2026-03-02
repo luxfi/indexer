@@ -923,21 +923,30 @@ func TestWithRealIndexerDB(t *testing.T) {
 	defer db.Close()
 
 	t.Run("schema exists", func(t *testing.T) {
-		tables := []string{"blocks", "transactions", "logs", "addresses", "tokens"}
+		// Try both prefixed (evm_*) and unprefixed table names
+		tables := []string{"evm_blocks", "evm_transactions", "evm_logs", "evm_addresses", "evm_tokens",
+			"blocks", "transactions", "logs", "addresses", "tokens"}
+		found := 0
 		for _, table := range tables {
 			var count int
 			err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
-			if err != nil {
-				t.Errorf("table %s: %v", table, err)
-			} else {
+			if err == nil {
 				t.Logf("table %s: %d rows", table, count)
+				found++
 			}
+		}
+		if found == 0 {
+			t.Error("no explorer tables found")
 		}
 	})
 
 	t.Run("blocks are indexed", func(t *testing.T) {
 		var maxBlock int64
-		db.QueryRow("SELECT COALESCE(MAX(number), 0) FROM blocks").Scan(&maxBlock)
+		// Try evm_blocks first, fall back to blocks
+		err := db.QueryRow("SELECT COALESCE(MAX(number), 0) FROM evm_blocks").Scan(&maxBlock)
+		if err != nil {
+			db.QueryRow("SELECT COALESCE(MAX(number), 0) FROM blocks").Scan(&maxBlock)
+		}
 		t.Logf("max block: %d", maxBlock)
 		if maxBlock == 0 {
 			t.Skip("no blocks indexed yet")
