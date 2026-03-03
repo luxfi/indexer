@@ -39,4 +39,5 @@ AGENTS.md
 CLAUDE.md
 GEMINI.md
 QWEN.md
-indexer
+/indexer
+/evmchains
