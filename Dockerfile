@@ -1,5 +1,5 @@
 # Build stage - use BUILDPLATFORM to run Go natively on host (avoids QEMU segfaults)
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 ARG TARGETOS TARGETARCH
 
 RUN apk add --no-cache git ca-certificates
