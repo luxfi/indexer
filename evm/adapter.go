@@ -191,7 +191,18 @@ type Adapter struct {
 	httpClient   *http.Client
 	tracerType   TracerType
 	traceTimeout string // e.g. "120s"
+	prefix       string // table name prefix, e.g. "cchain", "zoo", "hanzo"
 	mu           sync.RWMutex
+}
+
+// Tbl returns the prefixed table name, e.g. Tbl("blocks") returns "cchain_blocks"
+func (a *Adapter) Tbl(name string) string {
+	return a.prefix + "_" + name
+}
+
+// Idx returns the prefixed index name, e.g. Idx("tx_block") returns "idx_cchain_tx_block"
+func (a *Adapter) Idx(name string) string {
+	return "idx_" + a.prefix + "_" + name
 }
 
 // AdapterOption configures the adapter
@@ -211,12 +222,21 @@ func WithTraceTimeout(timeout string) AdapterOption {
 	}
 }
 
-// New creates a new C-Chain adapter
+// WithPrefix sets the table name prefix (e.g. "zoo", "hanzo", "spc", "pars")
+func WithPrefix(prefix string) AdapterOption {
+	return func(a *Adapter) {
+		a.prefix = prefix
+	}
+}
+
+// New creates a new EVM chain adapter.
+// Defaults to "cchain" prefix for backwards compatibility.
 func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	a := &Adapter{
 		rpcEndpoint:  rpcEndpoint,
 		tracerType:   TracerCallTracer,
 		traceTimeout: "120s",
+		prefix:       "cchain",
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -1254,13 +1274,13 @@ func (a *Adapter) call(ctx context.Context, method string, params interface{}) (
 	return result.Result, nil
 }
 
-// InitSchema creates C-Chain specific database tables using unified storage
+// InitSchema creates chain-specific database tables using unified storage
 func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	schema := storage.Schema{
-		Name: "cchain",
+		Name: a.prefix,
 		Tables: []storage.Table{
 			{
-				Name: "cchain_transactions",
+				Name: a.Tbl("transactions"),
 				Columns: []storage.Column{
 					{Name: "hash", Type: storage.TypeText, Primary: true},
 					{Name: "block_hash", Type: storage.TypeText, Nullable: false},
@@ -1281,7 +1301,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_addresses",
+				Name: a.Tbl("addresses"),
 				Columns: []storage.Column{
 					{Name: "hash", Type: storage.TypeText, Primary: true},
 					{Name: "balance", Type: storage.TypeText, Default: "'0'"},
@@ -1295,7 +1315,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_token_transfers",
+				Name: a.Tbl("token_transfers"),
 				Columns: []storage.Column{
 					{Name: "id", Type: storage.TypeText, Primary: true},
 					{Name: "tx_hash", Type: storage.TypeText, Nullable: false},
@@ -1311,7 +1331,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_tokens",
+				Name: a.Tbl("tokens"),
 				Columns: []storage.Column{
 					{Name: "address", Type: storage.TypeText, Primary: true},
 					{Name: "name", Type: storage.TypeText},
@@ -1326,7 +1346,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_logs",
+				Name: a.Tbl("logs"),
 				Columns: []storage.Column{
 					{Name: "tx_hash", Type: storage.TypeText, Nullable: false},
 					{Name: "log_index", Type: storage.TypeBigInt, Nullable: false},
@@ -1338,7 +1358,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_internal_transactions",
+				Name: a.Tbl("internal_transactions"),
 				Columns: []storage.Column{
 					{Name: "id", Type: storage.TypeText, Primary: true},
 					{Name: "tx_hash", Type: storage.TypeText, Nullable: false},
@@ -1361,7 +1381,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_token_balances",
+				Name: a.Tbl("token_balances"),
 				Columns: []storage.Column{
 					{Name: "token_address", Type: storage.TypeText, Nullable: false},
 					{Name: "holder_address", Type: storage.TypeText, Nullable: false},
@@ -1372,7 +1392,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 				},
 			},
 			{
-				Name: "cchain_extended_stats",
+				Name: a.Tbl("extended_stats"),
 				Columns: []storage.Column{
 					{Name: "id", Type: storage.TypeInt, Primary: true},
 					{Name: "total_transactions", Type: storage.TypeBigInt, Default: "0"},
@@ -1390,24 +1410,24 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			},
 		},
 		Indexes: []storage.Index{
-			{Name: "idx_cchain_tx_block", Table: "cchain_transactions", Columns: []string{"block_number"}},
-			{Name: "idx_cchain_tx_from", Table: "cchain_transactions", Columns: []string{"tx_from"}},
-			{Name: "idx_cchain_tx_to", Table: "cchain_transactions", Columns: []string{"tx_to"}},
-			{Name: "idx_cchain_tx_timestamp", Table: "cchain_transactions", Columns: []string{"timestamp"}},
-			{Name: "idx_cchain_addr_balance", Table: "cchain_addresses", Columns: []string{"balance"}},
-			{Name: "idx_cchain_transfer_token", Table: "cchain_token_transfers", Columns: []string{"token_address"}},
-			{Name: "idx_cchain_transfer_from", Table: "cchain_token_transfers", Columns: []string{"tx_from"}},
-			{Name: "idx_cchain_transfer_to", Table: "cchain_token_transfers", Columns: []string{"tx_to"}},
-			{Name: "idx_cchain_transfer_block", Table: "cchain_token_transfers", Columns: []string{"block_number"}},
-			{Name: "idx_cchain_token_type", Table: "cchain_tokens", Columns: []string{"token_type"}},
-			{Name: "idx_cchain_logs_address", Table: "cchain_logs", Columns: []string{"address"}},
-			{Name: "idx_cchain_logs_block", Table: "cchain_logs", Columns: []string{"block_number"}},
-			{Name: "idx_cchain_internal_tx", Table: "cchain_internal_transactions", Columns: []string{"tx_hash"}},
-			{Name: "idx_cchain_internal_from", Table: "cchain_internal_transactions", Columns: []string{"tx_from"}},
-			{Name: "idx_cchain_internal_to", Table: "cchain_internal_transactions", Columns: []string{"tx_to"}},
-			{Name: "idx_cchain_internal_block", Table: "cchain_internal_transactions", Columns: []string{"block_number"}},
-			{Name: "idx_cchain_balance_holder", Table: "cchain_token_balances", Columns: []string{"holder_address"}},
-			{Name: "idx_cchain_balance_token", Table: "cchain_token_balances", Columns: []string{"token_address"}},
+			{Name: a.Idx("tx_block"), Table: a.Tbl("transactions"), Columns: []string{"block_number"}},
+			{Name: a.Idx("tx_from"), Table: a.Tbl("transactions"), Columns: []string{"tx_from"}},
+			{Name: a.Idx("tx_to"), Table: a.Tbl("transactions"), Columns: []string{"tx_to"}},
+			{Name: a.Idx("tx_timestamp"), Table: a.Tbl("transactions"), Columns: []string{"timestamp"}},
+			{Name: a.Idx("addr_balance"), Table: a.Tbl("addresses"), Columns: []string{"balance"}},
+			{Name: a.Idx("transfer_token"), Table: a.Tbl("token_transfers"), Columns: []string{"token_address"}},
+			{Name: a.Idx("transfer_from"), Table: a.Tbl("token_transfers"), Columns: []string{"tx_from"}},
+			{Name: a.Idx("transfer_to"), Table: a.Tbl("token_transfers"), Columns: []string{"tx_to"}},
+			{Name: a.Idx("transfer_block"), Table: a.Tbl("token_transfers"), Columns: []string{"block_number"}},
+			{Name: a.Idx("token_type"), Table: a.Tbl("tokens"), Columns: []string{"token_type"}},
+			{Name: a.Idx("logs_address"), Table: a.Tbl("logs"), Columns: []string{"address"}},
+			{Name: a.Idx("logs_block"), Table: a.Tbl("logs"), Columns: []string{"block_number"}},
+			{Name: a.Idx("internal_tx"), Table: a.Tbl("internal_transactions"), Columns: []string{"tx_hash"}},
+			{Name: a.Idx("internal_from"), Table: a.Tbl("internal_transactions"), Columns: []string{"tx_from"}},
+			{Name: a.Idx("internal_to"), Table: a.Tbl("internal_transactions"), Columns: []string{"tx_to"}},
+			{Name: a.Idx("internal_block"), Table: a.Tbl("internal_transactions"), Columns: []string{"block_number"}},
+			{Name: a.Idx("balance_holder"), Table: a.Tbl("token_balances"), Columns: []string{"holder_address"}},
+			{Name: a.Idx("balance_token"), Table: a.Tbl("token_balances"), Columns: []string{"token_address"}},
 		},
 	}
 
@@ -1416,20 +1436,20 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	}
 
 	// Initialize stats row
-	return store.Exec(ctx, "INSERT INTO cchain_extended_stats (id) VALUES (1) ON CONFLICT DO NOTHING")
+	return store.Exec(ctx, fmt.Sprintf("INSERT INTO %s (id) VALUES (1) ON CONFLICT DO NOTHING", a.Tbl("extended_stats")))
 }
 
-// GetStats returns C-Chain specific statistics using unified storage
+// GetStats returns chain-specific statistics using unified storage
 func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Get extended stats
-	rows, err := store.Query(ctx, `
+	rows, err := store.Query(ctx, fmt.Sprintf(`
 		SELECT total_transactions, total_addresses, total_contracts, total_tokens,
 		       total_token_transfers, total_internal_transactions, total_gas_used,
 		       avg_gas_price, avg_block_time, tps_24h, updated_at
-		FROM cchain_extended_stats WHERE id = 1
-	`)
+		FROM %s WHERE id = 1
+	`, a.Tbl("extended_stats")))
 	if err != nil {
 		return nil, err
 	}
@@ -1451,12 +1471,12 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 	stats["chain_id"] = ChainID
 
 	// Get top tokens by holder count
-	tokenRows, err := store.Query(ctx, `
+	tokenRows, err := store.Query(ctx, fmt.Sprintf(`
 		SELECT address, name, symbol, token_type, holder_count, tx_count
-		FROM cchain_tokens
+		FROM %s
 		ORDER BY holder_count DESC
 		LIMIT 10
-	`)
+	`, a.Tbl("tokens")))
 	if err != nil {
 		return stats, nil // Return stats without tokens on error
 	}
@@ -1479,68 +1499,70 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 
 // StoreTransaction stores a transaction
 func (a *Adapter) StoreTransaction(ctx context.Context, db *sql.DB, tx Transaction) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_transactions
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(hash, block_hash, block_number, tx_from, tx_to, value, gas, gas_price, gas_used,
 		 nonce, input, tx_index, tx_type, status, contract_address, timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (hash) DO UPDATE SET
 			status = EXCLUDED.status,
 			gas_used = EXCLUDED.gas_used
-	`, tx.Hash, tx.BlockHash, tx.BlockNumber, tx.From, tx.To, tx.Value, tx.Gas, tx.GasPrice,
+	`, a.Tbl("transactions")), tx.Hash, tx.BlockHash, tx.BlockNumber, tx.From, tx.To, tx.Value, tx.Gas, tx.GasPrice,
 		tx.GasUsed, tx.Nonce, tx.Input, tx.TransactionIndex, tx.Type, tx.Status, tx.ContractAddress, tx.Timestamp)
 	return err
 }
 
 // StoreAddress stores an address
 func (a *Adapter) StoreAddress(ctx context.Context, db *sql.DB, addr Address) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_addresses
+	tbl := a.Tbl("addresses")
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(hash, balance, tx_count, is_contract, contract_code, contract_creator, contract_tx_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (hash) DO UPDATE SET
 			balance = EXCLUDED.balance,
-			tx_count = cchain_addresses.tx_count + 1,
+			tx_count = %s.tx_count + 1,
 			updated_at = EXCLUDED.updated_at
-	`, addr.Hash, addr.Balance, addr.TxCount, addr.IsContract, addr.ContractCode,
+	`, tbl, tbl), addr.Hash, addr.Balance, addr.TxCount, addr.IsContract, addr.ContractCode,
 		addr.ContractCreator, addr.ContractTxHash, addr.CreatedAt, addr.UpdatedAt)
 	return err
 }
 
 // StoreTokenTransfer stores a token transfer
 func (a *Adapter) StoreTokenTransfer(ctx context.Context, db *sql.DB, t TokenTransfer) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_token_transfers
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(id, tx_hash, log_index, block_number, token_address, token_type, tx_from, tx_to, value, token_id, timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (id) DO NOTHING
-	`, t.ID, t.TxHash, t.LogIndex, t.BlockNumber, t.TokenAddress, t.TokenType, t.From, t.To, t.Value, t.TokenID, t.Timestamp)
+	`, a.Tbl("token_transfers")), t.ID, t.TxHash, t.LogIndex, t.BlockNumber, t.TokenAddress, t.TokenType, t.From, t.To, t.Value, t.TokenID, t.Timestamp)
 	return err
 }
 
 // StoreToken stores a token
 func (a *Adapter) StoreToken(ctx context.Context, db *sql.DB, t Token) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_tokens
+	tbl := a.Tbl("tokens")
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(address, name, symbol, decimals, total_supply, token_type, holder_count, tx_count, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (address) DO UPDATE SET
 			total_supply = EXCLUDED.total_supply,
 			holder_count = EXCLUDED.holder_count,
-			tx_count = cchain_tokens.tx_count + 1,
+			tx_count = %s.tx_count + 1,
 			updated_at = EXCLUDED.updated_at
-	`, t.Address, t.Name, t.Symbol, t.Decimals, t.TotalSupply, t.TokenType, t.HolderCount, t.TxCount, t.CreatedAt, t.UpdatedAt)
+	`, tbl, tbl), t.Address, t.Name, t.Symbol, t.Decimals, t.TotalSupply, t.TokenType, t.HolderCount, t.TxCount, t.CreatedAt, t.UpdatedAt)
 	return err
 }
 
 // StoreLog stores an event log
 func (a *Adapter) StoreLog(ctx context.Context, db *sql.DB, l Log) error {
 	topicsJSON, _ := json.Marshal(l.Topics)
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_logs (tx_hash, log_index, block_number, address, topics, data, removed)
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (tx_hash, log_index, block_number, address, topics, data, removed)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (tx_hash, log_index) DO NOTHING
-	`, l.TxHash, l.LogIndex, l.BlockNumber, l.Address, topicsJSON, l.Data, l.Removed)
+	`, a.Tbl("logs")), l.TxHash, l.LogIndex, l.BlockNumber, l.Address, topicsJSON, l.Data, l.Removed)
 	return err
 }
 
@@ -1549,14 +1571,14 @@ func (a *Adapter) StoreInternalTransaction(ctx context.Context, db *sql.DB, itx 
 	// Convert trace address to PostgreSQL array format
 	traceAddrStr := intSliceToPostgresArray(itx.TraceAddress)
 
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_internal_transactions
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(id, tx_hash, block_number, trace_index, trace_address, call_type, tx_from, tx_to,
 		 value, gas, gas_used, input, output, error, created_contract_address,
 		 created_contract_code, init, timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		ON CONFLICT (id) DO NOTHING
-	`, itx.ID, itx.TxHash, itx.BlockNumber, itx.TraceIndex, traceAddrStr, itx.CallType,
+	`, a.Tbl("internal_transactions")), itx.ID, itx.TxHash, itx.BlockNumber, itx.TraceIndex, traceAddrStr, itx.CallType,
 		itx.From, itx.To, itx.Value, itx.Gas, itx.GasUsed, itx.Input, itx.Output, itx.Error,
 		itx.CreatedContractAddress, itx.CreatedContractCode, itx.Init, itx.Timestamp)
 	return err
@@ -1581,64 +1603,65 @@ func (a *Adapter) StoreTokenBalance(ctx context.Context, db *sql.DB, tb TokenBal
 		tokenID = ""
 	}
 
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_token_balances
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(token_address, holder_address, balance, token_id, block_number, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (token_address, holder_address, COALESCE(token_id, '')) DO UPDATE SET
 			balance = EXCLUDED.balance,
 			block_number = EXCLUDED.block_number,
 			updated_at = EXCLUDED.updated_at
-	`, tb.TokenAddress, tb.HolderAddress, tb.Balance, tokenID, tb.BlockNumber, tb.UpdatedAt)
+	`, a.Tbl("token_balances")), tb.TokenAddress, tb.HolderAddress, tb.Balance, tokenID, tb.BlockNumber, tb.UpdatedAt)
 	return err
 }
 
 // StoreTokenBalanceHistory stores token balance history
 func (a *Adapter) StoreTokenBalanceHistory(ctx context.Context, db *sql.DB, tb TokenBalance) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_token_balance_history
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(token_address, holder_address, balance, token_id, block_number)
 		VALUES ($1, $2, $3, $4, $5)
-	`, tb.TokenAddress, tb.HolderAddress, tb.Balance, tb.TokenID, tb.BlockNumber)
+	`, a.Tbl("token_balance_history")), tb.TokenAddress, tb.HolderAddress, tb.Balance, tb.TokenID, tb.BlockNumber)
 	return err
 }
 
 // StoreAddressCoinBalance stores native coin balance for an address at a block
 func (a *Adapter) StoreAddressCoinBalance(ctx context.Context, db *sql.DB, acb AddressCoinBalance) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO cchain_address_coin_balances
+	tbl := a.Tbl("address_coin_balances")
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s
 		(address_hash, block_number, value, value_fetched_at, updated_at)
 		VALUES ($1, $2, $3, $4, NOW())
 		ON CONFLICT (address_hash, block_number) DO UPDATE SET
 			value = CASE
-				WHEN EXCLUDED.value IS NOT NULL AND (cchain_address_coin_balances.value_fetched_at IS NULL
-					OR EXCLUDED.value_fetched_at > cchain_address_coin_balances.value_fetched_at)
+				WHEN EXCLUDED.value IS NOT NULL AND (%s.value_fetched_at IS NULL
+					OR EXCLUDED.value_fetched_at > %s.value_fetched_at)
 				THEN EXCLUDED.value
-				ELSE cchain_address_coin_balances.value
+				ELSE %s.value
 			END,
 			value_fetched_at = CASE
-				WHEN EXCLUDED.value IS NOT NULL AND (cchain_address_coin_balances.value_fetched_at IS NULL
-					OR EXCLUDED.value_fetched_at > cchain_address_coin_balances.value_fetched_at)
+				WHEN EXCLUDED.value IS NOT NULL AND (%s.value_fetched_at IS NULL
+					OR EXCLUDED.value_fetched_at > %s.value_fetched_at)
 				THEN EXCLUDED.value_fetched_at
-				ELSE cchain_address_coin_balances.value_fetched_at
+				ELSE %s.value_fetched_at
 			END,
 			updated_at = NOW()
-	`, acb.AddressHash, acb.BlockNumber, acb.Value, acb.ValueFetchedAt)
+	`, tbl, tbl, tbl, tbl, tbl, tbl, tbl), acb.AddressHash, acb.BlockNumber, acb.Value, acb.ValueFetchedAt)
 	return err
 }
 
 // UpdateTokenHolderCount updates the holder count for a token
 func (a *Adapter) UpdateTokenHolderCount(ctx context.Context, db *sql.DB, tokenAddress string) error {
-	_, err := db.ExecContext(ctx, `
-		UPDATE cchain_tokens
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s
 		SET holder_count = (
 			SELECT COUNT(DISTINCT holder_address)
-			FROM cchain_token_balances
+			FROM %s
 			WHERE token_address = $1 AND balance != '0'
 		),
 		updated_at = NOW()
 		WHERE address = $1
-	`, tokenAddress)
+	`, a.Tbl("tokens"), a.Tbl("token_balances")), tokenAddress)
 	return err
 }
 
@@ -1851,26 +1874,37 @@ func (a *Adapter) fetchAndStoreCoinBalances(ctx context.Context, db *sql.DB, add
 	}
 }
 
-// UpdateExtendedStats updates C-Chain specific statistics
+// UpdateExtendedStats updates chain-specific statistics
 func (a *Adapter) UpdateExtendedStats(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `
-		UPDATE cchain_extended_stats SET
-			total_transactions = (SELECT COUNT(*) FROM cchain_transactions),
-			total_addresses = (SELECT COUNT(*) FROM cchain_addresses),
-			total_contracts = (SELECT COUNT(*) FROM cchain_addresses WHERE is_contract = TRUE),
-			total_tokens = (SELECT COUNT(*) FROM cchain_tokens),
-			total_token_transfers = (SELECT COUNT(*) FROM cchain_token_transfers),
-			total_internal_transactions = (SELECT COUNT(*) FROM cchain_internal_transactions),
-			total_gas_used = COALESCE((SELECT SUM(gas_used) FROM cchain_transactions), 0),
-			avg_gas_price = COALESCE((SELECT AVG(CAST(gas_price AS NUMERIC)) FROM cchain_transactions WHERE gas_price IS NOT NULL), 0)::TEXT,
+	_, err := db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s SET
+			total_transactions = (SELECT COUNT(*) FROM %s),
+			total_addresses = (SELECT COUNT(*) FROM %s),
+			total_contracts = (SELECT COUNT(*) FROM %s WHERE is_contract = TRUE),
+			total_tokens = (SELECT COUNT(*) FROM %s),
+			total_token_transfers = (SELECT COUNT(*) FROM %s),
+			total_internal_transactions = (SELECT COUNT(*) FROM %s),
+			total_gas_used = COALESCE((SELECT SUM(gas_used) FROM %s), 0),
+			avg_gas_price = COALESCE((SELECT AVG(CAST(gas_price AS NUMERIC)) FROM %s WHERE gas_price IS NOT NULL), 0)::TEXT,
 			tps_24h = COALESCE((
 				SELECT COUNT(*)::FLOAT / 86400
-				FROM cchain_transactions
+				FROM %s
 				WHERE timestamp > NOW() - INTERVAL '24 hours'
 			), 0),
 			updated_at = NOW()
 		WHERE id = 1
-	`)
+	`,
+		a.Tbl("extended_stats"),
+		a.Tbl("transactions"),
+		a.Tbl("addresses"),
+		a.Tbl("addresses"),
+		a.Tbl("tokens"),
+		a.Tbl("token_transfers"),
+		a.Tbl("internal_transactions"),
+		a.Tbl("transactions"),
+		a.Tbl("transactions"),
+		a.Tbl("transactions"),
+	))
 	return err
 }
 
@@ -2088,14 +2122,14 @@ func decodeString(data string) string {
 
 // GetInternalTransactions returns internal transactions for a transaction
 func (a *Adapter) GetInternalTransactions(ctx context.Context, db *sql.DB, txHash string) ([]InternalTransaction, error) {
-	rows, err := db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT id, tx_hash, block_number, trace_index, trace_address, call_type,
 		       tx_from, tx_to, value, gas, gas_used, input, output, error,
 		       created_contract_address, created_contract_code, init, timestamp
-		FROM cchain_internal_transactions
+		FROM %s
 		WHERE tx_hash = $1
 		ORDER BY trace_index
-	`, txHash)
+	`, a.Tbl("internal_transactions")), txHash)
 	if err != nil {
 		return nil, err
 	}
@@ -2160,13 +2194,13 @@ func postgresArrayToIntSlice(s string) []int {
 
 // GetAddressCoinBalanceHistory returns coin balance history for an address
 func (a *Adapter) GetAddressCoinBalanceHistory(ctx context.Context, db *sql.DB, address string, limit int) ([]AddressCoinBalance, error) {
-	rows, err := db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT address_hash, block_number, value, value_fetched_at
-		FROM cchain_address_coin_balances
+		FROM %s
 		WHERE address_hash = $1 AND value IS NOT NULL
 		ORDER BY block_number DESC
 		LIMIT $2
-	`, strings.ToLower(address), limit)
+	`, a.Tbl("address_coin_balances")), strings.ToLower(address), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -2198,13 +2232,13 @@ func (a *Adapter) GetAddressCoinBalanceHistory(ctx context.Context, db *sql.DB, 
 
 // GetTokenBalanceHistory returns token balance history for an address
 func (a *Adapter) GetTokenBalanceHistory(ctx context.Context, db *sql.DB, address string, limit int) ([]TokenBalance, error) {
-	rows, err := db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT token_address, holder_address, balance, token_id, block_number, created_at
-		FROM cchain_token_balance_history
+		FROM %s
 		WHERE holder_address = $1
 		ORDER BY block_number DESC
 		LIMIT $2
-	`, strings.ToLower(address), limit)
+	`, a.Tbl("token_balance_history")), strings.ToLower(address), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -2234,13 +2268,13 @@ func (a *Adapter) GetTokenBalanceHistory(ctx context.Context, db *sql.DB, addres
 
 // GetTokenHolders returns all holders of a token with non-zero balances
 func (a *Adapter) GetTokenHolders(ctx context.Context, db *sql.DB, tokenAddress string, limit, offset int) ([]TokenBalance, error) {
-	rows, err := db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT token_address, holder_address, balance, token_id, block_number, updated_at
-		FROM cchain_token_balances
+		FROM %s
 		WHERE token_address = $1 AND balance != '0'
 		ORDER BY CAST(balance AS NUMERIC) DESC
 		LIMIT $2 OFFSET $3
-	`, strings.ToLower(tokenAddress), limit, offset)
+	`, a.Tbl("token_balances")), strings.ToLower(tokenAddress), limit, offset)
 	if err != nil {
 		return nil, err
 	}
