@@ -257,8 +257,8 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			lattice_error_bound INTEGER,
 			security_level INTEGER,
 			algorithm TEXT,
-			signature BLOB,
-			public_key BLOB,
+			signature BYTEA,
+			public_key BYTEA,
 			verified INTEGER DEFAULT 0,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
@@ -320,10 +320,10 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			vertex_id TEXT,
 			chain_id TEXT NOT NULL,
 			block_height INTEGER NOT NULL,
-			block_hash BLOB NOT NULL,
-			entropy BLOB,
+			block_hash BYTEA NOT NULL,
+			entropy BYTEA,
 			key_id TEXT,
-			signature BLOB,
+			signature BYTEA,
 			timestamp TIMESTAMP NOT NULL,
 			certified INTEGER DEFAULT 0,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -342,7 +342,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_ringtail_keys (
 			id TEXT PRIMARY KEY,
-			public_key BLOB NOT NULL,
+			public_key BYTEA NOT NULL,
 			key_type TEXT NOT NULL,
 			algorithm TEXT NOT NULL,
 			security_level INTEGER NOT NULL,
