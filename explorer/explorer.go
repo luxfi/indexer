@@ -89,7 +89,12 @@ func Register(app core.App, config Config) error {
 		if err := e.Next(); err != nil {
 			return err
 		}
-		return p.openIndexerDB()
+		if err := p.openIndexerDB(); err != nil {
+			return err
+		}
+		p.notifWorker = NewNotificationWorker(p.db, "transactions", app.Logger())
+		p.notifWorker.Start()
+		return nil
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
@@ -98,6 +103,9 @@ func Register(app core.App, config Config) error {
 	})
 
 	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
+		if p.notifWorker != nil {
+			p.notifWorker.Stop()
+		}
 		p.closeIndexerDB()
 		return e.Next()
 	})
@@ -111,6 +119,7 @@ type plugin struct {
 	db          *sql.DB // read-only connection to indexer's SQLite
 	gchainProxy *graphqlProxy
 	chainDBs    map[string]*sql.DB // pre-opened cross-chain DB connections
+	notifWorker *NotificationWorker
 }
 
 // openIndexerDB opens a read-only connection to the indexer's SQLite database.
@@ -219,6 +228,14 @@ func (p *plugin) registerRoutes(r *router.Router[*core.RequestEvent]) {
 	v2.Any("/local/graphql", p.handleLocalGraphQL)          // local SQLite (per-chain, fast)
 	v2.GET("/search/cross-chain", p.handleCrossChainSearch) // parallel multi-chain SQLite search
 
+	// Token distribution (Gini coefficient)
+	v2.GET("/tokens/{address_hash}/distribution", p.handleTokenDistribution)
+
+	// Webhooks (notification subscriptions)
+	v2.POST("/webhooks", p.handleRegisterWebhook)
+	v2.GET("/webhooks", p.handleListWebhooks)
+	v2.DELETE("/webhooks", p.handleDeleteWebhook)
+
 	// Health
 	r.GET("/health", p.handleHealth)
 
@@ -226,6 +243,6 @@ func (p *plugin) registerRoutes(r *router.Router[*core.RequestEvent]) {
 		slog.Int64("chain_id", p.config.ChainID),
 		slog.String("chain", p.config.ChainName),
 		slog.String("gchain_endpoint", p.config.GChainEndpoint),
-		slog.Int("endpoints", 33),
+		slog.Int("endpoints", 37),
 	)
 }
