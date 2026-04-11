@@ -1,11 +1,13 @@
 package explorer
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hanzoai/base/core"
 )
@@ -23,6 +25,9 @@ func emptyPage() paginatedResponse {
 // ---- Blocks ----
 
 func (p *plugin) handleListBlocks(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	q := e.Request.URL.Query()
 	limit := intParam(q.Get("items_count"), 50)
 
@@ -34,7 +39,7 @@ func (p *plugin) handleListBlocks(e *core.RequestEvent) error {
 		args = []any{p.config.ChainID, bn, limit + 1}
 	}
 
-	rows, err := p.db.Query(query, args...)
+	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
 	}
@@ -64,24 +69,39 @@ func (p *plugin) handleListBlocks(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleGetBlock(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	id := e.Request.PathValue("block_hash_or_number")
 
-	var row *sql.Row
+	var query string
+	var args []any
 	if strings.HasPrefix(id, "0x") {
-		row = p.db.QueryRow("SELECT * FROM blocks WHERE chain_id = ? AND hash = ? LIMIT 1", p.config.ChainID, hexToBytes(id))
+		query = "SELECT * FROM blocks WHERE chain_id = ? AND hash = ? LIMIT 1"
+		args = []any{p.config.ChainID, hexToBytes(id)}
 	} else {
-		row = p.db.QueryRow("SELECT * FROM blocks WHERE chain_id = ? AND number = ? LIMIT 1", p.config.ChainID, id)
+		query = "SELECT * FROM blocks WHERE chain_id = ? AND number = ? LIMIT 1"
+		args = []any{p.config.ChainID, id}
 	}
 
-	block, err := scanMapRow(row, p.db, "blocks", p.config.ChainID, id)
+	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return e.NotFoundError("block not found", nil)
 	}
+	defer rows.Close()
 
-	return e.JSON(http.StatusOK, formatBlock(block))
+	blocks, err := scanMaps(rows)
+	if err != nil || len(blocks) == 0 {
+		return e.NotFoundError("block not found", nil)
+	}
+
+	return e.JSON(http.StatusOK, formatBlock(blocks[0]))
 }
 
 func (p *plugin) handleBlockTransactions(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	id := e.Request.PathValue("block_hash_or_number")
 	limit := intParam(e.Request.URL.Query().Get("items_count"), 50)
 
@@ -95,25 +115,31 @@ func (p *plugin) handleBlockTransactions(e *core.RequestEvent) error {
 		args = []any{p.config.ChainID, id, limit}
 	}
 
-	return p.queryTxList(e, query, args, limit)
+	return p.queryTxListCtx(e, ctx, query, args, limit)
 }
 
 // ---- Transactions ----
 
 func (p *plugin) handleListTransactions(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	q := e.Request.URL.Query()
 	limit := intParam(q.Get("items_count"), 50)
 
 	query := "SELECT * FROM transactions WHERE chain_id = ? ORDER BY block_number DESC, transaction_index DESC LIMIT ?"
 	args := []any{p.config.ChainID, limit + 1}
 
-	return p.queryTxList(e, query, args, limit)
+	return p.queryTxListCtx(e, ctx, query, args, limit)
 }
 
 func (p *plugin) handleGetTransaction(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("transaction_hash")
 
-	rows, err := p.db.Query("SELECT * FROM transactions WHERE chain_id = ? AND hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM transactions WHERE chain_id = ? AND hash = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.NotFoundError("transaction not found", nil)
@@ -129,8 +155,11 @@ func (p *plugin) handleGetTransaction(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleTxTokenTransfers(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("transaction_hash")
-	rows, err := p.db.Query("SELECT * FROM token_transfers WHERE chain_id = ? AND transaction_hash = ? ORDER BY log_index",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM token_transfers WHERE chain_id = ? AND transaction_hash = ? ORDER BY log_index",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -146,8 +175,11 @@ func (p *plugin) handleTxTokenTransfers(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleTxInternalTxs(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("transaction_hash")
-	rows, err := p.db.Query("SELECT * FROM internal_transactions WHERE chain_id = ? AND transaction_hash = ? ORDER BY \"index\"",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM internal_transactions WHERE chain_id = ? AND transaction_hash = ? ORDER BY \"index\"",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -163,8 +195,11 @@ func (p *plugin) handleTxInternalTxs(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleTxLogs(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("transaction_hash")
-	rows, err := p.db.Query("SELECT * FROM logs WHERE chain_id = ? AND transaction_hash = ? ORDER BY \"index\"",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM logs WHERE chain_id = ? AND transaction_hash = ? ORDER BY \"index\"",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -186,8 +221,11 @@ func (p *plugin) handleTxRawTrace(e *core.RequestEvent) error {
 // ---- Addresses ----
 
 func (p *plugin) handleListAddresses(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	limit := intParam(e.Request.URL.Query().Get("items_count"), 50)
-	rows, err := p.db.Query("SELECT * FROM addresses WHERE chain_id = ? ORDER BY fetched_coin_balance DESC LIMIT ?",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM addresses WHERE chain_id = ? ORDER BY fetched_coin_balance DESC LIMIT ?",
 		p.config.ChainID, limit)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -203,8 +241,11 @@ func (p *plugin) handleListAddresses(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleGetAddress(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query("SELECT * FROM addresses WHERE chain_id = ? AND hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM addresses WHERE chain_id = ? AND hash = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.NotFoundError("address not found", nil)
@@ -219,11 +260,14 @@ func (p *plugin) handleGetAddress(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressTransactions(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
 	limit := intParam(e.Request.URL.Query().Get("items_count"), 50)
 	addr := hexToBytes(hash)
 
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM transactions WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC, transaction_index DESC LIMIT ?",
 		p.config.ChainID, addr, addr, limit+1)
 	if err != nil {
@@ -235,10 +279,13 @@ func (p *plugin) handleAddressTransactions(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressTokenTransfers(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
 	addr := hexToBytes(hash)
 
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM token_transfers WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC, log_index DESC LIMIT 50",
 		p.config.ChainID, addr, addr)
 	if err != nil {
@@ -255,10 +302,13 @@ func (p *plugin) handleAddressTokenTransfers(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressInternalTxs(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
 	addr := hexToBytes(hash)
 
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM internal_transactions WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, addr, addr)
 	if err != nil {
@@ -275,8 +325,11 @@ func (p *plugin) handleAddressInternalTxs(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressLogs(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM logs WHERE chain_id = ? AND address_hash = ? ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
@@ -293,8 +346,11 @@ func (p *plugin) handleAddressLogs(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressTokens(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM address_current_token_balances WHERE chain_id = ? AND address_hash = ? ORDER BY value DESC LIMIT 100",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
@@ -318,8 +374,11 @@ func (p *plugin) handleAddressTokens(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressCoinBalanceHistory(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM address_coin_balances WHERE chain_id = ? AND address_hash = ? ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
@@ -344,8 +403,11 @@ func (p *plugin) handleAddressCoinBalanceByDay(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleAddressCounters(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	hash := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query("SELECT * FROM addresses WHERE chain_id = ? AND hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM addresses WHERE chain_id = ? AND hash = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(hash))
 	if err != nil {
 		return e.NotFoundError("address not found", nil)
@@ -369,6 +431,9 @@ func (p *plugin) handleAddressCounters(e *core.RequestEvent) error {
 // ---- Tokens ----
 
 func (p *plugin) handleListTokens(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	limit := intParam(e.Request.URL.Query().Get("items_count"), 50)
 	q := e.Request.URL.Query()
 
@@ -382,7 +447,7 @@ func (p *plugin) handleListTokens(e *core.RequestEvent) error {
 	query += " ORDER BY holder_count DESC LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := p.db.Query(query, args...)
+	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
 	}
@@ -397,8 +462,11 @@ func (p *plugin) handleListTokens(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleGetToken(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	addr := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query("SELECT * FROM tokens WHERE chain_id = ? AND contract_address_hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM tokens WHERE chain_id = ? AND contract_address_hash = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
 		return e.NotFoundError("token not found", nil)
@@ -413,8 +481,11 @@ func (p *plugin) handleGetToken(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleTokenTransfers(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	addr := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM token_transfers WHERE chain_id = ? AND token_contract_address_hash = ? ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
@@ -431,8 +502,11 @@ func (p *plugin) handleTokenTransfers(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleTokenHolders(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	addr := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(ctx,
 		"SELECT * FROM address_current_token_balances WHERE chain_id = ? AND token_contract_address_hash = ? ORDER BY value DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
@@ -462,7 +536,10 @@ func (p *plugin) handleTokenInstance(e *core.RequestEvent) error {
 // ---- Smart Contracts ----
 
 func (p *plugin) handleListContracts(e *core.RequestEvent) error {
-	rows, err := p.db.Query("SELECT * FROM smart_contracts WHERE chain_id = ? ORDER BY inserted_at DESC LIMIT 50",
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM smart_contracts WHERE chain_id = ? ORDER BY inserted_at DESC LIMIT 50",
 		p.config.ChainID)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -478,8 +555,11 @@ func (p *plugin) handleListContracts(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleGetContract(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	addr := e.Request.PathValue("address_hash")
-	rows, err := p.db.Query("SELECT * FROM smart_contracts WHERE chain_id = ? AND address_hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM smart_contracts WHERE chain_id = ? AND address_hash = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
 		return e.NotFoundError("contract not found", nil)
@@ -500,6 +580,9 @@ func (p *plugin) handleVerifyContract(e *core.RequestEvent) error {
 // ---- Search ----
 
 func (p *plugin) handleSearch(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	q := e.Request.URL.Query().Get("q")
 	if q == "" {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -509,7 +592,7 @@ func (p *plugin) handleSearch(e *core.RequestEvent) error {
 
 	// Transaction hash
 	if strings.HasPrefix(q, "0x") && len(q) == 66 {
-		if row := p.queryOne("transactions", "hash", hexToBytes(q)); row != nil {
+		if row := p.queryOneCtx(ctx, "transactions", "hash", hexToBytes(q)); row != nil {
 			items = append(items, map[string]any{
 				"type":             "transaction",
 				"transaction_hash": bytesToHex(row["hash"]),
@@ -528,7 +611,7 @@ func (p *plugin) handleSearch(e *core.RequestEvent) error {
 	// Block number
 	if n, err := strconv.ParseInt(q, 10, 64); err == nil {
 		var count int
-		p.db.QueryRow("SELECT COUNT(*) FROM blocks WHERE chain_id = ? AND number = ?", p.config.ChainID, n).Scan(&count)
+		p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM blocks WHERE chain_id = ? AND number = ?", p.config.ChainID, n).Scan(&count)
 		if count > 0 {
 			items = append(items, map[string]any{
 				"type":         "block",
@@ -539,9 +622,10 @@ func (p *plugin) handleSearch(e *core.RequestEvent) error {
 
 	// Token name/symbol search
 	if !strings.HasPrefix(q, "0x") {
-		rows, err := p.db.Query(
-			"SELECT * FROM tokens WHERE chain_id = ? AND (name LIKE ? OR symbol LIKE ?) ORDER BY holder_count DESC LIMIT 5",
-			p.config.ChainID, "%"+q+"%", "%"+q+"%")
+		escaped := strings.NewReplacer("%", "\\%", "_", "\\_").Replace(q)
+		rows, err := p.db.QueryContext(ctx,
+			"SELECT * FROM tokens WHERE chain_id = ? AND (name LIKE ? ESCAPE '\\' OR symbol LIKE ? ESCAPE '\\') ORDER BY holder_count DESC LIMIT 5",
+			p.config.ChainID, "%"+escaped+"%", "%"+escaped+"%")
 		if err == nil {
 			defer rows.Close()
 			tokens, _ := scanMaps(rows)
@@ -574,10 +658,13 @@ func (p *plugin) handleSearchRedirect(e *core.RequestEvent) error {
 // ---- Stats ----
 
 func (p *plugin) handleStats(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	var blockCount, txCount, addrCount int
-	p.db.QueryRow("SELECT COUNT(*) FROM blocks WHERE chain_id = ?", p.config.ChainID).Scan(&blockCount)
-	p.db.QueryRow("SELECT COUNT(*) FROM transactions WHERE chain_id = ?", p.config.ChainID).Scan(&txCount)
-	p.db.QueryRow("SELECT COUNT(*) FROM addresses WHERE chain_id = ?", p.config.ChainID).Scan(&addrCount)
+	p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM blocks WHERE chain_id = ?", p.config.ChainID).Scan(&blockCount)
+	p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM transactions WHERE chain_id = ?", p.config.ChainID).Scan(&txCount)
+	p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM addresses WHERE chain_id = ?", p.config.ChainID).Scan(&addrCount)
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"total_blocks":                   blockCount,
@@ -602,8 +689,11 @@ func (p *plugin) handleChartMarket(e *core.RequestEvent) error {
 }
 
 func (p *plugin) handleHealth(e *core.RequestEvent) error {
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 5*time.Second)
+	defer cancel()
+
 	return e.JSON(http.StatusOK, map[string]any{
-		"healthy":    p.db.Ping() == nil,
+		"healthy":    p.db.PingContext(ctx) == nil,
 		"chain_id":   p.config.ChainID,
 		"chain_name": p.config.ChainName,
 	})
@@ -611,8 +701,8 @@ func (p *plugin) handleHealth(e *core.RequestEvent) error {
 
 // ---- Query Helpers ----
 
-func (p *plugin) queryOne(table, col string, val any) map[string]any {
-	rows, err := p.db.Query(
+func (p *plugin) queryOneCtx(ctx context.Context, table, col string, val any) map[string]any {
+	rows, err := p.db.QueryContext(ctx,
 		fmt.Sprintf("SELECT * FROM %s WHERE chain_id = ? AND %s = ? LIMIT 1", table, col),
 		p.config.ChainID, val)
 	if err != nil {
@@ -626,8 +716,8 @@ func (p *plugin) queryOne(table, col string, val any) map[string]any {
 	return maps[0]
 }
 
-func (p *plugin) queryTxList(e *core.RequestEvent, query string, args []any, limit int) error {
-	rows, err := p.db.Query(query, args...)
+func (p *plugin) queryTxListCtx(e *core.RequestEvent, ctx context.Context, query string, args []any, limit int) error {
+	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
 	}
@@ -659,28 +749,10 @@ func (p *plugin) formatTxRows(e *core.RequestEvent, rows *sql.Rows, limit int) e
 
 func intParam(s string, fallback int) int {
 	if n, err := strconv.Atoi(s); err == nil && n > 0 {
+		if n > 250 {
+			n = 250
+		}
 		return n
 	}
 	return fallback
-}
-
-// scanMapRow scans a single row from a SELECT * query.
-func scanMapRow(row *sql.Row, db *sql.DB, table string, chainID int64, id string) (map[string]any, error) {
-	// Fallback: re-query with scanMaps.
-	var query string
-	if strings.HasPrefix(id, "0x") {
-		query = fmt.Sprintf("SELECT * FROM %s WHERE chain_id = %d AND hash = X'%s' LIMIT 1", table, chainID, strings.TrimPrefix(id, "0x"))
-	} else {
-		query = fmt.Sprintf("SELECT * FROM %s WHERE chain_id = %d AND number = %s LIMIT 1", table, chainID, id)
-	}
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	maps, err := scanMaps(rows)
-	if err != nil || len(maps) == 0 {
-		return nil, fmt.Errorf("not found")
-	}
-	return maps[0], nil
 }

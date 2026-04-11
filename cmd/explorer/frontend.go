@@ -21,11 +21,14 @@ func frontendHandler() http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Try the exact file first
-		f, err := sub.Open(r.URL.Path[1:]) // strip leading /
-		if err == nil {
-			f.Close()
-			fileServer.ServeHTTP(w, r)
-			return
+		path := r.URL.Path
+		if len(path) > 1 {
+			f, err := sub.Open(path[1:]) // strip leading /
+			if err == nil {
+				f.Close()
+				fileServer.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		// SPA fallback: serve index.html for unknown paths

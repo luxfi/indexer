@@ -318,19 +318,18 @@ func startReplicate(dbPath, slug string) func() {
 	prefix = prefix + "/" + slug
 	region := envOr("REPLICATE_S3_REGION", "us-central1")
 
-	if ak := os.Getenv("REPLICATE_S3_ACCESS_KEY"); ak != "" {
-		os.Setenv("AWS_ACCESS_KEY_ID", ak)
-	}
-	if sk := os.Getenv("REPLICATE_S3_SECRET_KEY"); sk != "" {
-		os.Setenv("AWS_SECRET_ACCESS_KEY", sk)
-	}
-
 	replicaURL := fmt.Sprintf("s3://%s/%s?endpoint=%s&region=%s&force-path-style=true",
 		url.PathEscape(bucket),
 		url.PathEscape(prefix),
 		url.QueryEscape(endpoint),
 		url.QueryEscape(region),
 	)
+	if ak := os.Getenv("REPLICATE_S3_ACCESS_KEY"); ak != "" {
+		replicaURL += "&access_key=" + url.QueryEscape(ak)
+	}
+	if sk := os.Getenv("REPLICATE_S3_SECRET_KEY"); sk != "" {
+		replicaURL += "&secret_key=" + url.QueryEscape(sk)
+	}
 
 	client, err := replicate.NewReplicaClientFromURL(replicaURL)
 	if err != nil {
@@ -376,13 +375,22 @@ func loadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	// Expand env vars in config
-	expanded := os.ExpandEnv(string(data))
 	var cfg Config
-	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+	// Expand env vars only on RPC/WS fields that legitimately need it.
+	for i := range cfg.Chains {
+		cfg.Chains[i].RPC = expandKnownEnv(cfg.Chains[i].RPC)
+		cfg.Chains[i].WS = expandKnownEnv(cfg.Chains[i].WS)
+	}
 	return cfg, nil
+}
+
+// expandKnownEnv expands $VAR references in a string using os.Getenv,
+// but only for the value itself (no shell injection via config fields).
+func expandKnownEnv(s string) string {
+	return os.Expand(s, os.Getenv)
 }
 
 func envOr(key, fallback string) string {

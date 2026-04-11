@@ -190,6 +190,15 @@ func TestCrossChainSearch(t *testing.T) {
 	addr2.Hash = []byte{0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	addr2 = tdb2.InsertAddress(t, addr2)
 
+	// Open cross-chain DB connections (mirrors openIndexerDB behavior).
+	zoo, err := sql.Open("sqlite3",
+		fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", tdb2.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zoo.Close()
+	zoo.SetMaxOpenConns(2)
+
 	p := &plugin{
 		config: Config{
 			IndexerDBPath: tdb1.Path,
@@ -203,6 +212,10 @@ func TestCrossChainSearch(t *testing.T) {
 			},
 		},
 		db: tdb1.DB,
+		chainDBs: map[string]*sql.DB{
+			"C-Chain": tdb1.DB,
+			"Zoo":     zoo,
+		},
 	}
 
 	t.Run("requires address or tx_hash", func(t *testing.T) {
@@ -328,6 +341,3 @@ func newTestEvent(w http.ResponseWriter, r *http.Request) *core.RequestEvent {
 	e.Request = r
 	return e
 }
-
-// Ensure sql is used (cross-chain search opens separate connections).
-var _ = sql.ErrNoRows
