@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/luxfi/indexer/multichain"
+	"github.com/luxfi/explorer/multichain"
 )
 
 var version = "dev"

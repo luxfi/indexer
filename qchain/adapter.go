@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/luxfi/indexer/dag"
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/dag"
+	"github.com/luxfi/explorer/storage"
 )
 
 const (
@@ -24,7 +24,23 @@ const (
 	DefaultHTTPPort = 4300
 )
 
-// FinalityProof represents a quantum-resistant finality proof
+// QuasarCert is the dual consensus finality certificate.
+// Matches github.com/luxfi/consensus/protocol/quasar.QuasarCert.
+//
+// Two verification paths:
+//  1. BLS aggregate (48 bytes) — classical fast-path consensus (BLS12-381)
+//  2. PQ proof (variable) — post-quantum certificate (ML-DSA-65 or Ringtail)
+type QuasarCert struct {
+	ID         string    `json:"id"`
+	VertexID   string    `json:"vertexId"`
+	BLS        []byte    `json:"bls"`        // BLS aggregate signature (48 bytes)
+	PQProof    []byte    `json:"pqProof"`    // STARK proof aggregating N ML-DSA sigs (~200 bytes)
+	Epoch      uint64    `json:"epoch"`
+	Finality   time.Time `json:"finality"`
+	Validators int       `json:"validators"` // Count of validators proven by PQProof
+}
+
+// FinalityProof represents a quantum-resistant finality proof (legacy lattice-level detail).
 type FinalityProof struct {
 	ID            string    `json:"id"`
 	VertexID      string    `json:"vertexId"`
@@ -58,6 +74,7 @@ type Lattice struct {
 // QuantumVertex extends DAG vertex with quantum-specific data
 type QuantumVertex struct {
 	dag.Vertex
+	QuasarCert    *QuasarCert    `json:"quasarCert,omitempty"`
 	FinalityProof *FinalityProof `json:"finalityProof,omitempty"`
 	ProofCount    int            `json:"proofCount"`
 	Finalized     bool           `json:"finalized"`
@@ -176,6 +193,13 @@ func (a *Adapter) ParseVertex(data json.RawMessage) (*dag.Vertex, error) {
 
 	// Build metadata with quantum-specific fields
 	meta := make(map[string]interface{})
+	if qv.QuasarCert != nil {
+		meta["quasar_cert"] = true
+		meta["quasar_epoch"] = qv.QuasarCert.Epoch
+		meta["quasar_validators"] = qv.QuasarCert.Validators
+		meta["quasar_bls_size"] = len(qv.QuasarCert.BLS)
+		meta["quasar_pqproof_size"] = len(qv.QuasarCert.PQProof)
+	}
 	if qv.FinalityProof != nil {
 		meta["proof_type"] = qv.FinalityProof.ProofType
 		meta["proof_verified"] = qv.FinalityProof.Verified
@@ -196,6 +220,14 @@ func (a *Adapter) ParseVertex(data json.RawMessage) (*dag.Vertex, error) {
 		Status:    qv.Status,
 		Data:      data,
 		Metadata:  meta,
+	}
+
+	// Serialize QuasarCert into the vertex for API consumers
+	if qv.QuasarCert != nil {
+		certJSON, err := json.Marshal(qv.QuasarCert)
+		if err == nil {
+			v.QuasarCert = certJSON
+		}
 	}
 
 	// Update status based on finalization
@@ -362,6 +394,27 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_type ON qchain_ringtail_keys(key_type)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_active ON qchain_ringtail_keys(revoked, valid_until)`)
 
+	// Create QuasarCert table (triple consensus: BLS + ZK(ML-DSA) + Ringtail)
+	err = store.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS qchain_quasar_certs (
+			id TEXT PRIMARY KEY,
+			vertex_id TEXT NOT NULL,
+			bls BYTEA NOT NULL,
+			pq_proof BYTEA NOT NULL,
+			epoch BIGINT NOT NULL,
+			finality TIMESTAMP NOT NULL,
+			validators INTEGER NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create quasar certs table: %w", err)
+	}
+
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_certs_vertex ON qchain_quasar_certs(vertex_id)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_certs_epoch ON qchain_quasar_certs(epoch)`)
+	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_certs_finality ON qchain_quasar_certs(finality)`)
+
 	// Create extended stats table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_extended_stats (
@@ -378,6 +431,9 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			falcon_proofs INTEGER DEFAULT 0,
 			sphincs_proofs INTEGER DEFAULT 0,
 			avg_security_level REAL DEFAULT 0,
+			total_quasar_certs INTEGER DEFAULT 0,
+			latest_quasar_epoch BIGINT DEFAULT 0,
+			avg_quasar_validators REAL DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
@@ -455,7 +511,117 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 		stats["verification_rate"] = 0.0
 	}
 
+	// QuasarCert stats
+	certRows, err := store.Query(ctx, `
+		SELECT total_quasar_certs, latest_quasar_epoch, avg_quasar_validators
+		FROM qchain_extended_stats WHERE id = 1
+	`)
+	if err == nil && len(certRows) > 0 {
+		cr := certRows[0]
+		if v, ok := cr["total_quasar_certs"].(int64); ok {
+			stats["total_quasar_certs"] = v
+		}
+		if v, ok := cr["latest_quasar_epoch"].(int64); ok {
+			stats["latest_quasar_epoch"] = v
+		}
+		if v, ok := cr["avg_quasar_validators"].(float64); ok {
+			stats["avg_quasar_validators"] = v
+		}
+	}
+
 	return stats, nil
+}
+
+// StoreQuasarCert stores a triple consensus certificate in the database
+func (a *Adapter) StoreQuasarCert(ctx context.Context, store storage.Store, cert *QuasarCert) error {
+	return store.Exec(ctx, `
+		INSERT INTO qchain_quasar_certs
+			(id, vertex_id, bls, pq_proof, epoch, finality, validators)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			vertex_id = EXCLUDED.vertex_id,
+			bls = EXCLUDED.bls,
+			pq_proof = EXCLUDED.pq_proof,
+			epoch = EXCLUDED.epoch,
+			finality = EXCLUDED.finality,
+			validators = EXCLUDED.validators
+	`, cert.ID, cert.VertexID, cert.BLS, cert.PQProof, cert.Epoch, cert.Finality, cert.Validators)
+}
+
+// GetQuasarCert retrieves a QuasarCert by vertex ID
+func (a *Adapter) GetQuasarCert(ctx context.Context, store storage.Store, vertexID string) (*QuasarCert, error) {
+	rows, err := store.Query(ctx, `
+		SELECT id, vertex_id, bls, pq_proof, epoch, finality, validators
+		FROM qchain_quasar_certs WHERE vertex_id = ? LIMIT 1
+	`, vertexID)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	row := rows[0]
+	cert := &QuasarCert{}
+	if v, ok := row["id"].(string); ok {
+		cert.ID = v
+	}
+	if v, ok := row["vertex_id"].(string); ok {
+		cert.VertexID = v
+	}
+	if v, ok := row["bls"].([]byte); ok {
+		cert.BLS = v
+	}
+	if v, ok := row["pq_proof"].([]byte); ok {
+		cert.PQProof = v
+	}
+	if v, ok := row["epoch"].(int64); ok {
+		cert.Epoch = uint64(v)
+	}
+	if v, ok := row["finality"].(time.Time); ok {
+		cert.Finality = v
+	}
+	if v, ok := row["validators"].(int64); ok {
+		cert.Validators = int(v)
+	}
+	return cert, nil
+}
+
+// GetRecentQuasarCerts returns recent QuasarCerts ordered by epoch descending
+func (a *Adapter) GetRecentQuasarCerts(ctx context.Context, store storage.Store, limit int) ([]QuasarCert, error) {
+	rows, err := store.Query(ctx, `
+		SELECT id, vertex_id, bls, pq_proof, epoch, finality, validators
+		FROM qchain_quasar_certs ORDER BY epoch DESC, finality DESC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	var certs []QuasarCert
+	for _, row := range rows {
+		c := QuasarCert{}
+		if v, ok := row["id"].(string); ok {
+			c.ID = v
+		}
+		if v, ok := row["vertex_id"].(string); ok {
+			c.VertexID = v
+		}
+		if v, ok := row["bls"].([]byte); ok {
+			c.BLS = v
+		}
+		if v, ok := row["pq_proof"].([]byte); ok {
+			c.PQProof = v
+		}
+		if v, ok := row["epoch"].(int64); ok {
+			c.Epoch = uint64(v)
+		}
+		if v, ok := row["finality"].(time.Time); ok {
+			c.Finality = v
+		}
+		if v, ok := row["validators"].(int64); ok {
+			c.Validators = int(v)
+		}
+		certs = append(certs, c)
+	}
+	return certs, nil
 }
 
 // StoreProof stores a finality proof in the database
@@ -526,6 +692,9 @@ func (a *Adapter) UpdateExtendedStats(ctx context.Context, store storage.Store) 
 			falcon_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'falcon'),
 			sphincs_proofs = (SELECT COUNT(*) FROM qchain_finality_proofs WHERE proof_type = 'sphincs+'),
 			avg_security_level = COALESCE((SELECT AVG(security_level) FROM qchain_finality_proofs), 0),
+			total_quasar_certs = (SELECT COUNT(*) FROM qchain_quasar_certs),
+			latest_quasar_epoch = COALESCE((SELECT MAX(epoch) FROM qchain_quasar_certs), 0),
+			avg_quasar_validators = COALESCE((SELECT AVG(validators) FROM qchain_quasar_certs), 0),
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`)

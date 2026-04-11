@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/storage"
 )
 
 // TestConfig holds E2E test configuration

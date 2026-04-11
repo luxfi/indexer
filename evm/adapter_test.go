@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/indexer/chain"
+	"github.com/luxfi/explorer/chain"
 )
 
 // TestNew tests the adapter constructor

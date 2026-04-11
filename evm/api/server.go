@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/luxfi/indexer/evm/account"
+	"github.com/luxfi/explorer/evm/account"
 )
 
 // Config for the API server
@@ -81,8 +81,8 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("/health", s.handleHealth).Methods("GET")
 	s.router.HandleFunc("/api/healthcheck", s.handleHealth).Methods("GET")
 
-	// REST API v2 (Blockscout compatible)
-	api := s.router.PathPrefix("/api/v2").Subrouter()
+	// REST API — explorer v2 endpoints
+	api := s.router.PathPrefix("/v1/explorer").Subrouter()
 
 	// Blocks
 	api.HandleFunc("/blocks", s.handleBlocks).Methods("GET")
@@ -207,9 +207,9 @@ func (s *Server) Run(ctx context.Context) error {
 	}()
 
 	log.Printf("[API] Server starting on port %d", s.config.HTTPPort)
-	log.Printf("[API] REST API v2: http://localhost:%d/api/v2/", s.config.HTTPPort)
+	log.Printf("[API] REST API: http://localhost:%d/v1/explorer/", s.config.HTTPPort)
 	log.Printf("[API] Etherscan RPC: http://localhost:%d/api", s.config.HTTPPort)
-	log.Printf("[API] GraphQL: http://localhost:%d/api/v2/graphql", s.config.HTTPPort)
+	log.Printf("[API] GraphQL: http://localhost:%d/v1/explorer/graphql", s.config.HTTPPort)
 
 	return server.ListenAndServe()
 }
@@ -257,7 +257,7 @@ func getPagination(r *http.Request) (page, pageSize int) {
 		}
 	}
 
-	// Also support items_count for Blockscout compatibility
+	// Also support items_count for cursor-based pagination
 	if ic := r.URL.Query().Get("items_count"); ic != "" {
 		if n, err := strconv.Atoi(ic); err == nil && n > 0 && n <= 100 {
 			pageSize = n
@@ -1072,7 +1072,7 @@ func (s *Server) handleGraphQL(w http.ResponseWriter, r *http.Request) {
   <div id="root"></div>
   <script>
     window.addEventListener('load', function() {
-      GraphQLPlayground.init(document.getElementById('root'), { endpoint: '/api/v2/graphql' })
+      GraphQLPlayground.init(document.getElementById('root'), { endpoint: '/v1/explorer/graphql' })
     })
   </script>
 </body>

@@ -13,9 +13,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/luxfi/indexer/dag"
-	"github.com/luxfi/indexer/storage"
-	"github.com/luxfi/indexer/xchain"
+	"github.com/luxfi/explorer/dag"
+	"github.com/luxfi/explorer/storage"
+	"github.com/luxfi/explorer/xchain"
 )
 
 var _ = Describe("X-Chain", func() {

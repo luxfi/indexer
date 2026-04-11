@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/luxfi/indexer/evm/account"
+	"github.com/luxfi/explorer/evm/account"
 )
 
 // contextKey is used for storing IAM user info in request context.

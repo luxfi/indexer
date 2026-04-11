@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/storage"
 )
 
 // ChainType identifies the linear chain
@@ -225,7 +225,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 
 	go idx.subscriber.Run(ctx)
-	log.Printf("[%s] WebSocket streaming at /api/v2/blocks/subscribe", idx.config.ChainType)
+	log.Printf("[%s] WebSocket streaming at /v1/explorer/blocks/subscribe", idx.config.ChainType)
 
 	go idx.poller.Run(ctx)
 	log.Printf("[%s] Poller started", idx.config.ChainType)
@@ -247,7 +247,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 func (idx *Indexer) startHTTP(ctx context.Context) {
 	r := mux.NewRouter()
-	api := r.PathPrefix("/api/v2").Subrouter()
+	api := r.PathPrefix("/v1/explorer").Subrouter()
 
 	api.HandleFunc("/stats", idx.handleStats).Methods("GET")
 	api.HandleFunc("/blocks", idx.handleBlocks).Methods("GET")
