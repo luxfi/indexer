@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // Verifier handles smart contract verification.
@@ -735,22 +737,9 @@ func (h *keccak256Hasher) Sum(b []byte) []byte {
 	return append(b, result...)
 }
 
-// sha3Keccak256 implements Keccak-256 hash.
-// This is a simplified version; use crypto/sha3 in production.
+// sha3Keccak256 computes the Keccak-256 hash of data.
 func sha3Keccak256(data []byte) []byte {
-	// For now, use a placeholder that can be replaced with actual implementation
-	// In real code, import "golang.org/x/crypto/sha3"
-	// h := sha3.NewLegacyKeccak256()
-	// h.Write(data)
-	// return h.Sum(nil)
-
-	// Placeholder - compute a deterministic hash for testing
-	// Real implementation should use proper keccak256
-	result := make([]byte, 32)
-	for i, b := range data {
-		result[i%32] ^= b
-		result[(i+1)%32] ^= b << 3
-		result[(i+2)%32] ^= b >> 2
-	}
-	return result
+	h := sha3.NewLegacyKeccak256()
+	h.Write(data)
+	return h.Sum(nil)
 }

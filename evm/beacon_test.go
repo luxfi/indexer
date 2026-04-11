@@ -150,10 +150,10 @@ func TestParseBeaconDepositLog(t *testing.T) {
 	// signature: 96 bytes (192 hex chars)
 	// index: 8 bytes LE (16 hex chars) = validator index 42
 
-	pubkey := strings.Repeat("ab", 48)     // 96 hex
-	wc := strings.Repeat("cd", 32)         // 64 hex
-	sig := strings.Repeat("ef", 96)        // 192 hex
-	amountGwei := uint64(32000000000)      // 32 ETH in Gwei
+	pubkey := strings.Repeat("ab", 48) // 96 hex
+	wc := strings.Repeat("cd", 32)     // 64 hex
+	sig := strings.Repeat("ef", 96)    // 192 hex
+	amountGwei := uint64(32000000000)  // 32 ETH in Gwei
 	validatorIndex := uint64(42)
 
 	amountLE := littleEndianHex(amountGwei)
@@ -457,15 +457,15 @@ func TestWithdrawalAddressFormat(t *testing.T) {
 func TestWithdrawalAmountConversion(t *testing.T) {
 	// Withdrawals are in Gwei. 1 ETH = 1e9 Gwei.
 	tests := []struct {
-		name      string
-		gwei      string
-		wantETH   string
+		name    string
+		gwei    string
+		wantETH string
 	}{
 		{"1 ETH", "1000000000", "1"},
 		{"32 ETH", "32000000000", "32"},
-		{"0.1 ETH", "100000000", "0"},      // integer division
+		{"0.1 ETH", "100000000", "0"}, // integer division
 		{"0 Gwei", "0", "0"},
-		{"1 Gwei", "1", "0"},                // less than 1 ETH
+		{"1 Gwei", "1", "0"}, // less than 1 ETH
 	}
 
 	for _, tt := range tests {
@@ -484,12 +484,12 @@ func TestWithdrawalAmountConversion(t *testing.T) {
 
 func TestEnhancedBlockWithWithdrawals(t *testing.T) {
 	block := EnhancedBlock{
-		Hash:        "0xblock",
-		Number:      17034870, // Shanghai fork block (approx)
-		Timestamp:   time.Now(),
-		Miner:       "0xminer",
-		GasLimit:    30000000,
-		GasUsed:     15000000,
+		Hash:      "0xblock",
+		Number:    17034870, // Shanghai fork block (approx)
+		Timestamp: time.Now(),
+		Miner:     "0xminer",
+		GasLimit:  30000000,
+		GasUsed:   15000000,
 		Withdrawals: []Withdrawal{
 			{Index: 0, ValidatorIndex: 100, Address: "0xaddr1", Amount: "1000000000"},
 			{Index: 1, ValidatorIndex: 200, Address: "0xaddr2", Amount: "2000000000"},
@@ -579,9 +579,9 @@ func TestEnhancedBlockParentBeaconRoot(t *testing.T) {
 
 func TestDepositAmountValidation(t *testing.T) {
 	tests := []struct {
-		name    string
-		amount  uint64
-		valid   bool // >= 1 ETH (1e9 gwei) for a valid deposit
+		name   string
+		amount uint64
+		valid  bool // >= 1 ETH (1e9 gwei) for a valid deposit
 	}{
 		{"32 ETH (standard)", 32000000000, true},
 		{"1 ETH (minimum)", 1000000000, true},
@@ -685,9 +685,9 @@ func TestBeaconDepositEvent_VariousAmounts(t *testing.T) {
 		name   string
 		amount uint64
 	}{
-		{"minimum effective", 1000000000},       // 1 ETH
-		{"standard 32 ETH", 32000000000},        // 32 ETH
-		{"max effective", 2048000000000},         // 2048 ETH (theoretical)
+		{"minimum effective", 1000000000}, // 1 ETH
+		{"standard 32 ETH", 32000000000},  // 32 ETH
+		{"max effective", 2048000000000},  // 2048 ETH (theoretical)
 		{"exact 1 gwei", 1},
 	}
 

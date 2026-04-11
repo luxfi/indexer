@@ -42,14 +42,14 @@ type DailyPrice struct {
 
 // CoinData holds the full market snapshot for a coin.
 type CoinData struct {
-	Price            map[string]float64 `json:"price"`              // e.g. {"usd": 12.5, "eur": 11.2}
-	MarketCap        float64            `json:"market_cap"`         // USD market cap
-	Volume24h        float64            `json:"volume_24h"`         // USD 24h volume
-	PriceChange24h   float64            `json:"price_change_24h"`   // percentage
-	PriceChange7d    float64            `json:"price_change_7d"`    // percentage
-	PriceChange30d   float64            `json:"price_change_30d"`   // percentage
-	CirculatingSupply float64           `json:"circulating_supply"`
-	LastUpdated      time.Time          `json:"last_updated"`
+	Price             map[string]float64 `json:"price"`            // e.g. {"usd": 12.5, "eur": 11.2}
+	MarketCap         float64            `json:"market_cap"`       // USD market cap
+	Volume24h         float64            `json:"volume_24h"`       // USD 24h volume
+	PriceChange24h    float64            `json:"price_change_24h"` // percentage
+	PriceChange7d     float64            `json:"price_change_7d"`  // percentage
+	PriceChange30d    float64            `json:"price_change_30d"` // percentage
+	CirculatingSupply float64            `json:"circulating_supply"`
+	LastUpdated       time.Time          `json:"last_updated"`
 }
 
 // TokenData holds exchange rate data for a token.

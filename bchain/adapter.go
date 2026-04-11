@@ -242,9 +242,8 @@ func (a *Adapter) GetVertexByID(ctx context.Context, id string) (json.RawMessage
 
 // InitSchema creates B-Chain specific database tables
 func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
-	schema := `
-		-- Bridge transfers table
-		CREATE TABLE IF NOT EXISTS bchain_transfers (
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS bchain_transfers (
 			id TEXT PRIMARY KEY,
 			vertex_id TEXT NOT NULL,
 			source_chain TEXT NOT NULL,
@@ -262,15 +261,13 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			proof_hash TEXT,
 			timestamp TIMESTAMP NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_vertex ON bchain_transfers(vertex_id);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_source ON bchain_transfers(source_chain);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_dest ON bchain_transfers(dest_chain);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_sender ON bchain_transfers(sender);
-		CREATE INDEX IF NOT EXISTS idx_bchain_transfers_status ON bchain_transfers(status);
-
-		-- Bridge proofs table
-		CREATE TABLE IF NOT EXISTS bchain_proofs (
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_transfers_vertex ON bchain_transfers(vertex_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_transfers_source ON bchain_transfers(source_chain)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_transfers_dest ON bchain_transfers(dest_chain)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_transfers_sender ON bchain_transfers(sender)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_transfers_status ON bchain_transfers(status)`,
+		`CREATE TABLE IF NOT EXISTS bchain_proofs (
 			id TEXT PRIMARY KEY,
 			transfer_id TEXT NOT NULL,
 			proof_type TEXT NOT NULL,
@@ -280,34 +277,28 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			verified BOOLEAN DEFAULT FALSE,
 			verified_at TIMESTAMP,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_bchain_proofs_transfer ON bchain_proofs(transfer_id);
-		CREATE INDEX IF NOT EXISTS idx_bchain_proofs_verified ON bchain_proofs(verified);
-
-		-- Locked assets table
-		CREATE TABLE IF NOT EXISTS bchain_locked_assets (
-			id SERIAL PRIMARY KEY,
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_proofs_transfer ON bchain_proofs(transfer_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_proofs_verified ON bchain_proofs(verified)`,
+		`CREATE TABLE IF NOT EXISTS bchain_locked_assets (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			asset_id TEXT NOT NULL,
 			source_chain TEXT NOT NULL,
 			amount TEXT NOT NULL,
 			lock_tx_id TEXT NOT NULL,
 			locked_at TIMESTAMP NOT NULL,
 			unlocked_at TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_bchain_locked_asset ON bchain_locked_assets(asset_id);
-
-		-- Chain statistics table
-		CREATE TABLE IF NOT EXISTS bchain_chain_stats (
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bchain_locked_asset ON bchain_locked_assets(asset_id)`,
+		`CREATE TABLE IF NOT EXISTS bchain_chain_stats (
 			chain_id TEXT PRIMARY KEY,
 			total_transfers_in BIGINT DEFAULT 0,
 			total_transfers_out BIGINT DEFAULT 0,
 			total_volume_locked TEXT DEFAULT '0',
 			active_transfers BIGINT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-
-		-- Bridge statistics table
-		CREATE TABLE IF NOT EXISTS bchain_bridge_stats (
+		)`,
+		`CREATE TABLE IF NOT EXISTS bchain_bridge_stats (
 			id INT PRIMARY KEY DEFAULT 1,
 			total_transfers BIGINT DEFAULT 0,
 			pending_transfers BIGINT DEFAULT 0,
@@ -318,12 +309,14 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			unique_assets BIGINT DEFAULT 0,
 			unique_chains BIGINT DEFAULT 0,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-		INSERT INTO bchain_bridge_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
-	`
+		)`,
+		`INSERT INTO bchain_bridge_stats (id) VALUES (1) ON CONFLICT DO NOTHING`,
+	}
 
-	if err := store.Exec(ctx, schema); err != nil {
-		return fmt.Errorf("init bchain schema: %w", err)
+	for _, stmt := range statements {
+		if err := store.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("init bchain schema: %w", err)
+		}
 	}
 
 	return nil
