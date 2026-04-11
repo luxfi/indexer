@@ -134,10 +134,10 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/stats/charts/transactions", s.handleTxChart).Methods("GET")
 	api.HandleFunc("/stats/charts/market", s.handleMarketChart).Methods("GET")
 
-	// Main page
-	api.HandleFunc("/main-page/blocks", s.handleMainPageBlocks).Methods("GET")
-	api.HandleFunc("/main-page/transactions", s.handleMainPageTransactions).Methods("GET")
-	api.HandleFunc("/main-page/indexing-status", s.handleIndexingStatus).Methods("GET")
+	// Homepage
+	api.HandleFunc("/homepage/blocks", s.handleMainPageBlocks).Methods("GET")
+	api.HandleFunc("/homepage/transactions", s.handleMainPageTransactions).Methods("GET")
+	api.HandleFunc("/homepage/indexing-status", s.handleIndexingStatus).Methods("GET")
 
 	// WebSocket
 	api.HandleFunc("/blocks/subscribe", s.handleBlocksSubscribe)

@@ -108,9 +108,9 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
 
 	// Homepage widgets
-	m.HandleFunc("GET /v1/explorer/main-page/blocks", s.j(s.mainPageBlocks))
-	m.HandleFunc("GET /v1/explorer/main-page/transactions", s.j(s.mainPageTxs))
-	m.HandleFunc("GET /v1/explorer/main-page/indexing-status", s.j(s.indexingStatus))
+	m.HandleFunc("GET /v1/explorer/homepage/blocks", s.j(s.mainPageBlocks))
+	m.HandleFunc("GET /v1/explorer/homepage/transactions", s.j(s.mainPageTxs))
+	m.HandleFunc("GET /v1/explorer/homepage/indexing-status", s.j(s.indexingStatus))
 
 	// Config
 	m.HandleFunc("GET /v1/explorer/config/backend-version", s.j(s.backendVersion))
