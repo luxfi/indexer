@@ -173,10 +173,8 @@ func TestVersionedHashFormat(t *testing.T) {
 	}
 }
 
-// TestCalculateBlobGasPrice tests blob gas price calculation
-func TestCalculateBlobGasPrice(t *testing.T) {
-	indexer := &BlobIndexer{}
-
+// TestFakeExponential tests blob gas price calculation
+func TestFakeExponential(t *testing.T) {
 	tests := []struct {
 		excessBlobGas uint64
 		description   string
@@ -189,11 +187,10 @@ func TestCalculateBlobGasPrice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			price := indexer.calculateBlobGasPrice(tt.excessBlobGas)
+			price := fakeExponential(tt.excessBlobGas)
 			if price == "" {
 				t.Error("price should not be empty")
 			}
-			// Price should be at least 1 (min blob base fee)
 			if price == "0" {
 				t.Error("price should be at least 1")
 			}
@@ -201,12 +198,10 @@ func TestCalculateBlobGasPrice(t *testing.T) {
 	}
 }
 
-// TestCalculateBlobGasPriceZeroExcess tests price at zero excess
-func TestCalculateBlobGasPriceZeroExcess(t *testing.T) {
-	indexer := &BlobIndexer{}
-	price := indexer.calculateBlobGasPrice(0)
+// TestFakeExponentialZeroExcess tests price at zero excess
+func TestFakeExponentialZeroExcess(t *testing.T) {
+	price := fakeExponential(0)
 
-	// At zero excess, price should be minimum (1 wei)
 	if price != "1" {
 		t.Errorf("price at zero excess = %s, want 1", price)
 	}
@@ -376,14 +371,13 @@ func BenchmarkBlobDataMarshal(b *testing.B) {
 	}
 }
 
-func BenchmarkCalculateBlobGasPrice(b *testing.B) {
-	indexer := &BlobIndexer{}
+func BenchmarkFakeExponential(b *testing.B) {
 	excessValues := []uint64{0, 131072, 262144, 1000000}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, excess := range excessValues {
-			indexer.calculateBlobGasPrice(excess)
+			fakeExponential(excess)
 		}
 	}
 }
