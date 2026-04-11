@@ -568,7 +568,7 @@ func (t *UnifiedTx) StoreVertex(ctx context.Context, table string, vertex *Verte
 // Example usage for in-process mode:
 //
 //	// In the node's VM initialization:
-//	nodeDB := badgerdb.New(path, nil, nil)
+//	nodeDB := zapdb.New(path, nil, nil)
 //
 //	// Create unified storage sharing the node's database
 //	storage, err := storage.NewUnifiedWithDB(nodeDB, query.Config{

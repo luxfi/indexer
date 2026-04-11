@@ -13,7 +13,6 @@
 package evm
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/luxfi/explorer/chain"
+	"github.com/luxfi/explorer/evm/transport"
 	"github.com/luxfi/explorer/storage"
 )
 
@@ -188,7 +188,8 @@ const (
 // Adapter implements the chain.Adapter interface for C-Chain
 type Adapter struct {
 	rpcEndpoint  string
-	httpClient   *http.Client
+	transport    transport.Transport
+	httpClient   *http.Client // kept for legacy callers; unused when transport is set
 	tracerType   TracerType
 	traceTimeout string // e.g. "120s"
 	prefix       string // table name prefix, e.g. "cchain", "zoo", "hanzo"
@@ -229,8 +230,17 @@ func WithPrefix(prefix string) AdapterOption {
 	}
 }
 
+// WithTransport sets an explicit transport (ZAP or HTTP).
+// If not set, the constructor auto-detects based on the endpoint URL.
+func WithTransport(t transport.Transport) AdapterOption {
+	return func(a *Adapter) {
+		a.transport = t
+	}
+}
+
 // New creates a new EVM chain adapter.
 // Defaults to "cchain" prefix for backwards compatibility.
+// Auto-detects ZAP transport for luxd endpoints; falls back to HTTP.
 func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	a := &Adapter{
 		rpcEndpoint:  rpcEndpoint,
@@ -243,6 +253,10 @@ func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	}
 	for _, opt := range opts {
 		opt(a)
+	}
+	// Auto-detect transport if not explicitly set
+	if a.transport == nil {
+		a.transport = transport.New(rpcEndpoint)
 	}
 	return a
 }
@@ -565,12 +579,15 @@ func flattenCallFrame(frame *CallFrame, txHash string, blockNumber uint64, times
 	}
 	copy(itx.TraceAddress, traceAddr)
 
-	// Handle create opcodes
+	// Handle create opcodes -- only set contract code if creation succeeded.
+	// A failed create (frame.Error set) produces no deployed code.
 	if callType == "create" || callType == "create2" {
-		itx.CreatedContractAddress = itx.To
-		itx.CreatedContractCode = frame.Output
 		itx.Init = frame.Input
 		itx.Output = ""
+		if frame.Error == "" {
+			itx.CreatedContractAddress = itx.To
+			itx.CreatedContractCode = frame.Output
+		}
 	}
 
 	*traces = append(*traces, itx)
@@ -1227,51 +1244,13 @@ func (a *Adapter) GetBalanceAtBlock(ctx context.Context, address string, blockNu
 	return hexToBigInt(balanceHex), nil
 }
 
-// call makes a JSON-RPC call to the C-Chain node
+// call makes an RPC call to the EVM node via the configured transport (ZAP or HTTP).
 func (a *Adapter) call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"jsonrpc": "2.0",
-		"method":  method,
-		"params":  params,
-		"id":      1,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+	// Convert params to []any for the transport interface
+	if p, ok := params.([]interface{}); ok {
+		return a.transport.Call(ctx, method, p...)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", a.rpcEndpoint, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http status %d from %s", resp.StatusCode, a.rpcEndpoint)
-	}
-
-	var result struct {
-		Result json.RawMessage `json:"result"`
-		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	if result.Error != nil {
-		return nil, fmt.Errorf("rpc error %d: %s", result.Error.Code, result.Error.Message)
-	}
-
-	return result.Result, nil
+	return a.transport.Call(ctx, method, params)
 }
 
 // InitSchema creates chain-specific database tables using unified storage

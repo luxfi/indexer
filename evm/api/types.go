@@ -245,7 +245,7 @@ type InternalTransaction struct {
 	Input       string     `json:"input,omitempty"`
 	Output      string     `json:"output,omitempty"`
 	Error       string     `json:"error,omitempty"`
-	Success     bool       `json:"success"`
+	Success     *bool      `json:"success"`  // nil = pending, true/false = finalized
 	Created     *Address   `json:"created_contract,omitempty"`
 }
 

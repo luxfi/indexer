@@ -151,6 +151,17 @@ func formatTx(t map[string]any) map[string]any {
 
 // formatInternalTx formats an internal transaction row.
 func formatInternalTx(t map[string]any) map[string]any {
+	// For pending transactions (no block), success and error are null.
+	var success any
+	var errField any
+	if t["block_number"] != nil {
+		hasError := t["error"] != nil && fmt.Sprintf("%v", t["error"]) != ""
+		success = !hasError
+		if hasError {
+			errField = t["error"]
+		}
+	}
+
 	resp := map[string]any{
 		"block_number":     t["block_number"],
 		"index":            t["index"],
@@ -164,8 +175,8 @@ func formatInternalTx(t map[string]any) map[string]any {
 		"gas_used":         fmtNum(t["gas_used"]),
 		"input":            bytesToHex(t["input"]),
 		"output":           bytesToHex(t["output"]),
-		"error":            t["error"],
-		"success":          t["error"] == nil || fmt.Sprintf("%v", t["error"]) == "",
+		"error":            errField,
+		"success":          success,
 		"timestamp":        fmtTimestamp(t["block_timestamp"]),
 	}
 	if to := t["to_address_hash"]; to != nil {
