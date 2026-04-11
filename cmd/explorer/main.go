@@ -211,12 +211,14 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Mount explorer API for each chain that has a ready DB
+	// Mount explorer API for each chain — wait for DB before starting server
 	log.Printf("  http:  %s", cfg.HTTPAddr)
+	var apiReady sync.WaitGroup
 	for _, c := range enabled {
 		dbPath := filepath.Join(cfg.DataDir, c.Slug, "query", "indexer.db")
-		// Wait briefly for the indexer to create the DB
+		apiReady.Add(1)
 		go func(chain ChainConfig, path string) {
+			defer apiReady.Done()
 			for i := 0; i < 30; i++ {
 				time.Sleep(time.Second)
 				apiSrv, err := explorer.NewStandaloneServer(explorer.Config{
@@ -228,7 +230,6 @@ func main() {
 				if err != nil {
 					continue
 				}
-				// Mount the chain's handler
 				mux.Handle("/v1/explorer/", apiSrv.Handler())
 				log.Printf("[%s] API mounted at /v1/explorer/*", chain.Slug)
 				return
@@ -242,6 +243,9 @@ func main() {
 			log.Printf("  %-20s /v1/explorer/%s/*  %s", c.Slug, c.Slug, c.RPC)
 		}
 	}
+
+	// Wait for API handlers to mount before starting server
+	apiReady.Wait()
 
 	// Serve embedded frontend at /
 	mux.Handle("/", frontendHandler())
