@@ -580,16 +580,16 @@ func (p *plugin) handleStats(e *core.RequestEvent) error {
 	p.db.QueryRow("SELECT COUNT(*) FROM addresses WHERE chain_id = ?", p.config.ChainID).Scan(&addrCount)
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"total_blocks":                     blockCount,
-		"total_transactions":               txCount,
-		"total_addresses":                  addrCount,
-		"coin_price":                       nil,
-		"coin_price_change_percentage":     nil,
-		"total_gas_used":                   "0",
-		"average_block_time":               0,
-		"market_cap":                       "0",
-		"network_utilization_percentage":   0,
-		"coin_image":                       nil,
+		"total_blocks":                   blockCount,
+		"total_transactions":             txCount,
+		"total_addresses":                addrCount,
+		"coin_price":                     nil,
+		"coin_price_change_percentage":   nil,
+		"total_gas_used":                 "0",
+		"average_block_time":             0,
+		"market_cap":                     "0",
+		"network_utilization_percentage": 0,
+		"coin_image":                     nil,
 	})
 }
 

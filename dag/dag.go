@@ -49,7 +49,7 @@ type Config struct {
 type Vertex struct {
 	ID         string                 `json:"id"`
 	Type       string                 `json:"type"`
-	ParentIDs  []string               `json:"parentIds"`            // Multiple parents (DAG)
+	ParentIDs  []string               `json:"parentIds"` // Multiple parents (DAG)
 	Height     uint64                 `json:"height"`
 	Epoch      uint32                 `json:"epoch,omitempty"`
 	TxIDs      []string               `json:"txIds,omitempty"`

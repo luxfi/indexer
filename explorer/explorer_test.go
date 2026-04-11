@@ -697,20 +697,20 @@ func TestFormatHelpers(t *testing.T) {
 	t.Run("formatInternalTx pending has null success and error", func(t *testing.T) {
 		// Simulate a pending internal tx (no block_number).
 		pendingMap := map[string]any{
-			"block_number":     nil,
-			"index":            int64(0),
-			"transaction_hash": []byte{0x01, 0x02},
-			"type":             "call",
-			"call_type":        "call",
+			"block_number":      nil,
+			"index":             int64(0),
+			"transaction_hash":  []byte{0x01, 0x02},
+			"type":              "call",
+			"call_type":         "call",
 			"from_address_hash": []byte{0xaa},
 			"to_address_hash":   []byte{0xbb},
-			"value":            "1000",
-			"gas":              int64(21000),
-			"gas_used":         int64(15000),
-			"input":            []byte{},
-			"output":           []byte{},
-			"error":            nil,
-			"block_timestamp":  nil,
+			"value":             "1000",
+			"gas":               int64(21000),
+			"gas_used":          int64(15000),
+			"input":             []byte{},
+			"output":            []byte{},
+			"error":             nil,
+			"block_timestamp":   nil,
 		}
 		resp := formatInternalTx(pendingMap)
 		if resp["success"] != nil {
@@ -723,20 +723,20 @@ func TestFormatHelpers(t *testing.T) {
 
 	t.Run("formatInternalTx mined success=true when no error", func(t *testing.T) {
 		minedMap := map[string]any{
-			"block_number":     int64(100),
-			"index":            int64(0),
-			"transaction_hash": []byte{0x01, 0x02},
-			"type":             "call",
-			"call_type":        "call",
+			"block_number":      int64(100),
+			"index":             int64(0),
+			"transaction_hash":  []byte{0x01, 0x02},
+			"type":              "call",
+			"call_type":         "call",
 			"from_address_hash": []byte{0xaa},
 			"to_address_hash":   []byte{0xbb},
-			"value":            "1000",
-			"gas":              int64(21000),
-			"gas_used":         int64(15000),
-			"input":            []byte{},
-			"output":           []byte{},
-			"error":            nil,
-			"block_timestamp":  int64(1700000000),
+			"value":             "1000",
+			"gas":               int64(21000),
+			"gas_used":          int64(15000),
+			"input":             []byte{},
+			"output":            []byte{},
+			"error":             nil,
+			"block_timestamp":   int64(1700000000),
 		}
 		resp := formatInternalTx(minedMap)
 		if resp["success"] != true {
@@ -749,20 +749,20 @@ func TestFormatHelpers(t *testing.T) {
 
 	t.Run("formatInternalTx mined success=false with error", func(t *testing.T) {
 		failedMap := map[string]any{
-			"block_number":     int64(100),
-			"index":            int64(0),
-			"transaction_hash": []byte{0x01, 0x02},
-			"type":             "call",
-			"call_type":        "call",
+			"block_number":      int64(100),
+			"index":             int64(0),
+			"transaction_hash":  []byte{0x01, 0x02},
+			"type":              "call",
+			"call_type":         "call",
 			"from_address_hash": []byte{0xaa},
 			"to_address_hash":   []byte{0xbb},
-			"value":            "1000",
-			"gas":              int64(21000),
-			"gas_used":         int64(21000),
-			"input":            []byte{},
-			"output":           []byte{},
-			"error":            "out of gas",
-			"block_timestamp":  int64(1700000000),
+			"value":             "1000",
+			"gas":               int64(21000),
+			"gas_used":          int64(21000),
+			"input":             []byte{},
+			"output":            []byte{},
+			"error":             "out of gas",
+			"block_timestamp":   int64(1700000000),
 		}
 		resp := formatInternalTx(failedMap)
 		if resp["success"] != false {
