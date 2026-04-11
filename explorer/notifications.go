@@ -7,13 +7,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/hanzoai/base/core"
 )
+
+const maxWatchlistEntries = 1000
+
+// isInternalURL rejects URLs pointing to internal/private networks (SSRF prevention).
+func isInternalURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return true
+	}
+	host := u.Hostname()
+	if host == "" {
+		return true
+	}
+	// Reject loopback, private, link-local IPs
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return true
+		}
+	}
+	// Reject K8s internal domains
+	lower := strings.ToLower(host)
+	for _, suffix := range []string{".svc", ".cluster.local", ".internal", "localhost"} {
+		if strings.HasSuffix(lower, suffix) || lower == strings.TrimPrefix(suffix, ".") {
+			return true
+		}
+	}
+	// Reject metadata endpoints
+	if host == "169.254.169.254" || host == "metadata.google.internal" {
+		return true
+	}
+	return false
+}
+
+// redactURL shows only the domain, hiding the path (prevents webhook URL enumeration).
+func redactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "***"
+	}
+	return u.Scheme + "://" + u.Host + "/***"
+}
 
 // WatchEntry describes a single webhook subscription for an address.
 type WatchEntry struct {
@@ -42,8 +85,9 @@ type NotificationWorker struct {
 	client   *http.Client
 	logger   *slog.Logger
 
-	mu        sync.RWMutex
-	watchlist map[string][]WatchEntry // address (lowercase) -> entries
+	mu            sync.RWMutex
+	watchlist     map[string][]WatchEntry // address (lowercase) -> entries
+	allowInternal bool                    // for testing only — bypasses SSRF protection
 
 	lastBlock int64
 	stop      chan struct{}
@@ -68,13 +112,29 @@ func NewNotificationWorker(db *sql.DB, txTable string, logger *slog.Logger) *Not
 }
 
 // Register adds a webhook subscription. Thread-safe.
-func (w *NotificationWorker) Register(entry WatchEntry) {
+// Returns error if URL is internal or watchlist is full.
+// Set allowInternal=true for testing only.
+func (w *NotificationWorker) Register(entry WatchEntry) error {
+	if !w.allowInternal && isInternalURL(entry.WebhookURL) {
+		return fmt.Errorf("internal URLs not allowed")
+	}
 	addr := strings.ToLower(entry.Address)
 	entry.Address = addr
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	// Count total entries
+	total := 0
+	for _, entries := range w.watchlist {
+		total += len(entries)
+	}
+	if total >= maxWatchlistEntries {
+		return fmt.Errorf("watchlist full (max %d)", maxWatchlistEntries)
+	}
+
 	w.watchlist[addr] = append(w.watchlist[addr], entry)
+	return nil
 }
 
 // Unregister removes all subscriptions for an address+URL pair.
@@ -98,12 +158,17 @@ func (w *NotificationWorker) Unregister(address, webhookURL string) {
 }
 
 // Entries returns a snapshot of all watch entries. Thread-safe.
+// Entries returns all webhook subscriptions with URLs redacted for security.
 func (w *NotificationWorker) Entries() []WatchEntry {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	var all []WatchEntry
 	for _, entries := range w.watchlist {
-		all = append(all, entries...)
+		for _, e := range entries {
+			redacted := e
+			redacted.WebhookURL = redactURL(e.WebhookURL)
+			all = append(all, redacted)
+		}
 	}
 	return all
 }
@@ -242,7 +307,9 @@ func (p *plugin) handleRegisterWebhook(e *core.RequestEvent) error {
 	if p.notifWorker == nil {
 		return e.JSON(http.StatusServiceUnavailable, map[string]string{"error": "notifications not enabled"})
 	}
-	p.notifWorker.Register(entry)
+	if err := p.notifWorker.Register(entry); err != nil {
+		return e.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+	}
 	return e.JSON(http.StatusCreated, map[string]string{"status": "registered"})
 }
 
@@ -282,7 +349,9 @@ func (s *StandaloneServer) registerWebhook(r *http.Request) (any, int) {
 	if s.notifWorker == nil {
 		return map[string]string{"error": "notifications not enabled"}, 503
 	}
-	s.notifWorker.Register(entry)
+	if err := s.notifWorker.Register(entry); err != nil {
+		return map[string]string{"error": err.Error()}, 403
+	}
 	return map[string]string{"status": "registered"}, 201
 }
 
