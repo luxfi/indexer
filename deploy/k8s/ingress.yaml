@@ -1,0 +1,81 @@
+# Ingress for all explorer domains — single backend
+# Replaces separate frontends for each chain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: explorer-ingress
+  namespace: lux-explorer
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: hanzo
+  tls:
+    - hosts:
+        - explore.lux.network
+        - explore-zoo.lux.network
+        - explore-hanzo.lux.network
+        - explore-spc.lux.network
+        - explore-pars.lux.network
+        - explore.zoo.network
+      secretName: explorer-tls
+  rules:
+    - host: explore.lux.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090
+    - host: explore-zoo.lux.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090
+    - host: explore.zoo.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090
+    - host: explore-hanzo.lux.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090
+    - host: explore-spc.lux.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090
+    - host: explore-pars.lux.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: explorer
+                port:
+                  number: 8090

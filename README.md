@@ -11,7 +11,7 @@ explorer
 ├── /health                Healthcheck
 │
 ├── SQLite (WAL)           Zero-config embedded database
-├── BadgerDB               Fast KV layer for hot lookups
+├── ZapDB               Fast KV layer for hot lookups
 └── Replicate → S3         E2E PQ encrypted streaming backups
 ```
 
@@ -44,7 +44,7 @@ docker run -p 8090:8090 -v explorer-data:/data \
 |---|---|---|
 | **Runtime** | Elixir BEAM + 4 Rust microservices | Single Go binary |
 | **Database** | PostgreSQL (managed, migrations, vacuuming) | SQLite WAL (embedded, zero-ops) |
-| **Cache** | Redis | BadgerDB (embedded) |
+| **Cache** | Redis | ZapDB (embedded) |
 | **Containers** | 6 (backend, verifier, sig-provider, user-ops, stats, frontend) | 1 |
 | **Backup** | pg_dump / WAL-G (plaintext or GPG) | Continuous WAL stream to S3, E2E PQ encrypted |
 | **Encryption** | None or GPG (RSA, quantum-vulnerable) | ML-KEM-768 + X25519 hybrid (NIST FIPS 203) |
@@ -115,7 +115,7 @@ explorer restore --from=s3://explorer-backups/mainnet --to=./restored.db \
 │          │ write             │ read-only                   │
 │          ▼                   ▼                             │
 │  ┌─────────────────────────────────────┐                  │
-│  │  SQLite (WAL)  +  BadgerDB (KV)     │                  │
+│  │  SQLite (WAL)  +  ZapDB (KV)     │                  │
 │  └──────────────────┬──────────────────┘                  │
 │                     │ continuous WAL stream                │
 │  ┌──────────────────▼──────────────────┐                  │

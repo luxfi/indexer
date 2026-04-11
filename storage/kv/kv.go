@@ -3,7 +3,7 @@
 
 // Package kv provides a unified key-value storage layer using github.com/luxfi/database.
 // This allows the indexer to share the same database interface as the Lux node,
-// enabling in-process mode where indexer can use the node's BadgerDB directly.
+// enabling in-process mode where indexer can use the node's ZapDB directly.
 package kv
 
 import (
@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/luxfi/database"
-	"github.com/luxfi/database/badgerdb"
+	"github.com/luxfi/database/zapdb"
 	"github.com/luxfi/database/memdb"
 	"github.com/luxfi/database/prefixdb"
 )
@@ -79,9 +79,9 @@ func New(cfg Config) (*Store, error) {
 	} else {
 		// Create our own database
 		var err error
-		db, err = badgerdb.New(cfg.Path, nil, "", nil)
+		db, err = zapdb.New(cfg.Path, nil, "", nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open badgerdb: %w", err)
+			return nil, fmt.Errorf("failed to open zapdb: %w", err)
 		}
 		owned = true
 	}
