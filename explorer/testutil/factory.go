@@ -711,6 +711,26 @@ func (db *DB) InsertInternalTx(t *testing.T, itx InternalTx) InternalTx {
 	return itx
 }
 
+// TokenBalance mirrors a row in address_current_token_balances.
+type TokenBalance struct {
+	ChainID              int64
+	AddressHash          []byte
+	TokenContractAddress []byte
+	Value                string
+	BlockNumber          int64
+	TokenType            string
+}
+
+func (db *DB) InsertTokenBalance(t *testing.T, tb TokenBalance) TokenBalance {
+	t.Helper()
+	_, err := db.Exec(`INSERT INTO address_current_token_balances (chain_id, address_hash, token_contract_address_hash, value, block_number, token_type) VALUES (?,?,?,?,?,?)`,
+		tb.ChainID, tb.AddressHash, tb.TokenContractAddress, tb.Value, tb.BlockNumber, tb.TokenType)
+	if err != nil {
+		t.Fatalf("insert token balance: %v", err)
+	}
+	return tb
+}
+
 func (db *DB) InsertSmartContract(t *testing.T, sc SmartContract) SmartContract {
 	t.Helper()
 	_, err := db.Exec(`INSERT INTO smart_contracts (chain_id, address_hash, name, compiler_version, optimization, optimization_runs, contract_source_code, abi, evm_version, verified_via, is_vyper_contract, license_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
