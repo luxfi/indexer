@@ -17,11 +17,13 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	tdb := testutil.NewTestDB(t)
 	w := NewNotificationWorker(tdb.DB, "transactions", nil)
 
-	w.Register(WatchEntry{
+	if err := w.Register(WatchEntry{
 		Address:        "0xABC",
 		NotifyIncoming: true,
 		WebhookURL:     "https://example.com/hook",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	entries := w.Entries()
 	if len(entries) != 1 {
@@ -32,11 +34,13 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	}
 
 	// Register another for same address.
-	w.Register(WatchEntry{
+	if err := w.Register(WatchEntry{
 		Address:        "0xABC",
 		NotifyOutgoing: true,
 		WebhookURL:     "https://other.com/hook",
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if len(w.Entries()) != 2 {
 		t.Fatalf("entries = %d, want 2", len(w.Entries()))
 	}
@@ -47,7 +51,7 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("entries = %d, want 1 after unregister", len(entries))
 	}
-	if entries[0].WebhookURL != "https://other.com/hook" {
+	if entries[0].WebhookURL != "https://other.com/***" { // URLs are redacted in Entries()
 		t.Errorf("remaining url = %s", entries[0].WebhookURL)
 	}
 
@@ -93,21 +97,26 @@ func TestNotificationWorker_DeliveryOnNewTx(t *testing.T) {
 	t.Cleanup(hook.Close)
 
 	w := NewNotificationWorker(tdb.DB, "transactions", nil)
+	w.allowInternal = true // allow localhost httptest server
 	w.interval = 50 * time.Millisecond
 	// Set lastBlock to before the tx's block so the poll picks it up.
 	w.lastBlock = block.Number - 1
 
 	fromHex := bytesToHex(tx.FromAddress)
-	w.Register(WatchEntry{
+	if err := w.Register(WatchEntry{
 		Address:        fromHex,
 		NotifyOutgoing: true,
 		WebhookURL:     hook.URL,
-	})
-	w.Register(WatchEntry{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Register(WatchEntry{
 		Address:        bytesToHex(tx.ToAddress),
 		NotifyIncoming: true,
 		WebhookURL:     hook.URL,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Run one poll cycle.
 	w.poll()
@@ -147,15 +156,18 @@ func TestNotificationWorker_NoMatchNoDelivery(t *testing.T) {
 	t.Cleanup(hook.Close)
 
 	w := NewNotificationWorker(tdb.DB, "transactions", nil)
+	w.allowInternal = true // allow localhost httptest server
 	w.lastBlock = block.Number - 1
 
 	// Register for a completely different address.
-	w.Register(WatchEntry{
+	if err := w.Register(WatchEntry{
 		Address:        "0x0000000000000000000000000000000000000000",
 		NotifyIncoming: true,
 		NotifyOutgoing: true,
 		WebhookURL:     hook.URL,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	w.poll()
 

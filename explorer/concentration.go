@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"log/slog"
 	"math"
 	"math/big"
 	"net/http"
@@ -55,7 +57,7 @@ type distributionResponse struct {
 // queryTokenDistribution loads balances from the DB and computes distribution stats.
 func queryTokenDistribution(ctx context.Context, db *sql.DB, table string, tokenAddr any) (*distributionResponse, error) {
 	rows, err := db.QueryContext(ctx,
-		fmt.Sprintf("SELECT value FROM %s WHERE token_contract_address_hash = ? AND value IS NOT NULL ORDER BY CAST(value AS REAL) DESC", table),
+		fmt.Sprintf("SELECT value FROM %s WHERE token_contract_address_hash = ? AND value IS NOT NULL ORDER BY CAST(value AS REAL) DESC LIMIT 10000", table),
 		tokenAddr)
 	if err != nil {
 		return nil, err
@@ -169,7 +171,8 @@ func (p *plugin) handleTokenDistribution(e *core.RequestEvent) error {
 	addr := e.Request.PathValue("address_hash")
 	dist, err := queryTokenDistribution(ctx, p.db, "address_current_token_balances", hexToBytes(addr))
 	if err != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		p.app.Logger().Error("token distribution error", slog.String("error", err.Error()))
+		return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to compute distribution"})
 	}
 	return e.JSON(http.StatusOK, dist)
 }
@@ -182,7 +185,8 @@ func (s *StandaloneServer) tokenDistribution(r *http.Request) (any, int) {
 	addr := r.PathValue("addr")
 	dist, err := queryTokenDistribution(ctx, s.db, s.t.balances, addr)
 	if err != nil {
-		return map[string]string{"error": err.Error()}, 500
+		log.Printf("[explorer] distribution error: %v", err)
+		return map[string]string{"error": "failed to compute distribution"}, 500
 	}
 	return dist, 200
 }
