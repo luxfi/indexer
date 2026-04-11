@@ -2138,9 +2138,9 @@ func TestItemsCountBoundary(t *testing.T) {
 	_, ts := newServer(t, tdb.Path)
 
 	tests := []struct {
-		name     string
-		count    string
-		wantMax  int
+		name    string
+		count   string
+		wantMax int
 	}{
 		{"count 1", "1", 1},
 		{"count 5", "5", 5},

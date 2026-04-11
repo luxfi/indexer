@@ -8,7 +8,6 @@ package kchain
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -149,7 +148,7 @@ func (a *Adapter) ParseVertex(data json.RawMessage) (*dag.Vertex, error) {
 		ID:        raw.ID,
 		ParentIDs: raw.ParentIDs,
 		Height:    raw.Height,
-		Timestamp: time.Unix(0, raw.Timestamp),
+		Timestamp: time.Unix(raw.Timestamp, 0),
 		Status:    dag.Status(raw.Status),
 		Data:      raw.Data,
 		Type:      a.inferVertexType(raw.Data),
@@ -523,12 +522,12 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 }
 
 // StoreKey stores a key
-func (a *Adapter) StoreKey(ctx context.Context, db *sql.DB, k Key) error {
+func (a *Adapter) StoreKey(ctx context.Context, store storage.Store, k Key) error {
 	tagsJSON, _ := json.Marshal(k.Tags)
-	_, err := db.ExecContext(ctx, `
+	return store.Exec(ctx, `
 		INSERT INTO kchain_keys
 		(id, name, algorithm, key_type, public_key, threshold, total_shares, status, tags, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			public_key = EXCLUDED.public_key,
 			status = EXCLUDED.status,
@@ -536,46 +535,42 @@ func (a *Adapter) StoreKey(ctx context.Context, db *sql.DB, k Key) error {
 			updated_at = EXCLUDED.updated_at
 	`, k.ID, k.Name, k.Algorithm, k.KeyType, k.PublicKey, k.Threshold, k.TotalShares,
 		k.Status, tagsJSON, k.CreatedAt, k.UpdatedAt)
-	return err
 }
 
 // StoreKeyOperation stores a key operation
-func (a *Adapter) StoreKeyOperation(ctx context.Context, db *sql.DB, op KeyOperation) error {
+func (a *Adapter) StoreKeyOperation(ctx context.Context, store storage.Store, op KeyOperation) error {
 	participantsJSON, _ := json.Marshal(op.Participants)
-	_, err := db.ExecContext(ctx, `
+	return store.Exec(ctx, `
 		INSERT INTO kchain_key_operations
 		(id, key_id, operation, initiator, participants, success, error_msg, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING
 	`, op.ID, op.KeyID, op.Operation, op.Initiator, participantsJSON, op.Success, op.Error, op.Timestamp)
-	return err
 }
 
 // StoreEncryptionRequest stores an encryption request
-func (a *Adapter) StoreEncryptionRequest(ctx context.Context, db *sql.DB, req EncryptionRequest) error {
-	_, err := db.ExecContext(ctx, `
+func (a *Adapter) StoreEncryptionRequest(ctx context.Context, store storage.Store, req EncryptionRequest) error {
+	return store.Exec(ctx, `
 		INSERT INTO kchain_encryption_requests
 		(id, key_id, requester, data_size, success, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING
 	`, req.ID, req.KeyID, req.Requester, req.DataSize, req.Success, req.Timestamp)
-	return err
 }
 
 // StoreSignatureRequest stores a signature request
-func (a *Adapter) StoreSignatureRequest(ctx context.Context, db *sql.DB, req SignatureRequest) error {
+func (a *Adapter) StoreSignatureRequest(ctx context.Context, store storage.Store, req SignatureRequest) error {
 	signersJSON, _ := json.Marshal(req.Signers)
-	_, err := db.ExecContext(ctx, `
+	return store.Exec(ctx, `
 		INSERT INTO kchain_signature_requests
 		(id, key_id, signers, message_hash, algorithm, success, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO NOTHING
 	`, req.ID, req.KeyID, signersJSON, req.MessageHash, req.Algorithm, req.Success, req.Timestamp)
-	return err
 }
 
 // StoreVertex stores vertex data
-func (a *Adapter) StoreVertex(ctx context.Context, db *sql.DB, v *dag.Vertex) error {
+func (a *Adapter) StoreVertex(ctx context.Context, store storage.Store, v *dag.Vertex) error {
 	var data vertexData
 	if err := json.Unmarshal(v.Data, &data); err != nil {
 		return fmt.Errorf("unmarshal vertex data: %w", err)
@@ -583,28 +578,28 @@ func (a *Adapter) StoreVertex(ctx context.Context, db *sql.DB, v *dag.Vertex) er
 
 	// Store keys
 	for _, k := range data.Keys {
-		if err := a.StoreKey(ctx, db, k); err != nil {
+		if err := a.StoreKey(ctx, store, k); err != nil {
 			return fmt.Errorf("store key: %w", err)
 		}
 	}
 
 	// Store key operations
 	for _, op := range data.KeyOperations {
-		if err := a.StoreKeyOperation(ctx, db, op); err != nil {
+		if err := a.StoreKeyOperation(ctx, store, op); err != nil {
 			return fmt.Errorf("store key operation: %w", err)
 		}
 	}
 
 	// Store encryption requests
 	for _, req := range data.EncryptionRequests {
-		if err := a.StoreEncryptionRequest(ctx, db, req); err != nil {
+		if err := a.StoreEncryptionRequest(ctx, store, req); err != nil {
 			return fmt.Errorf("store encryption request: %w", err)
 		}
 	}
 
 	// Store signature requests
 	for _, req := range data.SignatureRequests {
-		if err := a.StoreSignatureRequest(ctx, db, req); err != nil {
+		if err := a.StoreSignatureRequest(ctx, store, req); err != nil {
 			return fmt.Errorf("store signature request: %w", err)
 		}
 	}
@@ -613,28 +608,25 @@ func (a *Adapter) StoreVertex(ctx context.Context, db *sql.DB, v *dag.Vertex) er
 }
 
 // UpdateExtendedStats updates K-Chain specific statistics
-func (a *Adapter) UpdateExtendedStats(ctx context.Context, db *sql.DB) error {
-	// Update algorithm distribution
-	rows, err := db.QueryContext(ctx, `
-		SELECT algorithm, COUNT(*) FROM kchain_keys GROUP BY algorithm
+func (a *Adapter) UpdateExtendedStats(ctx context.Context, store storage.Store) error {
+	rows, err := store.Query(ctx, `
+		SELECT algorithm, COUNT(*) as count FROM kchain_keys GROUP BY algorithm
 	`)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
 	algDist := make(map[string]int64)
-	for rows.Next() {
-		var alg string
-		var count int64
-		if err := rows.Scan(&alg, &count); err != nil {
-			continue
+	for _, row := range rows {
+		if alg, ok := row["algorithm"].(string); ok {
+			if count, ok := row["count"].(int64); ok {
+				algDist[alg] = count
+			}
 		}
-		algDist[alg] = count
 	}
 	algDistJSON, _ := json.Marshal(algDist)
 
-	_, err = db.ExecContext(ctx, `
+	return store.Exec(ctx, `
 		UPDATE kchain_extended_stats SET
 			total_keys = (SELECT COUNT(*) FROM kchain_keys),
 			active_keys = (SELECT COUNT(*) FROM kchain_keys WHERE status = 'active'),
@@ -643,105 +635,93 @@ func (a *Adapter) UpdateExtendedStats(ctx context.Context, db *sql.DB) error {
 			total_signatures = (SELECT COUNT(*) FROM kchain_signature_requests),
 			pq_keys_count = (SELECT COUNT(*) FROM kchain_keys WHERE algorithm LIKE 'ml-%' OR algorithm = 'ringtail'),
 			threshold_keys_count = (SELECT COUNT(*) FROM kchain_keys WHERE threshold > 1),
-			algorithm_distribution = $1,
-			updated_at = NOW()
+			algorithm_distribution = ?,
+			updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`, algDistJSON)
-	return err
 }
 
 // GetKeysByAlgorithm returns keys filtered by algorithm
-func (a *Adapter) GetKeysByAlgorithm(ctx context.Context, db *sql.DB, algorithm string, limit, offset int) ([]Key, error) {
-	query := `
+func (a *Adapter) GetKeysByAlgorithm(ctx context.Context, store storage.Store, algorithm string, limit, offset int) ([]Key, error) {
+	rows, err := store.Query(ctx, `
 		SELECT id, name, algorithm, key_type, public_key, threshold, total_shares,
 		       status, tags, created_at, updated_at
 		FROM kchain_keys
-		WHERE algorithm = $1
+		WHERE algorithm = ?
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
-	`
-	rows, err := db.QueryContext(ctx, query, algorithm, limit, offset)
+		LIMIT ? OFFSET ?
+	`, algorithm, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var keys []Key
-	for rows.Next() {
-		var k Key
-		var tagsJSON []byte
-		if err := rows.Scan(&k.ID, &k.Name, &k.Algorithm, &k.KeyType, &k.PublicKey,
-			&k.Threshold, &k.TotalShares, &k.Status, &tagsJSON, &k.CreatedAt, &k.UpdatedAt); err != nil {
-			continue
-		}
-		if len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &k.Tags)
-		}
-		keys = append(keys, k)
-	}
-	return keys, nil
+	return a.scanKeys(rows), nil
 }
 
 // GetPostQuantumKeys returns all post-quantum keys
-func (a *Adapter) GetPostQuantumKeys(ctx context.Context, db *sql.DB, limit, offset int) ([]Key, error) {
-	query := `
+func (a *Adapter) GetPostQuantumKeys(ctx context.Context, store storage.Store, limit, offset int) ([]Key, error) {
+	rows, err := store.Query(ctx, `
 		SELECT id, name, algorithm, key_type, public_key, threshold, total_shares,
 		       status, tags, created_at, updated_at
 		FROM kchain_keys
 		WHERE algorithm LIKE 'ml-%' OR algorithm = 'ringtail'
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
-	rows, err := db.QueryContext(ctx, query, limit, offset)
+		LIMIT ? OFFSET ?
+	`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var keys []Key
-	for rows.Next() {
-		var k Key
-		var tagsJSON []byte
-		if err := rows.Scan(&k.ID, &k.Name, &k.Algorithm, &k.KeyType, &k.PublicKey,
-			&k.Threshold, &k.TotalShares, &k.Status, &tagsJSON, &k.CreatedAt, &k.UpdatedAt); err != nil {
-			continue
-		}
-		if len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &k.Tags)
-		}
-		keys = append(keys, k)
-	}
-	return keys, nil
+	return a.scanKeys(rows), nil
 }
 
 // GetThresholdKeys returns all threshold keys (threshold > 1)
-func (a *Adapter) GetThresholdKeys(ctx context.Context, db *sql.DB, limit, offset int) ([]Key, error) {
-	query := `
+func (a *Adapter) GetThresholdKeys(ctx context.Context, store storage.Store, limit, offset int) ([]Key, error) {
+	rows, err := store.Query(ctx, `
 		SELECT id, name, algorithm, key_type, public_key, threshold, total_shares,
 		       status, tags, created_at, updated_at
 		FROM kchain_keys
 		WHERE threshold > 1
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
-	rows, err := db.QueryContext(ctx, query, limit, offset)
+		LIMIT ? OFFSET ?
+	`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
+	return a.scanKeys(rows), nil
+}
+
+// scanKeys converts query result rows into Key structs
+func (a *Adapter) scanKeys(rows []map[string]interface{}) []Key {
 	var keys []Key
-	for rows.Next() {
-		var k Key
-		var tagsJSON []byte
-		if err := rows.Scan(&k.ID, &k.Name, &k.Algorithm, &k.KeyType, &k.PublicKey,
-			&k.Threshold, &k.TotalShares, &k.Status, &tagsJSON, &k.CreatedAt, &k.UpdatedAt); err != nil {
-			continue
+	for _, row := range rows {
+		k := Key{
+			ID:        fmt.Sprintf("%v", row["id"]),
+			Name:      fmt.Sprintf("%v", row["name"]),
+			Algorithm: fmt.Sprintf("%v", row["algorithm"]),
+			KeyType:   fmt.Sprintf("%v", row["key_type"]),
+			PublicKey: fmt.Sprintf("%v", row["public_key"]),
 		}
-		if len(tagsJSON) > 0 {
-			json.Unmarshal(tagsJSON, &k.Tags)
+		if v, ok := row["threshold"].(int64); ok {
+			k.Threshold = int(v)
+		}
+		if v, ok := row["total_shares"].(int64); ok {
+			k.TotalShares = int(v)
+		}
+		if v, ok := row["status"].(string); ok {
+			k.Status = KeyStatus(v)
+		}
+		if v, ok := row["tags"].(string); ok && v != "" {
+			json.Unmarshal([]byte(v), &k.Tags)
+		}
+		if v, ok := row["created_at"].(time.Time); ok {
+			k.CreatedAt = v
+		}
+		if v, ok := row["updated_at"].(time.Time); ok {
+			k.UpdatedAt = v
 		}
 		keys = append(keys, k)
 	}
-	return keys, nil
+	return keys
 }

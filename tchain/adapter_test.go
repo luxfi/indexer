@@ -5,7 +5,6 @@ package tchain
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -670,23 +669,18 @@ func TestComputeThreshold(t *testing.T) {
 	}
 }
 
-// TestValidateSignature tests signature validation
+// TestValidateSignature tests that signature validation returns not-implemented error
 func TestValidateSignature(t *testing.T) {
-	// Create valid hex-encoded test data
-	publicKey := hex.EncodeToString(make([]byte, 33)) // 33 bytes -> 66 hex chars
-	message := hex.EncodeToString([]byte("test message"))
-	signature := hex.EncodeToString(make([]byte, 65)) // 65 bytes -> 130 hex chars
-
-	valid, err := ValidateSignature(publicKey, message, signature)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	valid, err := ValidateSignature("any", "any", "any")
+	if err == nil {
+		t.Error("expected error from unimplemented ValidateSignature")
 	}
-	if !valid {
-		t.Error("expected valid signature")
+	if valid {
+		t.Error("expected false from unimplemented ValidateSignature")
 	}
 }
 
-// TestValidateSignatureInvalidHex tests signature validation with invalid hex
+// TestValidateSignatureInvalidHex tests signature validation always returns error
 func TestValidateSignatureInvalidHex(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -701,23 +695,25 @@ func TestValidateSignatureInvalidHex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ValidateSignature(tt.publicKey, tt.message, tt.signature)
+			valid, err := ValidateSignature(tt.publicKey, tt.message, tt.signature)
 			if err == nil {
-				t.Error("expected error for invalid hex")
+				t.Error("expected error from unimplemented ValidateSignature")
+			}
+			if valid {
+				t.Error("expected false from unimplemented ValidateSignature")
 			}
 		})
 	}
 }
 
-// TestValidateSignatureTooShort tests signature validation with short keys
+// TestValidateSignatureTooShort tests signature validation always returns error
 func TestValidateSignatureTooShort(t *testing.T) {
-	shortKey := hex.EncodeToString(make([]byte, 10)) // Too short
-	message := hex.EncodeToString([]byte("test"))
-	shortSig := hex.EncodeToString(make([]byte, 32)) // Too short
-
-	_, err := ValidateSignature(shortKey, message, shortSig)
+	valid, err := ValidateSignature("short", "msg", "sig")
 	if err == nil {
-		t.Error("expected error for short key/signature")
+		t.Error("expected error from unimplemented ValidateSignature")
+	}
+	if valid {
+		t.Error("expected false from unimplemented ValidateSignature")
 	}
 }
 
