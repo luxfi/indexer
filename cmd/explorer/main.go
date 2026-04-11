@@ -230,11 +230,8 @@ func main() {
 				if err != nil {
 					continue
 				}
-				handler := apiSrv.Handler()
-				mux.Handle("/v1/explorer/", handler)
-				mux.Handle("/api/v2/", handler)
-				mux.Handle("/api/v1/", handler)
-				log.Printf("[%s] API mounted at /v1/explorer/* + /api/v2/* + /api/v1/*", chain.Slug)
+				mux.Handle("/v1/explorer/", apiSrv.Handler())
+				log.Printf("[%s] API mounted at /v1/explorer/*", chain.Slug)
 				return
 			}
 			log.Printf("[%s] API not mounted — DB not ready after 30s", chain.Slug)
