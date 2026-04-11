@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luxfi/indexer/dag"
+	"github.com/luxfi/explorer/dag"
 )
 
 // TestNew tests the adapter constructor
@@ -643,6 +643,141 @@ func TestRingtailKeyValidity(t *testing.T) {
 
 	if !revokedKey.Revoked {
 		t.Error("key should be revoked")
+	}
+}
+
+// TestQuasarCertJSON tests QuasarCert JSON serialization
+func TestQuasarCertJSON(t *testing.T) {
+	cert := QuasarCert{
+		ID:         "cert-001",
+		VertexID:   "qv-123",
+		BLS:        make([]byte, 48),  // 48-byte BLS aggregate
+		PQProof:    make([]byte, 200), // ~200-byte STARK proof
+		Epoch:      42,
+		Finality:   time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC),
+		Validators: 67,
+	}
+	// Fill with recognizable patterns
+	cert.BLS[0] = 0xBE
+	cert.BLS[47] = 0xEF
+	cert.PQProof[0] = 0xDE
+	cert.PQProof[199] = 0xAD
+
+	data, err := json.Marshal(cert)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var decoded QuasarCert
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if decoded.ID != "cert-001" {
+		t.Errorf("ID: got %s, want cert-001", decoded.ID)
+	}
+	if decoded.VertexID != "qv-123" {
+		t.Errorf("VertexID: got %s, want qv-123", decoded.VertexID)
+	}
+	if len(decoded.BLS) != 48 {
+		t.Errorf("BLS size: got %d, want 48", len(decoded.BLS))
+	}
+	if len(decoded.PQProof) != 200 {
+		t.Errorf("PQProof size: got %d, want 200", len(decoded.PQProof))
+	}
+	if decoded.Epoch != 42 {
+		t.Errorf("Epoch: got %d, want 42", decoded.Epoch)
+	}
+	if decoded.Validators != 67 {
+		t.Errorf("Validators: got %d, want 67", decoded.Validators)
+	}
+	if decoded.BLS[0] != 0xBE || decoded.BLS[47] != 0xEF {
+		t.Error("BLS data corrupted")
+	}
+	if decoded.PQProof[0] != 0xDE || decoded.PQProof[199] != 0xAD {
+		t.Error("PQProof data corrupted")
+	}
+}
+
+// TestParseVertexWithQuasarCert tests vertex parsing with QuasarCert
+func TestParseVertexWithQuasarCert(t *testing.T) {
+	adapter := New("")
+
+	vertexJSON := `{
+		"id": "qv-pqz-001",
+		"parentIds": ["qv-parent1"],
+		"height": 9000,
+		"epoch": 42,
+		"timestamp": "2026-04-10T12:00:00Z",
+		"status": "pending",
+		"quasarCert": {
+			"id": "cert-pqz-001",
+			"vertexId": "qv-pqz-001",
+			"bls": "vg==",
+			"zkProof": "3g==",
+			"epoch": 42,
+			"finality": "2026-04-10T12:00:00Z",
+			"validators": 21
+		},
+		"proofCount": 1,
+		"finalized": true
+	}`
+
+	v, err := adapter.ParseVertex(json.RawMessage(vertexJSON))
+	if err != nil {
+		t.Fatalf("ParseVertex: %v", err)
+	}
+
+	if v.ID != "qv-pqz-001" {
+		t.Errorf("ID: got %s, want qv-pqz-001", v.ID)
+	}
+	if v.Status != dag.StatusAccepted {
+		t.Errorf("Status: got %s, want accepted", v.Status)
+	}
+	if v.Metadata["quasar_cert"] != true {
+		t.Error("quasar_cert metadata missing")
+	}
+	if v.Metadata["quasar_epoch"] != uint64(42) {
+		t.Errorf("quasar_epoch: got %v, want 42", v.Metadata["quasar_epoch"])
+	}
+	if v.Metadata["quasar_validators"] != 21 {
+		t.Errorf("quasar_validators: got %v, want 21", v.Metadata["quasar_validators"])
+	}
+	if v.QuasarCert == nil {
+		t.Fatal("QuasarCert should be non-nil on vertex")
+	}
+}
+
+// TestQuantumVertexWithQuasarCert tests QuantumVertex embedding with cert
+func TestQuantumVertexWithQuasarCert(t *testing.T) {
+	qv := QuantumVertex{
+		Vertex: dag.Vertex{
+			ID:     "qv-triple",
+			Height: 500,
+			Status: dag.StatusAccepted,
+		},
+		QuasarCert: &QuasarCert{
+			ID:         "cert-triple",
+			VertexID:   "qv-triple",
+			BLS:        make([]byte, 48),
+			PQProof:    make([]byte, 200),
+			Epoch:      10,
+			Validators: 21,
+		},
+		Finalized: true,
+	}
+
+	if qv.QuasarCert == nil {
+		t.Fatal("QuasarCert should be set")
+	}
+	if qv.QuasarCert.Validators != 21 {
+		t.Errorf("Validators: got %d, want 21", qv.QuasarCert.Validators)
+	}
+	if len(qv.QuasarCert.BLS) != 48 {
+		t.Errorf("BLS size: got %d, want 48", len(qv.QuasarCert.BLS))
+	}
+	if len(qv.QuasarCert.PQProof) != 200 {
+		t.Errorf("PQProof size: got %d, want 200", len(qv.QuasarCert.PQProof))
 	}
 }
 

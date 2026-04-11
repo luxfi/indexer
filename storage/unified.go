@@ -21,8 +21,8 @@ import (
 	"sync"
 
 	"github.com/luxfi/database"
-	"github.com/luxfi/indexer/storage/kv"
-	"github.com/luxfi/indexer/storage/query"
+	"github.com/luxfi/explorer/storage/kv"
+	"github.com/luxfi/explorer/storage/query"
 )
 
 // UnifiedConfig configures the unified storage

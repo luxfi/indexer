@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/luxfi/indexer/storage"
+	"github.com/luxfi/explorer/storage"
 )
 
 // ChainType identifies the DAG chain
@@ -47,16 +47,17 @@ type Config struct {
 // Vertex represents a DAG vertex (from luxfi/consensus)
 // Multiple parents allowed (DAG structure)
 type Vertex struct {
-	ID        string                 `json:"id"`
-	Type      string                 `json:"type"`
-	ParentIDs []string               `json:"parentIds"` // Multiple parents (DAG)
-	Height    uint64                 `json:"height"`
-	Epoch     uint32                 `json:"epoch,omitempty"`
-	TxIDs     []string               `json:"txIds,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
-	Status    Status                 `json:"status"`
-	Data      json.RawMessage        `json:"data,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	ParentIDs  []string               `json:"parentIds"`            // Multiple parents (DAG)
+	Height     uint64                 `json:"height"`
+	Epoch      uint32                 `json:"epoch,omitempty"`
+	TxIDs      []string               `json:"txIds,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Status     Status                 `json:"status"`
+	Data       json.RawMessage        `json:"data,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	QuasarCert json.RawMessage        `json:"quasarCert,omitempty"` // Triple consensus cert (Q-Chain)
 }
 
 // Edge represents a DAG edge (parent relationship)
@@ -264,7 +265,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 
 	go idx.subscriber.Run(ctx)
-	log.Printf("[%s] WebSocket streaming at /api/v2/dag/subscribe", idx.config.ChainType)
+	log.Printf("[%s] WebSocket streaming at /v1/explorer/dag/subscribe", idx.config.ChainType)
 
 	go idx.poller.Run(ctx)
 	log.Printf("[%s] Poller started", idx.config.ChainType)
@@ -286,7 +287,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 func (idx *Indexer) startHTTP(ctx context.Context) {
 	r := mux.NewRouter()
-	api := r.PathPrefix("/api/v2").Subrouter()
+	api := r.PathPrefix("/v1/explorer").Subrouter()
 
 	api.HandleFunc("/stats", idx.handleStats).Methods("GET")
 	api.HandleFunc("/vertices", idx.handleVertices).Methods("GET")
