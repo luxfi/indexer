@@ -259,18 +259,7 @@ func keys(m map[string]any) []string {
 	return k
 }
 
-func toInt(v any) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	case int64:
-		return int(n)
-	default:
-		return 0
-	}
-}
+// toInt is defined in tokenscore.go (same package)
 
 // Required for the format package to be importable
 var _ = fmt.Sprintf

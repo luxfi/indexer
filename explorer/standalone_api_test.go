@@ -2335,6 +2335,380 @@ func TestNewStandaloneServer_InvalidPath(t *testing.T) {
 }
 
 // ====================
+// CSV EXPORTS
+// ====================
+
+func TestCSVAddrTxs_Headers(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	sd := seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+	addr := hexStr(sd.txs[0].FromAddress)
+
+	resp := getResp(t, ts, "/v1/explorer/addresses/"+addr+"/transactions/csv")
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/csv" {
+		t.Errorf("want Content-Type text/csv, got %s", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "transactions-") {
+		t.Errorf("want Content-Disposition with transactions-, got %s", cd)
+	}
+	body := make([]byte, 4096)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	if len(lines) < 2 {
+		t.Fatal("expected at least header + 1 data row")
+	}
+	header := lines[0]
+	if header != "hash,block_number,from,to,value,gas_used,status,timestamp" {
+		t.Errorf("unexpected CSV header: %s", header)
+	}
+}
+
+func TestCSVAddrInternalTxs_Headers(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	sd := seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+	addr := hexStr(sd.txs[0].FromAddress)
+
+	resp := getResp(t, ts, "/v1/explorer/addresses/"+addr+"/internal-transactions/csv")
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/csv" {
+		t.Errorf("want Content-Type text/csv, got %s", ct)
+	}
+	body := make([]byte, 4096)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	if len(lines) < 1 {
+		t.Fatal("expected at least header row")
+	}
+	if lines[0] != "block_number,index,type,call_type,from,to,value,gas_used,error" {
+		t.Errorf("unexpected CSV header: %s", lines[0])
+	}
+}
+
+func TestCSVAddrTokenTransfers_Headers(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	sd := seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+	addr := hexStr(sd.txs[0].FromAddress)
+
+	resp := getResp(t, ts, "/v1/explorer/addresses/"+addr+"/token-transfers/csv")
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/csv" {
+		t.Errorf("want Content-Type text/csv, got %s", ct)
+	}
+	body := make([]byte, 4096)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	if lines[0] != "tx_hash,log_index,from,to,token_address,amount,token_type,timestamp" {
+		t.Errorf("unexpected CSV header: %s", lines[0])
+	}
+}
+
+func TestCSVAddrLogs_Headers(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	sd := seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+	lg := testutil.DefaultLog(sd.txs[0])
+	insertLog(t, tdb, lg)
+	addr := hexStr(lg.Address)
+
+	resp := getResp(t, ts, "/v1/explorer/addresses/"+addr+"/logs/csv")
+	defer resp.Body.Close()
+	body := make([]byte, 4096)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	if lines[0] != "block_number,tx_hash,index,address,topic0,topic1,topic2,topic3,data" {
+		t.Errorf("unexpected CSV header: %s", lines[0])
+	}
+}
+
+func TestCSVAllTokenTransfers_Headers(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+
+	resp := getResp(t, ts, "/v1/explorer/token-transfers/csv")
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/csv" {
+		t.Errorf("want Content-Type text/csv, got %s", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="token-transfers.csv"` {
+		t.Errorf("unexpected Content-Disposition: %s", cd)
+	}
+	body := make([]byte, 4096)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	if lines[0] != "tx_hash,log_index,from,to,token_address,amount,token_type,timestamp" {
+		t.Errorf("unexpected CSV header: %s", lines[0])
+	}
+	if len(lines) < 2 {
+		t.Error("expected at least 1 data row")
+	}
+}
+
+func TestCSVAddrTxs_DataRows(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	sd := seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+	addr := hexStr(sd.txs[0].FromAddress)
+
+	resp := getResp(t, ts, "/v1/explorer/addresses/"+addr+"/transactions/csv")
+	defer resp.Body.Close()
+	body := make([]byte, 8192)
+	n, _ := resp.Body.Read(body)
+	lines := strings.Split(strings.TrimSpace(string(body[:n])), "\n")
+	// Header + at least 1 data row
+	if len(lines) < 2 {
+		t.Fatalf("want >= 2 lines, got %d", len(lines))
+	}
+	// Data row should have 8 fields (matching header)
+	fields := strings.Split(lines[1], ",")
+	if len(fields) != 8 {
+		t.Errorf("want 8 fields in data row, got %d: %s", len(fields), lines[1])
+	}
+}
+
+// ====================
+// GAS PRICE PERCENTILES
+// ====================
+
+func TestStats_GasPricePercentiles(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	seedAll(t, tdb)
+	_, ts := newServer(t, tdb.Path)
+
+	body := getJSON(t, ts, "/v1/explorer/stats", 200)
+	pctls, ok := body["gas_price_percentiles"].(map[string]any)
+	if !ok {
+		t.Fatal("stats response missing gas_price_percentiles object")
+	}
+	for _, key := range []string{"p10", "p25", "p50", "p75", "p90", "p95", "p99"} {
+		if _, exists := pctls[key]; !exists {
+			t.Errorf("gas_price_percentiles missing %s", key)
+		}
+	}
+}
+
+func TestStats_GasPricePercentilesEmpty(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	_, ts := newServer(t, tdb.Path)
+
+	body := getJSON(t, ts, "/v1/explorer/stats", 200)
+	pctls, ok := body["gas_price_percentiles"].(map[string]any)
+	if !ok {
+		t.Fatal("stats response missing gas_price_percentiles object")
+	}
+	// All should be "0" when no transactions
+	for _, key := range []string{"p10", "p25", "p50", "p75", "p90", "p95", "p99"} {
+		if pctls[key] != "0" {
+			t.Errorf("want p=%s to be '0' with no txs, got %v", key, pctls[key])
+		}
+	}
+}
+
+func TestStats_GasPricePercentilesValues(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	// Insert blocks and txs with known gas prices
+	now := time.Now().Unix()
+	b := testutil.DefaultBlock()
+	b.Number = 1
+	b.Timestamp = now
+	insertBlock(t, tdb, b)
+
+	prices := []string{"10", "20", "30", "40", "50", "60", "70", "80", "90", "100"}
+	for i, gp := range prices {
+		tx := testutil.DefaultTransaction(b)
+		tx.TransactionIndex = i
+		tx.GasPrice = gp
+		insertTx(t, tdb, tx)
+	}
+
+	_, ts := newServer(t, tdb.Path)
+	body := getJSON(t, ts, "/v1/explorer/stats", 200)
+	pctls := body["gas_price_percentiles"].(map[string]any)
+
+	// p50 (median) of [10,20,30,40,50,60,70,80,90,100] = 55
+	p50 := pctls["p50"].(string)
+	if p50 != "55" {
+		t.Errorf("want p50=55, got %s", p50)
+	}
+	// p10 of [10..100] = index 0.9 -> lerp(10,20,0.9) = 19
+	p10 := pctls["p10"].(string)
+	if p10 != "19" {
+		t.Errorf("want p10=19, got %s", p10)
+	}
+}
+
+// ====================
+// TIMELINE
+// ====================
+
+func TestTimeline_Empty(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	_, ts := newServer(t, tdb.Path)
+
+	body := getJSON(t, ts, "/v1/explorer/addresses/0x0000000000000000000000000000000000000001/timeline", 200)
+	got := items(t, body)
+	if len(got) != 0 {
+		t.Errorf("want 0 items for unknown address, got %d", len(got))
+	}
+}
+
+func TestTimeline_MergesTypes(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	now := time.Now().Unix()
+
+	// Create 3 blocks at different times
+	blocks := make([]testutil.Block, 3)
+	for i := range blocks {
+		b := testutil.DefaultBlock()
+		b.Number = int64(i + 1)
+		b.Timestamp = now - int64(2-i)*10
+		blocks[i] = insertBlock(t, tdb, b)
+	}
+
+	addr := testutil.RandomAddress()
+	addrHex := hexStr(addr)
+
+	// Insert address
+	a := testutil.DefaultAddress()
+	a.Hash = addr
+	insertAddr(t, tdb, a)
+
+	// Block 1: transaction
+	tx := testutil.DefaultTransaction(blocks[0])
+	tx.FromAddress = addr
+	tx.TransactionIndex = 0
+	tx = insertTx(t, tdb, tx)
+
+	// Block 2: token transfer
+	token := testutil.DefaultToken()
+	insertToken(t, tdb, token)
+	tt := testutil.DefaultTokenTransfer(testutil.DefaultTransaction(blocks[1]), token)
+	tt.FromAddress = addr
+	tt.BlockNumber = blocks[1].Number
+	tt.BlockTimestamp = blocks[1].Timestamp
+	// Need a tx for the token transfer
+	tx2 := testutil.DefaultTransaction(blocks[1])
+	tx2.TransactionIndex = 0
+	tx2 = insertTx(t, tdb, tx2)
+	tt.TransactionHash = tx2.Hash
+	tt.BlockHash = blocks[1].Hash
+	insertTokenTransfer(t, tdb, tt)
+
+	// Block 3: internal tx
+	tx3 := testutil.DefaultTransaction(blocks[2])
+	tx3.TransactionIndex = 0
+	tx3 = insertTx(t, tdb, tx3)
+	itx := testutil.DefaultInternalTx(tx3)
+	itx.FromAddress = addr
+	itx.BlockNumber = blocks[2].Number
+	itx.BlockTimestamp = blocks[2].Timestamp
+	insertInternalTx(t, tdb, itx)
+
+	_, ts := newServer(t, tdb.Path)
+	body := getJSON(t, ts, "/v1/explorer/addresses/"+addrHex+"/timeline", 200)
+	got := itemMaps(t, body)
+
+	if len(got) < 3 {
+		t.Fatalf("want >= 3 timeline items, got %d", len(got))
+	}
+
+	// Verify descending block_number order
+	for i := 1; i < len(got); i++ {
+		prevBN := toFloat(got[i-1]["block_number"])
+		currBN := toFloat(got[i]["block_number"])
+		if prevBN < currBN {
+			t.Errorf("timeline not descending: item %d block %v < item %d block %v", i-1, prevBN, i, currBN)
+		}
+	}
+
+	// Verify type diversity
+	types := map[string]bool{}
+	for _, item := range got {
+		types[item["type"].(string)] = true
+	}
+	if !types["transaction"] {
+		t.Error("timeline missing transaction type")
+	}
+	if !types["token_transfer"] {
+		t.Error("timeline missing token_transfer type")
+	}
+	if !types["internal_transaction"] {
+		t.Error("timeline missing internal_transaction type")
+	}
+}
+
+func TestTimeline_HasTypeField(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	now := time.Now().Unix()
+	b := testutil.DefaultBlock()
+	b.Number = 1
+	b.Timestamp = now
+	insertBlock(t, tdb, b)
+
+	addr := testutil.RandomAddress()
+	addrHex := hexStr(addr)
+	a := testutil.DefaultAddress()
+	a.Hash = addr
+	insertAddr(t, tdb, a)
+
+	tx := testutil.DefaultTransaction(b)
+	tx.FromAddress = addr
+	tx.TransactionIndex = 0
+	insertTx(t, tdb, tx)
+
+	_, ts := newServer(t, tdb.Path)
+	body := getJSON(t, ts, "/v1/explorer/addresses/"+addrHex+"/timeline", 200)
+	got := itemMaps(t, body)
+	if len(got) == 0 {
+		t.Fatal("expected at least 1 timeline item")
+	}
+
+	item := got[0]
+	for _, field := range []string{"type", "block_number", "timestamp"} {
+		if _, ok := item[field]; !ok {
+			t.Errorf("timeline item missing field %q", field)
+		}
+	}
+	if item["type"] != "transaction" {
+		t.Errorf("want type=transaction, got %v", item["type"])
+	}
+}
+
+func TestTimeline_LimitTo50(t *testing.T) {
+	tdb := testutil.NewTestDB(t)
+	now := time.Now().Unix()
+
+	addr := testutil.RandomAddress()
+	addrHex := hexStr(addr)
+	a := testutil.DefaultAddress()
+	a.Hash = addr
+	insertAddr(t, tdb, a)
+
+	// Insert 60 transactions for this address
+	for i := 0; i < 60; i++ {
+		b := testutil.DefaultBlock()
+		b.Number = int64(i + 1)
+		b.Timestamp = now - int64(59-i)
+		insertBlock(t, tdb, b)
+
+		tx := testutil.DefaultTransaction(b)
+		tx.FromAddress = addr
+		tx.TransactionIndex = 0
+		insertTx(t, tdb, tx)
+	}
+
+	_, ts := newServer(t, tdb.Path)
+	body := getJSON(t, ts, "/v1/explorer/addresses/"+addrHex+"/timeline", 200)
+	got := items(t, body)
+	if len(got) != 50 {
+		t.Errorf("want 50 timeline items (capped), got %d", len(got))
+	}
+}
+
+// ====================
 // HELPERS
 // ====================
 
