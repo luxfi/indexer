@@ -1,1 +1,158 @@
-<\!DOCTYPE html><html><head><title>Explorer</title></head><body><p>Build with frontend: place Next.js export in this directory</p></body></html>
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidity Explorer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Geist,system-ui,sans-serif;background:#0a0a0a;color:#e5e7eb;min-height:100vh}
+a{color:#3b82f6;text-decoration:none}a:hover{text-decoration:underline}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+header{background:#111;border-bottom:1px solid #222;padding:16px 0}
+header .container{display:flex;justify-content:space-between;align-items:center}
+h1{font-size:20px;font-weight:600;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:24px 0}
+.stat{background:#111;border:1px solid #222;border-radius:12px;padding:20px}
+.stat-label{font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em}
+.stat-value{font-size:24px;font-weight:700;color:#fff;margin-top:4px}
+.section{margin:24px 0}
+.section h2{font-size:16px;font-weight:600;margin-bottom:12px;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;padding:12px;border-bottom:1px solid #222;color:#9ca3af;font-weight:500}
+td{padding:12px;border-bottom:1px solid #1a1a1a}
+tr:hover{background:#111}
+.hash{font-family:Geist Mono,monospace;font-size:13px;color:#3b82f6}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500}
+.badge-block{background:#1e3a5f;color:#60a5fa}
+.badge-tx{background:#1a3a1a;color:#4ade80}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;border:1px solid #222;background:transparent;color:#9ca3af}
+.tab.active{background:#1e3a5f;color:#60a5fa;border-color:#3b82f6}
+.loading{text-align:center;padding:40px;color:#666}
+.chain-selector{display:flex;gap:8px}
+.chain-btn{padding:6px 12px;border-radius:6px;border:1px solid #333;background:#111;color:#ccc;cursor:pointer;font-size:13px}
+.chain-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.mono{font-family:Geist Mono,monospace}
+.truncate{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+footer{margin-top:48px;padding:24px 0;border-top:1px solid #222;text-align:center;color:#666;font-size:13px}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<header><div class="container">
+<h1>Liquidity Explorer</h1>
+<div class="chain-selector">
+<button class="chain-btn active" onclick="setChain('evm')">Liquid EVM</button>
+<button class="chain-btn" onclick="setChain('dex')">Liquid DEX</button>
+<button class="chain-btn" onclick="setChain('fhe')">Liquid FHE</button>
+</div>
+</div></header>
+<div class="container">
+<div class="stats" id="stats"><div class="loading">Loading...</div></div>
+<div class="section">
+<div class="tabs">
+<button class="tab active" onclick="showTab('blocks')">Blocks</button>
+<button class="tab" onclick="showTab('txs')">Transactions</button>
+<button class="tab" onclick="showTab('contracts')">Contracts</button>
+</div>
+<div id="blocks-tab"></div>
+<div id="txs-tab" style="display:none"></div>
+<div id="contracts-tab" style="display:none"></div>
+</div>
+</div>
+<footer>Liquidity.io &mdash; Liquid EVM (Chain ID 8675311)</footer>
+<script>
+const API = '/v1/explorer';
+let currentTab = 'blocks';
+
+async function fetchJSON(path) {
+  const r = await fetch(API + path);
+  return r.ok ? r.json() : null;
+}
+
+async function loadStats() {
+  const s = await fetchJSON('/stats');
+  if (!s) return;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-label">Total Blocks</div><div class="stat-value">${s.total_blocks?.toLocaleString() || 0}</div></div>
+    <div class="stat"><div class="stat-label">Total Transactions</div><div class="stat-value">${s.total_transactions?.toLocaleString() || 0}</div></div>
+    <div class="stat"><div class="stat-label">Total Addresses</div><div class="stat-value">${s.total_addresses?.toLocaleString() || 0}</div></div>
+    <div class="stat"><div class="stat-label">Network</div><div class="stat-value">LQDTY</div></div>
+  `;
+}
+
+async function loadBlocks() {
+  const d = await fetchJSON('/blocks');
+  if (!d?.items) { document.getElementById('blocks-tab').innerHTML = '<div class="loading">No blocks</div>'; return; }
+  document.getElementById('blocks-tab').innerHTML = `<table>
+    <tr><th>Block</th><th>Hash</th><th>Gas Used</th><th>Age</th></tr>
+    ${d.items.map(b => `<tr>
+      <td><span class="badge badge-block">${b.height}</span></td>
+      <td><a href="/block/${b.height}" class="hash truncate">${b.hash}</a></td>
+      <td class="mono">${parseInt(b.gas_used||0).toLocaleString()}</td>
+      <td>${timeAgo(b.timestamp)}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+async function loadTxs() {
+  const d = await fetchJSON('/transactions');
+  if (!d?.items?.length) { document.getElementById('txs-tab').innerHTML = '<div class="loading">No transactions indexed yet</div>'; return; }
+  document.getElementById('txs-tab').innerHTML = `<table>
+    <tr><th>Tx Hash</th><th>Block</th><th>From</th><th>To</th></tr>
+    ${d.items.map(tx => `<tr>
+      <td><a href="/tx/${tx.hash}" class="hash truncate">${tx.hash}</a></td>
+      <td><span class="badge badge-block">${tx.block_number}</span></td>
+      <td class="hash truncate">${tx.from || '-'}</td>
+      <td class="hash truncate">${tx.to || 'Contract Create'}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+async function loadContracts() {
+  const d = await fetchJSON('/addresses?type=contract');
+  if (!d?.items?.length) { document.getElementById('contracts-tab').innerHTML = '<div class="loading">Contracts will appear after indexing</div>'; return; }
+  document.getElementById('contracts-tab').innerHTML = `<table>
+    <tr><th>Address</th><th>Name</th><th>Balance</th></tr>
+    ${d.items.map(a => `<tr>
+      <td><a href="/address/${a.hash}" class="hash truncate">${a.hash}</a></td>
+      <td>${a.name || '-'}</td>
+      <td class="mono">${a.balance || '0'}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('blocks-tab').style.display = tab === 'blocks' ? '' : 'none';
+  document.getElementById('txs-tab').style.display = tab === 'txs' ? '' : 'none';
+  document.getElementById('contracts-tab').style.display = tab === 'contracts' ? '' : 'none';
+  if (tab === 'txs') loadTxs();
+  if (tab === 'contracts') loadContracts();
+}
+
+function setChain(chain) {
+  document.querySelectorAll('.chain-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  // TODO: switch API endpoint for DEX/FHE chains
+}
+
+function timeAgo(ts) {
+  if (!ts) return '-';
+  const s = Math.floor((Date.now()/1000) - (new Date(ts).getTime()/1000));
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+loadStats();
+loadBlocks();
+setInterval(loadStats, 15000);
+setInterval(() => { if (currentTab === 'blocks') loadBlocks(); }, 10000);
+</script>
+</body>
+</html>
