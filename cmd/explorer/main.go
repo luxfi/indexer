@@ -47,15 +47,15 @@ var version = "dev"
 
 // ChainConfig defines a single chain to index.
 type ChainConfig struct {
-	Slug       string `yaml:"slug"`        // URL-safe identifier (e.g., "cchain", "ethereum", "solana")
-	Name       string `yaml:"name"`        // Display name
-	ChainID    int64  `yaml:"chain_id"`    // EVM chain ID (0 for non-EVM)
-	Type       string `yaml:"type"`        // evm, dag, linear, solana, bitcoin, cosmos
-	RPC        string `yaml:"rpc"`         // RPC endpoint
-	WS         string `yaml:"ws"`          // WebSocket endpoint (optional)
-	CoinSymbol string `yaml:"coin"`        // Native coin symbol
-	Enabled    bool   `yaml:"enabled"`     // Enable indexing
-	Default    bool   `yaml:"default"`     // Default chain for /v1/explorer/* (no slug prefix)
+	Slug       string `yaml:"slug"`     // URL-safe identifier (e.g., "cchain", "ethereum", "solana")
+	Name       string `yaml:"name"`     // Display name
+	ChainID    int64  `yaml:"chain_id"` // EVM chain ID (0 for non-EVM)
+	Type       string `yaml:"type"`     // evm, dag, linear, solana, bitcoin, cosmos
+	RPC        string `yaml:"rpc"`      // RPC endpoint
+	WS         string `yaml:"ws"`       // WebSocket endpoint (optional)
+	CoinSymbol string `yaml:"coin"`     // Native coin symbol
+	Enabled    bool   `yaml:"enabled"`  // Enable indexing
+	Default    bool   `yaml:"default"`  // Default chain for /v1/explorer/* (no slug prefix)
 }
 
 // Config is the top-level multi-chain configuration.

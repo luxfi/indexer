@@ -340,26 +340,26 @@ type Transaction struct {
 	Input                []byte
 	Nonce                int64
 	Type                 int
-	Status               *int  // nil = pending
+	Status               *int // nil = pending
 	Error                string
 	RevertReason         string
 	CreatedContract      []byte
 	CumulativeGasUsed    int64
-	BlockTimestamp        int64
+	BlockTimestamp       int64
 }
 
 // Address mirrors the indexer's address row.
 type Address struct {
-	ChainID              int64
-	Hash                 []byte
-	FetchedCoinBalance   string
-	FetchedBalanceBlock  int64
-	ContractCode         []byte
-	TransactionsCount    int
-	TokenTransfersCount  int
-	GasUsed              string
-	Nonce                int64
-	Verified             bool
+	ChainID             int64
+	Hash                []byte
+	FetchedCoinBalance  string
+	FetchedBalanceBlock int64
+	ContractCode        []byte
+	TransactionsCount   int
+	TokenTransfersCount int
+	GasUsed             string
+	Nonce               int64
+	Verified            bool
 }
 
 // Token mirrors the indexer's token row.
@@ -388,7 +388,7 @@ type TokenTransfer struct {
 	Amount               string
 	TokenID              string
 	TokenType            string
-	BlockTimestamp        int64
+	BlockTimestamp       int64
 }
 
 // Log mirrors the indexer's log row.
@@ -405,7 +405,7 @@ type Log struct {
 	SecondTopic      []byte
 	ThirdTopic       []byte
 	FourthTopic      []byte
-	BlockTimestamp    int64
+	BlockTimestamp   int64
 }
 
 // InternalTransaction mirrors the indexer's internal_transaction row.
@@ -426,7 +426,7 @@ type InternalTx struct {
 	Input           []byte
 	Output          []byte
 	Error           string
-	BlockTimestamp   int64
+	BlockTimestamp  int64
 }
 
 // SmartContract mirrors the indexer's smart_contract row.
@@ -489,7 +489,7 @@ func DefaultTransaction(block Block) Transaction {
 		Nonce:            n,
 		Type:             0,
 		Status:           &status,
-		BlockTimestamp:    block.Timestamp,
+		BlockTimestamp:   block.Timestamp,
 	}
 }
 
@@ -528,14 +528,14 @@ func DefaultContractCreation(block Block) Transaction {
 func DefaultAddress() Address {
 	balance := new(big.Int).Mul(big.NewInt(int64(nextSeq())), big.NewInt(1e18))
 	return Address{
-		ChainID:            DefaultChainID,
-		Hash:               RandomAddress(),
-		FetchedCoinBalance: balance.String(),
+		ChainID:             DefaultChainID,
+		Hash:                RandomAddress(),
+		FetchedCoinBalance:  balance.String(),
 		FetchedBalanceBlock: int64(nextSeq()),
 		TransactionsCount:   int(nextSeq() % 100),
 		TokenTransfersCount: int(nextSeq() % 50),
-		GasUsed:            "0",
-		Nonce:              int64(nextSeq() % 100),
+		GasUsed:             "0",
+		Nonce:               int64(nextSeq() % 100),
 	}
 }
 
@@ -579,7 +579,7 @@ func DefaultTokenTransfer(tx Transaction, token Token) TokenTransfer {
 		TokenContractAddress: token.ContractAddress,
 		Amount:               new(big.Int).Mul(big.NewInt(100), big.NewInt(1e18)).String(),
 		TokenType:            token.Type,
-		BlockTimestamp:        tx.BlockTimestamp,
+		BlockTimestamp:       tx.BlockTimestamp,
 	}
 }
 
@@ -598,7 +598,7 @@ func DefaultLog(tx Transaction) Log {
 		FirstTopic:       topic0,
 		SecondTopic:      padAddress(tx.FromAddress),
 		ThirdTopic:       padAddress(tx.ToAddress),
-		BlockTimestamp:    tx.BlockTimestamp,
+		BlockTimestamp:   tx.BlockTimestamp,
 	}
 }
 
@@ -619,7 +619,7 @@ func DefaultInternalTx(tx Transaction) InternalTx {
 		GasUsed:         15000,
 		Input:           []byte{},
 		Output:          []byte{},
-		BlockTimestamp:   tx.BlockTimestamp,
+		BlockTimestamp:  tx.BlockTimestamp,
 	}
 }
 
