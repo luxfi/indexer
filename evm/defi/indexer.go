@@ -1,4 +1,4 @@
-// Package defi provides comprehensive DeFi protocol indexing for the Lux EVM indexer.
+// Package defi indexes DeFi protocols on the Lux EVM.
 //
 // This package indexes all major DeFi protocols native to the Lux ecosystem:
 //   - AMM V2/V3 (Uniswap-style constant product and concentrated liquidity)
@@ -493,7 +493,7 @@ func (d *DeFiIndexer) startCleanup(ctx context.Context) {
 	}
 }
 
-// GetOverview returns a comprehensive DeFi overview
+// GetOverview returns the DeFi overview.
 func (d *DeFiIndexer) GetOverview() *DeFiOverview {
 	return &DeFiOverview{
 		ChainID:           d.chainID,
@@ -512,7 +512,7 @@ func (d *DeFiIndexer) GetOverview() *DeFiOverview {
 	}
 }
 
-// DeFiOverview provides a comprehensive DeFi summary
+// DeFiOverview holds aggregated DeFi stats.
 type DeFiOverview struct {
 	ChainID           ChainID                `json:"chainId"`
 	Stats             *DeFiStats             `json:"stats"`

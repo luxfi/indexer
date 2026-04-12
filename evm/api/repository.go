@@ -29,7 +29,7 @@ type Repository struct {
 }
 
 // NewRepository creates a new repository with chain-specific table prefix.
-// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 func NewRepository(db *sql.DB, chainID int64, chainSlug ...string) *Repository {
 	prefix := "cchain"
 	if len(chainSlug) > 0 && chainSlug[0] != "" {

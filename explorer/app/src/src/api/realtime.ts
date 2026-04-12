@@ -2,7 +2,7 @@
 // Connects to /v1/base/realtime (Base Functions SSE endpoint).
 // No Phoenix WebSocket, no socket.io — just SSE.
 
-const BASE_REALTIME = import.meta.env.VITE_BASE_REALTIME || '/v1/base/realtime'
+const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || '/v1/base/realtime'
 
 type RealtimeEvent = {
   event: string
@@ -22,7 +22,7 @@ class RealtimeClient {
     if (this.es || this.disabled) return
     try {
       // Probe endpoint before opening EventSource (avoids console error spam)
-      const url = new URL(BASE_REALTIME, window.location.origin).toString()
+      const url = new URL(REALTIME_URL, window.location.origin).toString()
       const probe = await fetch(url, { method: 'HEAD' }).catch(() => null)
       if (!probe || !probe.ok) {
         this.disabled = true // endpoint not available, don't retry
@@ -42,8 +42,8 @@ class RealtimeClient {
         } catch { /* ignore parse errors */ }
       }
 
-      this.es.addEventListener('PB_CONNECT', () => {
-        // Base SSE handshake complete
+      this.es.addEventListener('CONNECT', () => {
+        // SSE handshake complete
       })
 
       this.es.onerror = () => {

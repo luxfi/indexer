@@ -3,17 +3,16 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import { SearchBar } from './SearchBar'
 import { colors } from '../theme'
 
-const networks = [
-  { label: 'Devnet', domain: 'explore.dev.satschel.com', chainId: 8675311 },
-  { label: 'Testnet', domain: 'explore.test.satschel.com', chainId: 8675310 },
-  { label: 'Mainnet', domain: 'explore.satschel.com', chainId: 8675309 },
-] as const
+// Runtime config from env — zero hardcoded domains, names, or chain IDs
+const networks: { label: string; domain: string; chainId: number }[] = (() => {
+  try { return JSON.parse(import.meta.env.VITE_NETWORKS || '[]') } catch { return [] }
+})()
 
-const chains = [
-  { label: 'Liquid EVM', slug: 'evm' },
-  { label: 'Liquid DEX', slug: 'dex' },
-  { label: 'Liquid FHE', slug: 'fhe' },
-] as const
+const chains: { label: string; slug: string }[] = (() => {
+  try { return JSON.parse(import.meta.env.VITE_CHAINS || '[]') } catch { return [] }
+})()
+
+const coin = import.meta.env.VITE_COIN || 'ETH'
 
 interface NavGroup {
   label: string
@@ -198,7 +197,7 @@ function NavGroupDropdown({ group }: { group: NavGroup }) {
 }
 
 export function Layout() {
-  const chainName = import.meta.env.VITE_CHAIN_NAME || 'Lux Explorer'
+  const chainName = import.meta.env.VITE_CHAIN_NAME || 'Explorer'
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>

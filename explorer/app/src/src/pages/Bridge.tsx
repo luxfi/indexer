@@ -1,6 +1,15 @@
 import { colors } from '../theme'
 
+// All chain info from env — zero hardcoded names
+const chains: { label: string; slug: string }[] = (() => {
+  try { return JSON.parse(import.meta.env.VITE_CHAINS || '[]') } catch { return [] }
+})()
+
 export function Bridge() {
+  const chainOptions = chains.length > 0
+    ? chains
+    : [{ label: 'EVM', slug: 'evm' }, { label: 'DEX', slug: 'dex' }, { label: 'FHE', slug: 'fhe' }]
+
   return (
     <div>
       <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>Cross-Chain Bridge</h1>
@@ -13,13 +22,9 @@ export function Bridge() {
           marginBottom: 24,
         }}
       >
-        {[
-          { name: 'Liquid EVM', desc: 'Standard EVM chain for smart contracts and tokens', chainId: 'Variable' },
-          { name: 'Liquid DEX', desc: 'Native orderbook VM for high-performance trading', chainId: '--' },
-          { name: 'Liquid FHE', desc: 'Fully homomorphic encryption compute chain', chainId: '--' },
-        ].map((chain) => (
+        {chainOptions.map((chain) => (
           <div
-            key={chain.name}
+            key={chain.slug}
             style={{
               background: colors.card,
               borderRadius: 8,
@@ -27,10 +32,9 @@ export function Bridge() {
               border: `1px solid ${colors.border}`,
             }}
           >
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{chain.name}</div>
-            <div style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>{chain.desc}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{chain.label}</div>
             <div style={{ fontSize: 12, fontFamily: colors.mono, color: colors.textMuted }}>
-              Chain ID: {chain.chainId}
+              /{chain.slug}
             </div>
           </div>
         ))}
@@ -51,103 +55,29 @@ export function Bridge() {
         </h2>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>
-            From
-          </label>
-          <select
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 6,
-              border: `1px solid ${colors.border}`,
-              background: colors.bg,
-              color: colors.text,
-              fontSize: 14,
-            }}
-          >
-            <option>Liquid EVM</option>
-            <option>Liquid DEX</option>
-            <option>Liquid FHE</option>
+          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>From</label>
+          <select style={{ width: '100%', padding: '10px 14px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 14 }}>
+            {chainOptions.map((c) => <option key={c.slug}>{c.label}</option>)}
           </select>
         </div>
 
-        <div style={{ textAlign: 'center', padding: '8px 0', color: colors.textMuted, fontSize: 18 }}>
-          |
-        </div>
+        <div style={{ textAlign: 'center', padding: '8px 0', color: colors.textMuted, fontSize: 18 }}>|</div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>
-            To
-          </label>
-          <select
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 6,
-              border: `1px solid ${colors.border}`,
-              background: colors.bg,
-              color: colors.text,
-              fontSize: 14,
-            }}
-          >
-            <option>Liquid DEX</option>
-            <option>Liquid EVM</option>
-            <option>Liquid FHE</option>
+          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>To</label>
+          <select style={{ width: '100%', padding: '10px 14px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 14 }}>
+            {[...chainOptions].reverse().map((c) => <option key={c.slug}>{c.label}</option>)}
           </select>
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>
-            Amount
-          </label>
-          <input
-            type="text"
-            placeholder="0.0"
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 6,
-              border: `1px solid ${colors.border}`,
-              background: colors.bg,
-              color: colors.text,
-              fontSize: 14,
-              fontFamily: colors.mono,
-              outline: 'none',
-            }}
-          />
+          <label style={{ fontSize: 13, color: colors.textMuted, display: 'block', marginBottom: 6 }}>Amount</label>
+          <input type="text" placeholder="0.0" style={{ width: '100%', padding: '10px 14px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, fontSize: 14, fontFamily: colors.mono, outline: 'none' }} />
         </div>
 
-        <button
-          disabled
-          style={{
-            width: '100%',
-            padding: '12px 20px',
-            background: colors.border,
-            color: colors.textMuted,
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'not-allowed',
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
+        <button disabled style={{ width: '100%', padding: '12px 20px', background: colors.border, color: colors.textMuted, border: 'none', borderRadius: 6, cursor: 'not-allowed', fontSize: 14, fontWeight: 600 }}>
           Bridge Coming Soon
         </button>
-      </div>
-
-      <div
-        style={{
-          marginTop: 24,
-          background: colors.card,
-          borderRadius: 8,
-          padding: 20,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Recent Transfers</h2>
-        <p style={{ color: colors.textMuted, fontSize: 14 }}>
-          No cross-chain transfers yet. Bridge transfers will appear here once the cross-chain messaging layer is active.
-        </p>
       </div>
     </div>
   )

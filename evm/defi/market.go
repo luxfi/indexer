@@ -543,7 +543,7 @@ func (m *MarketHistoryIndexer) GetDepth(market string) (*MarketDepth, bool) {
 	return depth, ok
 }
 
-// GetMarketSummary returns a comprehensive market summary
+// GetMarketSummary returns a full market summary.
 func (m *MarketHistoryIndexer) GetMarketSummary(market string) *MarketSummary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -665,7 +665,7 @@ func (m *MarketHistoryIndexer) GetTopLosers(limit int) []*MarketTicker {
 	return tickers
 }
 
-// MarketSummary provides a comprehensive market overview
+// MarketSummary holds aggregated market data.
 type MarketSummary struct {
 	Market    string             `json:"market"`
 	Ticker    *MarketTicker      `json:"ticker"`
