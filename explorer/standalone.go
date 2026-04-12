@@ -29,7 +29,6 @@ type StandaloneServer struct {
 	gasPriceCache  map[string]string
 	gasCacheExpiry time.Time
 
-	tablesReady bool
 	notifWorker *NotificationWorker
 }
 
@@ -42,7 +41,7 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	if cfg.IndexerDBPath == "" {
 		return nil, fmt.Errorf("IndexerDBPath required")
 	}
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
+	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
@@ -56,18 +55,10 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 
 	s := &StandaloneServer{db: db, cfg: cfg, mux: http.NewServeMux()}
 	s.detectTables()
-	txTable := s.t.txs
-	if txTable == "" {
-		txTable = "evm_transactions" // default for EVM indexer
-	}
-	s.notifWorker = NewNotificationWorker(db, txTable, nil)
+	s.notifWorker = NewNotificationWorker(db, s.t.txs, nil)
 	s.notifWorker.Start()
 	s.routes()
-	if s.tablesReady {
-		log.Printf("[explorer] API ready — %s reading %s (%s tables)", cfg.ChainName, cfg.IndexerDBPath, s.t.blocks)
-	} else {
-		log.Printf("[explorer] API ready — %s reading %s (waiting for indexer to create tables)", cfg.ChainName, cfg.IndexerDBPath)
-	}
+	log.Printf("[explorer] API ready — %s reading %s (%s tables)", cfg.ChainName, cfg.IndexerDBPath, s.t.blocks)
 	return s, nil
 }
 
@@ -97,18 +88,8 @@ func (s *StandaloneServer) Close() {
 	s.db.Close()
 }
 
-// ensureTables re-detects table names until EVM-prefixed tables are found.
-// Called lazily on each request so the indexer has time to create tables.
-func (s *StandaloneServer) ensureTables() {
-	if s.tablesReady {
-		return
-	}
-	s.detectTables()
-}
-
 func (s *StandaloneServer) detectTables() {
 	var c int
-	// Always prefer EVM-prefixed tables (created by the EVM indexer)
 	s.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='evm_blocks'").Scan(&c)
 	if c > 0 {
 		s.t = tableNames{
@@ -116,16 +97,19 @@ func (s *StandaloneServer) detectTables() {
 			transfers: "evm_token_transfers", logs: "evm_logs", itxs: "evm_internal_transactions",
 			contracts: "evm_smart_contracts", balances: "evm_token_balances",
 		}
-		s.tablesReady = true
-		log.Printf("[explorer] detected EVM tables")
+	} else {
+		s.t = tableNames{
+			blocks: "blocks", txs: "transactions", addrs: "addresses", tokens: "tokens",
+			transfers: "token_transfers", logs: "logs", itxs: "internal_transactions",
+			contracts: "smart_contracts", balances: "address_current_token_balances",
+		}
 	}
-	// Don't fall back to generic "blocks" — the EVM indexer always creates evm_blocks.
-	// If evm_blocks doesn't exist yet, we'll retry on the next request.
-	s.t.dexOrders = s.detectTable("evm_dex_orders", "dex_orders")
-	s.t.dexTrades = s.detectTable("evm_dex_trades", "dex_trades")
-	s.t.dexMarkets = s.detectTable("evm_dex_market_stats", "dex_market_stats")
-	s.t.dexPools = s.detectTable("evm_dex_pools", "dex_pools")
-	s.t.dexSwaps = s.detectTable("evm_dex_swaps", "dex_swaps")
+	// DEX tables: detect dex_orders or evm_dex_orders
+	s.t.dexOrders = s.detectTable("dex_orders", "evm_dex_orders")
+	s.t.dexTrades = s.detectTable("dex_trades", "evm_dex_trades")
+	s.t.dexMarkets = s.detectTable("dex_market_stats", "evm_dex_market_stats")
+	s.t.dexPools = s.detectTable("dex_pools", "evm_dex_pools")
+	s.t.dexSwaps = s.detectTable("dex_swaps", "evm_dex_swaps")
 }
 
 // detectTable returns the first table name that exists, or empty string.
@@ -165,10 +149,10 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
 	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
 
-	// Homepage widgets (paths match explore frontend: /main-page/*)
-	m.HandleFunc("GET /v1/explorer/main-page/blocks", s.j(s.mainPageBlocks))
-	m.HandleFunc("GET /v1/explorer/main-page/transactions", s.j(s.mainPageTxs))
-	m.HandleFunc("GET /v1/explorer/main-page/indexing-status", s.j(s.indexingStatus))
+	// Homepage widgets
+	m.HandleFunc("GET /v1/explorer/homepage/blocks", s.j(s.mainPageBlocks))
+	m.HandleFunc("GET /v1/explorer/homepage/transactions", s.j(s.mainPageTxs))
+	m.HandleFunc("GET /v1/explorer/homepage/indexing-status", s.j(s.indexingStatus))
 
 	// Config
 	m.HandleFunc("GET /v1/explorer/config/backend-version", s.j(s.backendVersion))
@@ -229,24 +213,12 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("POST /v1/explorer/webhooks", s.j(s.registerWebhook))
 	m.HandleFunc("GET /v1/explorer/webhooks", s.j(s.listWebhooks))
 	m.HandleFunc("DELETE /v1/explorer/webhooks", s.j(s.deleteWebhook))
-
-	// Legacy /api/v2/* aliases — frontends built for Blockscout call these paths.
-	// Rewrite to /v1/explorer/* so the same handlers serve both.
-	m.HandleFunc("/api/v2/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/v1/explorer/" + strings.TrimPrefix(r.URL.Path, "/api/v2/")
-		s.mux.ServeHTTP(w, r)
-	}))
-	m.HandleFunc("/api/v2/config/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/v1/explorer/" + strings.TrimPrefix(r.URL.Path, "/api/v2/")
-		s.mux.ServeHTTP(w, r)
-	}))
 }
 
 type jfn func(*http.Request) (any, int)
 
 func (s *StandaloneServer) j(fn jfn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.ensureTables()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		data, code := fn(r)
@@ -343,9 +315,9 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 	var rows *sql.Rows
 	var err error
 	if strings.HasPrefix(id, "0x") {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_hash = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_hash = ? ORDER BY transaction_index LIMIT ?", s.t.txs), id, l)
 	} else {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_number = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_number = ? ORDER BY transaction_index LIMIT ?", s.t.txs), id, l)
 	}
 	if err != nil {
 		return ep(), 200
@@ -358,7 +330,7 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) listTxs(r *http.Request) (any, int) {
 	l := lim(r)
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT ?", s.t.txs), l+1)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, transaction_index DESC LIMIT ?", s.t.txs), l+1)
 	if err != nil {
 		return ep(), 200
 	}
@@ -453,7 +425,7 @@ func (s *StandaloneServer) getAddr(r *http.Request) (any, int) {
 func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
 	l := lim(r)
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
 	if err != nil {
 		return ep(), 200
 	}
@@ -510,7 +482,7 @@ func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY value DESC LIMIT 50", s.t.balances), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_contract_address_hash = ? ORDER BY value DESC LIMIT 50", s.t.balances), r.PathValue("addr"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -612,7 +584,7 @@ func (s *StandaloneServer) mainPageBlocks(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) mainPageTxs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT 6", s.t.txs))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, transaction_index DESC LIMIT 6", s.t.txs))
 	if err != nil {
 		return []any{}, 200
 	}
@@ -678,7 +650,7 @@ func (s *StandaloneServer) chartMarket(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -693,7 +665,7 @@ func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrInternalTxs(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50`, s.t.itxs), addr, addr)
+	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50`, s.t.itxs), addr, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -730,7 +702,7 @@ func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
 	items := make([]map[string]any, len(maps))
 	for i, b := range maps {
 		items[i] = map[string]any{
-			"token":    map[string]any{"address": bytesToHex(b["token_address"]), "type": b["token_type"]},
+			"token":    map[string]any{"address": bytesToHex(b["token_contract_address_hash"]), "type": b["token_type"]},
 			"value":    fmtNum(b["value"]),
 			"token_id": b["token_id"],
 		}
@@ -745,7 +717,7 @@ func (s *StandaloneServer) addrCoinHistory(r *http.Request) (any, int) {
 // ---- Token Sub-resources ----
 
 func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_contract_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), r.PathValue("addr"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -845,7 +817,7 @@ const csvMaxRows = 10000
 func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="transactions-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf("SELECT hash, block_number, from_addr, to_addr, value, gas_used, status, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT hash, block_number, from_address_hash, to_address_hash, value, gas_used, status, block_timestamp FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -868,7 +840,7 @@ func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="internal-transactions-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, "index", type, call_type, from_addr, to_addr, value, gas_used, error FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?`, s.t.itxs), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, "index", type, call_type, from_address_hash, to_address_hash, value, gas_used, error FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?`, s.t.itxs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -893,7 +865,7 @@ func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Req
 func (s *StandaloneServer) csvAddrTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="token-transfers-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_addr, to_addr, token_address, amount, token_type, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.transfers), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_address_hash, to_address_hash, token_contract_address_hash, amount, token_type, block_timestamp FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.transfers), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -940,7 +912,7 @@ func (s *StandaloneServer) csvAddrLogs(w http.ResponseWriter, r *http.Request) {
 
 func (s *StandaloneServer) csvAllTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="token-transfers.csv"`)
-	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_addr, to_addr, token_address, amount, token_type, timestamp FROM %s ORDER BY block_number DESC LIMIT ?", s.t.transfers), csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_address_hash, to_address_hash, token_contract_address_hash, amount, token_type, block_timestamp FROM %s ORDER BY block_number DESC LIMIT ?", s.t.transfers), csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -1053,7 +1025,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.txs), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.txs), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1064,7 +1036,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "transaction",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["timestamp"]),
+				timestamp: fmtTimestamp(m["block_timestamp"]),
 				data:      formatTx(m),
 			})
 		}
@@ -1075,7 +1047,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1086,7 +1058,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "token_transfer",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["timestamp"]),
+				timestamp: fmtTimestamp(m["block_timestamp"]),
 				data:      formatTokenTransfer(m),
 			})
 		}
@@ -1097,7 +1069,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.itxs), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.itxs), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1108,7 +1080,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "internal_transaction",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["timestamp"]),
+				timestamp: fmtTimestamp(m["block_timestamp"]),
 				data:      formatInternalTx(m),
 			})
 		}
@@ -1130,7 +1102,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "log",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["timestamp"]),
+				timestamp: fmtTimestamp(m["block_timestamp"]),
 				data:      formatLog(m),
 			})
 		}
@@ -1172,7 +1144,7 @@ func fmtTxPage(rows *sql.Rows, limit int) paginatedResponse {
 	var np any
 	if len(maps) > limit {
 		last := maps[limit-1]
-		np = map[string]any{"block_number": last["block_number"], "index": last["tx_index"], "items_count": limit}
+		np = map[string]any{"block_number": last["block_number"], "index": last["transaction_index"], "items_count": limit}
 		maps = maps[:limit]
 	}
 	items := make([]map[string]any, len(maps))
