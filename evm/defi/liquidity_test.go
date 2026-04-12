@@ -18,7 +18,6 @@ func TestLiquidityProtocolTopicsLength(t *testing.T) {
 }
 
 func TestParseCrossChainSwapInitiated(t *testing.T) {
-	t.Skip("TODO: fix test data encoding")
 	messageId := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	sender := "0x0000000000000000000000001111111111111111111111111111111111111111"
 	// data: srcChainId=96369 | dstChainId=200200 | tokenIn | tokenOut | amountIn=1000e18 | estimatedAmountOut=999e18
@@ -38,7 +37,7 @@ func TestParseCrossChainSwapInitiated(t *testing.T) {
 		TxHash:      "0xaaa",
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
@@ -78,7 +77,7 @@ func TestParseCrossChainSwapCompleted(t *testing.T) {
 		BlockNumber: 101,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "cross_chain_swap_completed" {
 		t.Fatal("expected cross_chain_swap_completed")
 	}
@@ -94,7 +93,6 @@ func TestParseCrossChainSwapCompleted(t *testing.T) {
 }
 
 func TestParseLimitOrderPlaced(t *testing.T) {
-	t.Skip("TODO: fix test data encoding")
 	orderId := "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	trader := "0x0000000000000000000000003333333333333333333333333333333333333333"
 	data := "0x" +
@@ -106,7 +104,7 @@ func TestParseLimitOrderPlaced(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "cross_chain_limit_order_placed" {
 		t.Fatal("expected cross_chain_limit_order_placed")
 	}
@@ -131,7 +129,7 @@ func TestParseArbitrageExecuted(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "arbitrage_executed" {
 		t.Fatal("expected arbitrage_executed")
 	}
@@ -157,7 +155,7 @@ func TestParsePriceUpdated(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "price_updated" {
 		t.Fatal("expected price_updated")
 	}
@@ -183,7 +181,7 @@ func TestParseStrategyOrderCreated(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "strategy_order_created" {
 		t.Fatal("expected strategy_order_created")
 	}
@@ -205,7 +203,7 @@ func TestParseMarketMakingStarted(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "market_making_started" {
 		t.Fatal("expected market_making_started")
 	}
@@ -230,7 +228,7 @@ func TestParseBridgeInitiated(t *testing.T) {
 		Data:   data,
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "bridge_initiated" {
 		t.Fatal("expected bridge_initiated")
 	}
@@ -251,7 +249,7 @@ func TestParseBridgeFailed(t *testing.T) {
 		Data:   "0x",
 	}}
 
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 1 || events[0].Event != "bridge_failed" {
 		t.Fatal("expected bridge_failed")
 	}
@@ -261,7 +259,7 @@ func TestParseBridgeFailed(t *testing.T) {
 }
 
 func TestLiquidityProtocolEmptyLogs(t *testing.T) {
-	events := ParseLiquidityProtocolEvents(nil)
+	events := ParseOmniSwapEvents(nil)
 	if events != nil {
 		t.Error("expected nil for nil input")
 	}
@@ -272,7 +270,7 @@ func TestLiquidityProtocolInsufficientTopics(t *testing.T) {
 		Topics: []string{TopicCrossChainSwapInitiated}, // needs 3 topics
 		Data:   "0x",
 	}}
-	events := ParseLiquidityProtocolEvents(logs)
+	events := ParseOmniSwapEvents(logs)
 	if len(events) != 0 {
 		t.Error("expected 0 events for insufficient topics")
 	}

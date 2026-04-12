@@ -91,8 +91,8 @@ func LiquidProtocolTopics() []string {
 	}
 }
 
-// LiquidProtocolEvent represents a parsed Liquid Protocol event.
-type LiquidProtocolEvent struct {
+// TeleportEvent represents a parsed Liquid Protocol event.
+type TeleportEvent struct {
 	Event    string // event name
 	Contract string
 	Block    uint64
@@ -133,9 +133,9 @@ type LiquidProtocolEvent struct {
 	TotalYield    *big.Int
 }
 
-// ParseLiquidProtocolEvents extracts Liquid Protocol events from EVM logs.
-func ParseLiquidProtocolEvents(logs []Log) []LiquidProtocolEvent {
-	var events []LiquidProtocolEvent
+// ParseTeleportEvents extracts Liquid Protocol events from EVM logs.
+func ParseTeleportEvents(logs []Log) []TeleportEvent {
+	var events []TeleportEvent
 	for i := range logs {
 		l := &logs[i]
 		if len(l.Topics) == 0 {
@@ -207,7 +207,7 @@ func ParseLiquidProtocolEvents(logs []Log) []LiquidProtocolEvent {
 				events = append(events, *e)
 			}
 		case TopicStrategyRemoved:
-			events = append(events, LiquidProtocolEvent{
+			events = append(events, TeleportEvent{
 				Event:         "strategy_removed",
 				Contract:      l.Address,
 				Block:         l.BlockNumber,
@@ -220,7 +220,7 @@ func ParseLiquidProtocolEvents(logs []Log) []LiquidProtocolEvent {
 }
 
 // FeesReceived(address indexed from, uint256 amount, bytes32 indexed feeType, uint256 perfFee, uint256 toReserve)
-func parseLiquidFeesReceived(l *Log) *LiquidProtocolEvent {
+func parseLiquidFeesReceived(l *Log) *TeleportEvent {
 	if len(l.Topics) < 3 {
 		return nil
 	}
@@ -228,7 +228,7 @@ func parseLiquidFeesReceived(l *Log) *LiquidProtocolEvent {
 	if len(d) < 192 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:     "fees_received",
 		Contract:  l.Address,
 		Block:     l.BlockNumber,
@@ -242,7 +242,7 @@ func parseLiquidFeesReceived(l *Log) *LiquidProtocolEvent {
 }
 
 // ValidatorRewardsReceived(address indexed from, uint256 amount)
-func parseLiquidValidatorRewards(l *Log) *LiquidProtocolEvent {
+func parseLiquidValidatorRewards(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -250,7 +250,7 @@ func parseLiquidValidatorRewards(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "validator_rewards",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -261,12 +261,12 @@ func parseLiquidValidatorRewards(l *Log) *LiquidProtocolEvent {
 }
 
 // SlashingApplied(uint256 amount, uint256 fromReserve, uint256 socialized)
-func parseLiquidSlashing(l *Log) *LiquidProtocolEvent {
+func parseLiquidSlashing(l *Log) *TeleportEvent {
 	d := stripHexPrefix(l.Data)
 	if len(d) < 192 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:       "slashing",
 		Contract:    l.Address,
 		Block:       l.BlockNumber,
@@ -278,7 +278,7 @@ func parseLiquidSlashing(l *Log) *LiquidProtocolEvent {
 }
 
 // EmergencyWithdrawal(address indexed to, uint256 amount)
-func parseLiquidEmergencyWithdrawal(l *Log) *LiquidProtocolEvent {
+func parseLiquidEmergencyWithdrawal(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -286,7 +286,7 @@ func parseLiquidEmergencyWithdrawal(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "emergency_withdrawal",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -297,7 +297,7 @@ func parseLiquidEmergencyWithdrawal(l *Log) *LiquidProtocolEvent {
 }
 
 // Paused(address indexed minter, bool state)
-func parseLiquidTokenPaused(l *Log) *LiquidProtocolEvent {
+func parseLiquidTokenPaused(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -305,7 +305,7 @@ func parseLiquidTokenPaused(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "paused",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -316,7 +316,7 @@ func parseLiquidTokenPaused(l *Log) *LiquidProtocolEvent {
 }
 
 // Whitelisted(address indexed minter, bool state)
-func parseLiquidTokenWhitelisted(l *Log) *LiquidProtocolEvent {
+func parseLiquidTokenWhitelisted(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -324,7 +324,7 @@ func parseLiquidTokenWhitelisted(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "whitelisted",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -335,12 +335,12 @@ func parseLiquidTokenWhitelisted(l *Log) *LiquidProtocolEvent {
 }
 
 // SetFlashMintFee(uint256 fee)
-func parseLiquidSetFlashMintFee(l *Log) *LiquidProtocolEvent {
+func parseLiquidSetFlashMintFee(l *Log) *TeleportEvent {
 	d := stripHexPrefix(l.Data)
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "set_flash_mint_fee",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -350,7 +350,7 @@ func parseLiquidSetFlashMintFee(l *Log) *LiquidProtocolEvent {
 }
 
 // DepositMinted(uint256 indexed srcChainId, uint256 indexed depositNonce, address indexed recipient, uint256 amount)
-func parseDepositMinted(l *Log) *LiquidProtocolEvent {
+func parseDepositMinted(l *Log) *TeleportEvent {
 	if len(l.Topics) < 4 {
 		return nil
 	}
@@ -358,7 +358,7 @@ func parseDepositMinted(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:        "deposit_minted",
 		Contract:     l.Address,
 		Block:        l.BlockNumber,
@@ -371,7 +371,7 @@ func parseDepositMinted(l *Log) *LiquidProtocolEvent {
 }
 
 // YieldMinted(uint256 indexed srcChainId, uint256 indexed yieldNonce, uint256 amount)
-func parseYieldMinted(l *Log) *LiquidProtocolEvent {
+func parseYieldMinted(l *Log) *TeleportEvent {
 	if len(l.Topics) < 3 {
 		return nil
 	}
@@ -379,7 +379,7 @@ func parseYieldMinted(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:      "yield_minted",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -391,7 +391,7 @@ func parseYieldMinted(l *Log) *LiquidProtocolEvent {
 }
 
 // BurnedForWithdraw(address indexed user, uint256 amount, uint256 indexed withdrawNonce)
-func parseBurnedForWithdraw(l *Log) *LiquidProtocolEvent {
+func parseBurnedForWithdraw(l *Log) *TeleportEvent {
 	if len(l.Topics) < 3 {
 		return nil
 	}
@@ -399,7 +399,7 @@ func parseBurnedForWithdraw(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:         "burned_for_withdraw",
 		Contract:      l.Address,
 		Block:         l.BlockNumber,
@@ -411,7 +411,7 @@ func parseBurnedForWithdraw(l *Log) *LiquidProtocolEvent {
 }
 
 // BackingUpdated(uint256 indexed srcChainId, uint256 totalBacking, uint256 timestamp)
-func parseBackingUpdated(l *Log) *LiquidProtocolEvent {
+func parseBackingUpdated(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -419,7 +419,7 @@ func parseBackingUpdated(l *Log) *LiquidProtocolEvent {
 	if len(d) < 128 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:        "backing_updated",
 		Contract:     l.Address,
 		Block:        l.BlockNumber,
@@ -431,7 +431,7 @@ func parseBackingUpdated(l *Log) *LiquidProtocolEvent {
 }
 
 // MPCOracleSet(address indexed oracle, bool active)
-func parseMPCOracleSet(l *Log) *LiquidProtocolEvent {
+func parseMPCOracleSet(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -439,7 +439,7 @@ func parseMPCOracleSet(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:    "mpc_oracle_set",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -450,7 +450,7 @@ func parseMPCOracleSet(l *Log) *LiquidProtocolEvent {
 }
 
 // StrategyAllocated(uint256 indexed strategyIndex, uint256 amount)
-func parseStrategyAllocated(l *Log) *LiquidProtocolEvent {
+func parseStrategyAllocated(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -458,7 +458,7 @@ func parseStrategyAllocated(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:         "strategy_allocated",
 		Contract:      l.Address,
 		Block:         l.BlockNumber,
@@ -469,7 +469,7 @@ func parseStrategyAllocated(l *Log) *LiquidProtocolEvent {
 }
 
 // StrategyDeallocated(uint256 indexed strategyIndex, uint256 amount)
-func parseStrategyDeallocated(l *Log) *LiquidProtocolEvent {
+func parseStrategyDeallocated(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -477,7 +477,7 @@ func parseStrategyDeallocated(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:         "strategy_deallocated",
 		Contract:      l.Address,
 		Block:         l.BlockNumber,
@@ -488,7 +488,7 @@ func parseStrategyDeallocated(l *Log) *LiquidProtocolEvent {
 }
 
 // YieldHarvested(uint256 indexed yieldNonce, uint256 totalYield, uint256 timestamp)
-func parseYieldHarvested(l *Log) *LiquidProtocolEvent {
+func parseYieldHarvested(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -496,7 +496,7 @@ func parseYieldHarvested(l *Log) *LiquidProtocolEvent {
 	if len(d) < 128 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:      "yield_harvested",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -508,7 +508,7 @@ func parseYieldHarvested(l *Log) *LiquidProtocolEvent {
 }
 
 // StrategyAdded(uint256 indexed index, address adapter)
-func parseStrategyAdded(l *Log) *LiquidProtocolEvent {
+func parseStrategyAdded(l *Log) *TeleportEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
@@ -516,7 +516,7 @@ func parseStrategyAdded(l *Log) *LiquidProtocolEvent {
 	if len(d) < 64 {
 		return nil
 	}
-	return &LiquidProtocolEvent{
+	return &TeleportEvent{
 		Event:         "strategy_added",
 		Contract:      l.Address,
 		Block:         l.BlockNumber,
