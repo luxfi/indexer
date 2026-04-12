@@ -2,7 +2,7 @@
 // Connects to /v1/base/realtime (Base Functions SSE endpoint).
 // No Phoenix WebSocket, no socket.io — just SSE.
 
-const BASE_REALTIME = import.meta.env.VITE_BASE_REALTIME || '/v1/base/realtime'
+const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || '/v1/base/realtime'
 
 type RealtimeEvent = {
   event: string
@@ -16,11 +16,19 @@ class RealtimeClient {
   private handlers = new Map<string, Set<Handler>>()
   private reconnectMs = 1000
   private maxReconnectMs = 30000
+  private disabled = false
 
-  connect() {
-    if (this.es) return
+  async connect() {
+    if (this.es || this.disabled) return
     try {
-      const url = new URL(BASE_REALTIME, window.location.origin).toString()
+      // Probe endpoint before opening EventSource (avoids console error spam)
+      const url = new URL(REALTIME_URL, window.location.origin).toString()
+      const probe = await fetch(url, { method: 'HEAD' }).catch(() => null)
+      if (!probe || !probe.ok) {
+        this.disabled = true // endpoint not available, don't retry
+        return
+      }
+
       this.es = new EventSource(url)
       this.reconnectMs = 1000
 
@@ -34,19 +42,22 @@ class RealtimeClient {
         } catch { /* ignore parse errors */ }
       }
 
-      this.es.addEventListener('PB_CONNECT', () => {
-        // Base SSE handshake complete
+      this.es.addEventListener('CONNECT', () => {
+        // SSE handshake complete
       })
 
       this.es.onerror = () => {
         this.es?.close()
         this.es = null
-        // Exponential backoff reconnect
+        if (this.reconnectMs >= this.maxReconnectMs) {
+          this.disabled = true // give up after max backoff
+          return
+        }
         setTimeout(() => this.connect(), this.reconnectMs)
         this.reconnectMs = Math.min(this.reconnectMs * 2, this.maxReconnectMs)
       }
     } catch {
-      // SSE not available — no-op, app works fine without realtime
+      this.disabled = true
     }
   }
 
