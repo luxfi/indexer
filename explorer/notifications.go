@@ -162,7 +162,7 @@ func (w *NotificationWorker) Unregister(address, webhookURL string) {
 func (w *NotificationWorker) Entries() []WatchEntry {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	var all []WatchEntry
+	all := make([]WatchEntry, 0) // never nil — JSON encodes as [] not null
 	for _, entries := range w.watchlist {
 		for _, e := range entries {
 			redacted := e
@@ -210,7 +210,7 @@ func (w *NotificationWorker) poll() {
 	defer cancel()
 
 	rows, err := w.db.QueryContext(ctx,
-		fmt.Sprintf("SELECT hash, block_number, from_address_hash, to_address_hash, value, block_timestamp FROM %s WHERE block_number > ? ORDER BY block_number, transaction_index", w.table),
+		fmt.Sprintf("SELECT hash, block_number, from_addr, to_addr, value, timestamp FROM %s WHERE block_number > ? ORDER BY block_number, tx_index", w.table),
 		w.lastBlock)
 	if err != nil {
 		w.logger.Warn("notification poll failed", slog.String("error", err.Error()))
