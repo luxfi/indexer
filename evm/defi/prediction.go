@@ -29,9 +29,9 @@ var (
 
 // PredictionIndexer indexes prediction market events
 type PredictionIndexer struct {
-	assertions map[string]*PredictionAssertion // assertionId -> assertion
-	questions  map[string]*PredictionQuestion  // questionId -> question
-	events     []*PredictionEvent
+	assertions  map[string]*PredictionAssertion // assertionId -> assertion
+	questions   map[string]*PredictionQuestion  // questionId -> question
+	events      []*PredictionEvent
 	onAssertion func(*PredictionEvent)
 	onQuestion  func(*PredictionEvent)
 }
@@ -52,17 +52,17 @@ type PredictionAssertion struct {
 
 // PredictionQuestion represents a prediction market question
 type PredictionQuestion struct {
-	QuestionID string    `json:"questionId"`
-	Creator    string    `json:"creator"`
-	RewardToken string  `json:"rewardToken"`
-	Reward     *big.Int  `json:"reward"`
-	Bond       *big.Int  `json:"bond"`
-	IsResolved bool      `json:"isResolved"`
-	IsPaused   bool      `json:"isPaused"`
-	IsFlagged  bool      `json:"isFlagged"`
-	Outcome    int64     `json:"outcome,omitempty"` // settled price
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	QuestionID  string    `json:"questionId"`
+	Creator     string    `json:"creator"`
+	RewardToken string    `json:"rewardToken"`
+	Reward      *big.Int  `json:"reward"`
+	Bond        *big.Int  `json:"bond"`
+	IsResolved  bool      `json:"isResolved"`
+	IsPaused    bool      `json:"isPaused"`
+	IsFlagged   bool      `json:"isFlagged"`
+	Outcome     int64     `json:"outcome,omitempty"` // settled price
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // PredictionEvent represents a prediction market event
@@ -469,12 +469,12 @@ func (p *PredictionIndexer) GetActiveQuestions() []*PredictionQuestion {
 
 // PredictionStats represents prediction market statistics
 type PredictionStats struct {
-	TotalAssertions   uint64    `json:"totalAssertions"`
-	TotalQuestions    uint64    `json:"totalQuestions"`
-	ResolvedQuestions uint64    `json:"resolvedQuestions"`
-	DisputedAssertions uint64  `json:"disputedAssertions"`
-	TotalEvents       uint64    `json:"totalEvents"`
-	LastUpdated       time.Time `json:"lastUpdated"`
+	TotalAssertions    uint64    `json:"totalAssertions"`
+	TotalQuestions     uint64    `json:"totalQuestions"`
+	ResolvedQuestions  uint64    `json:"resolvedQuestions"`
+	DisputedAssertions uint64    `json:"disputedAssertions"`
+	TotalEvents        uint64    `json:"totalEvents"`
+	LastUpdated        time.Time `json:"lastUpdated"`
 }
 
 // GetStats returns aggregate statistics

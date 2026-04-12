@@ -6,8 +6,8 @@
 //	explorer --config=chains.yaml
 //	explorer --rpc=http://localhost:9650/ext/bc/C/rpc  (single chain mode)
 //
-//	/v1/explorer/{chain}/*    Per-chain explorer API
-//	/v1/explorer/*            Default chain API
+//	/v1/indexer/{chain}/*    Per-chain explorer API
+//	/v1/indexer/*            Default chain API
 //	/*                        Embedded frontend (go:embed)
 //	/health                   Healthcheck (all chains)
 //
@@ -56,7 +56,7 @@ type ChainConfig struct {
 	WS         string `yaml:"ws"`       // WebSocket endpoint (optional)
 	CoinSymbol string `yaml:"coin"`     // Native coin symbol
 	Enabled    bool   `yaml:"enabled"`  // Enable indexing
-	Default    bool   `yaml:"default"`  // Default chain for /v1/explorer/* (no slug prefix)
+	Default    bool   `yaml:"default"`  // Default chain for /v1/indexer/* (no slug prefix)
 }
 
 // Config is the top-level multi-chain configuration.
@@ -233,11 +233,11 @@ func main() {
 					continue
 				}
 				if chain.Default {
-					mux.Handle("/v1/explorer/", apiSrv.Handler())
-					log.Printf("[%s] API mounted at /v1/explorer/* (default)", chain.Slug)
+					mux.Handle("/v1/indexer/", apiSrv.Handler())
+					log.Printf("[%s] API mounted at /v1/indexer/* (default)", chain.Slug)
 				} else {
-					prefix := fmt.Sprintf("/v1/explorer/%s/", chain.Slug)
-					mux.Handle(prefix, http.StripPrefix(fmt.Sprintf("/v1/explorer/%s", chain.Slug), apiSrv.Handler()))
+					prefix := fmt.Sprintf("/v1/indexer/%s/", chain.Slug)
+					mux.Handle(prefix, http.StripPrefix(fmt.Sprintf("/v1/indexer/%s", chain.Slug), apiSrv.Handler()))
 					log.Printf("[%s] API mounted at %s*", chain.Slug, prefix)
 				}
 				return
@@ -246,9 +246,9 @@ func main() {
 		}(c, dbPath)
 
 		if c.Default {
-			log.Printf("  %-20s /v1/explorer/*         %s", c.Slug, c.RPC)
+			log.Printf("  %-20s /v1/indexer/*         %s", c.Slug, c.RPC)
 		} else {
-			log.Printf("  %-20s /v1/explorer/%s/*  %s", c.Slug, c.Slug, c.RPC)
+			log.Printf("  %-20s /v1/indexer/%s/*  %s", c.Slug, c.Slug, c.RPC)
 		}
 	}
 
