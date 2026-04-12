@@ -52,6 +52,9 @@ type Config struct {
 	// Example: {"C": "/data/cchain/indexer.db", "Zoo": "/data/zoo/indexer.db"}
 	// When empty, cross-chain search only queries the local IndexerDBPath.
 	ChainDBPaths map[string]string
+
+	// APIPrefix is the URL prefix for all API routes (default: "/v1/indexer").
+	APIPrefix string
 }
 
 // MustRegister registers the explorer plugin and panics on failure.

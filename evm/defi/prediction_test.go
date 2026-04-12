@@ -179,7 +179,7 @@ func TestPredictionIndexer_QuestionLifecycle(t *testing.T) {
 			questionID,
 			"0x0000000000000000000000000000000000000000000000000de0b6b3a7640000", // 1e18
 		},
-		Data: "0x" + strings.Repeat("0", 64), // payouts offset
+		Data:   "0x" + strings.Repeat("0", 64), // payouts offset
 		TxHash: "0xtx4", BlockNumber: 104, Timestamp: now.Add(3 * time.Minute),
 	})
 

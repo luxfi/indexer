@@ -30,17 +30,17 @@ func LiquidTopics() []string {
 
 // LiquidEvent represents a LiquidLUX vault event.
 type LiquidEvent struct {
-	From       string
-	Amount     *big.Int
-	FeeType    string // bytes32 hex (fees_received only)
-	PerfFee    *big.Int
-	ToReserve  *big.Int
+	From        string
+	Amount      *big.Int
+	FeeType     string // bytes32 hex (fees_received only)
+	PerfFee     *big.Int
+	ToReserve   *big.Int
 	FromReserve *big.Int
-	Socialized *big.Int
-	Event      string // "fees_received", "validator_rewards", "slashing", "emergency_withdrawal"
-	Contract   string
-	Block      uint64
-	TxHash     string
+	Socialized  *big.Int
+	Event       string // "fees_received", "validator_rewards", "slashing", "emergency_withdrawal"
+	Contract    string
+	Block       uint64
+	TxHash      string
 }
 
 // ParseLiquidEvents extracts LiquidLUX vault events from EVM logs.
