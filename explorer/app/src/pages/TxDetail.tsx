@@ -16,7 +16,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export function TxDetail() {
   const { hash } = useParams<{ hash: string }>()
   const { data: tx, isLoading } = useTransaction(hash!)
-  const coin = import.meta.env.VITE_COIN || 'LQDTY'
+  const coin = import.meta.env.VITE_COIN || 'ETH'
 
   if (isLoading) return <p style={{ color: colors.textMuted }}>Loading...</p>
   if (!tx) return <p style={{ color: colors.error }}>Transaction not found</p>
