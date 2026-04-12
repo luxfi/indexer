@@ -26,9 +26,9 @@ var osLookupEnv = os.LookupEnv
 
 // Input validation patterns for path parameters.
 var (
-	hexHashPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)  // tx/block hash
-	hexAddrPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)  // address
-	hexPrefPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)     // any hex
+	hexHashPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)          // tx/block hash
+	hexAddrPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)          // address
+	hexPrefPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)             // any hex
 	blockIDPattern = regexp.MustCompile(`^([0-9]+|0x[0-9a-fA-F]{64})$`) // block number or hash
 	pairPattern    = regexp.MustCompile(`^[A-Za-z0-9_/-]{1,40}$`)       // DEX pair symbols
 	poolIDPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)        // pool IDs
@@ -169,10 +169,12 @@ func (s *StandaloneServer) Handler() http.Handler {
 			return
 		}
 
-		// Set CORS for non-preflight
-		if corsOriginAllowed(origin, allowed) {
+		// Set CORS for non-preflight — public API, allow all origins
+		if origin != "" && corsOriginAllowed(origin, allowed) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 
 		// Normalize trailing slashes: /v1/explorer/blocks/ → /v1/explorer/blocks
@@ -250,17 +252,12 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
 	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
 
-	// Homepage widgets (paths match explore frontend: /main-page/*)
-	m.HandleFunc("GET /v1/explorer/main-page/blocks", s.j(s.mainPageBlocks))
-	m.HandleFunc("GET /v1/explorer/main-page/transactions", s.j(s.mainPageTxs))
-	m.HandleFunc("GET /v1/explorer/main-page/indexing-status", s.j(s.indexingStatus))
-
-	// Phoenix-compatible WebSocket for live updates
-	m.HandleFunc("/v1/explorer/socket/v2/websocket", s.phoenixSocket)
-
 	// Config
-	m.HandleFunc("GET /v1/explorer/config/backend-version", s.j(s.backendVersion))
-	m.HandleFunc("GET /v1/explorer/config/backend", s.j(s.backendConfig))
+	m.HandleFunc("GET /v1/explorer/config/version", s.j(s.backendVersion))
+	m.HandleFunc("GET /v1/explorer/config/chain", s.j(s.backendConfig))
+
+	// Realtime — Base SSE/WebSocket for live block/tx subscriptions
+	m.HandleFunc("/v1/base/realtime", s.realtimeHandler)
 
 	// Address sub-resources
 	m.HandleFunc("GET /v1/explorer/addresses/{hash}/token-transfers", s.j(s.addrTokenTransfers))
@@ -733,62 +730,32 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 	}, 200
 }
 
-// ---- Homepage Widgets ----
-
-func (s *StandaloneServer) mainPageBlocks(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY number DESC LIMIT 6", s.t.blocks))
-	if err != nil {
-		return []any{}, 200
-	}
-	defer rows.Close()
-	maps, _ := scanMaps(rows)
-	items := make([]map[string]any, len(maps))
-	for i, b := range maps {
-		items[i] = formatBlock(b)
-	}
-	return items, 200
-}
-
-func (s *StandaloneServer) mainPageTxs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT 6", s.t.txs))
-	if err != nil {
-		return []any{}, 200
-	}
-	defer rows.Close()
-	maps, _ := scanMaps(rows)
-	items := make([]map[string]any, len(maps))
-	for i, t := range maps {
-		items[i] = formatTx(t)
-	}
-	return items, 200
-}
-
-func (s *StandaloneServer) indexingStatus(r *http.Request) (any, int) {
-	var maxBlock int64
-	s.db.QueryRow(fmt.Sprintf("SELECT COALESCE(MAX(number), 0) FROM %s", s.t.blocks)).Scan(&maxBlock)
-	return map[string]any{
-		"finished_indexing":                   true,
-		"finished_indexing_blocks":            true,
-		"indexed_blocks_ratio":                "1.00",
-		"indexed_internal_transactions_ratio": "1.00",
-	}, 200
-}
-
 // ---- Config ----
 
 func (s *StandaloneServer) backendVersion(r *http.Request) (any, int) {
-	return map[string]any{"backend_version": "v2.0.0+explorer"}, 200
+	return map[string]any{"version": "v2.0.0+explorer"}, 200
 }
 
-// phoenixSocket handles the Phoenix WebSocket endpoint for live block/tx updates.
-// The Blockscout frontend (phoenix.js) requires this to avoid crashing.
-func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request) {
-	// Enforce concurrent WebSocket connection limit.
+func (s *StandaloneServer) backendConfig(r *http.Request) (any, int) {
+	return map[string]any{
+		"coin_name":         s.cfg.CoinSymbol,
+		"chain_id":          fmt.Sprintf("%d", s.cfg.ChainID),
+		"has_user_ops":      false,
+		"has_mud_framework": false,
+	}, 200
+}
+
+// ---- Base Realtime (WebSocket/SSE) ----
+
+// realtimeHandler handles /v1/base/realtime — WebSocket for live block/tx subscriptions.
+// Protocol: JSON messages with {type, data} structure.
+// Subscribe: {"subscribe": "blocks"} or {"subscribe": "transactions"}
+func (s *StandaloneServer) realtimeHandler(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.wsSem <- struct{}{}:
 		defer func() { <-s.wsSem }()
 	default:
-		http.Error(w, "too many connections", http.StatusServiceUnavailable)
+		http.Error(w, `{"error":"too many connections"}`, http.StatusServiceUnavailable)
 		return
 	}
 
@@ -797,7 +764,7 @@ func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request)
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 			if origin == "" {
-				return true // non-browser clients (curl, etc.)
+				return true
 			}
 			return corsOriginAllowed(origin, allowed)
 		},
@@ -809,56 +776,36 @@ func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request)
 	}
 	defer conn.Close()
 
-	// Limit message size to prevent memory exhaustion (Phoenix messages are small).
 	conn.SetReadLimit(4096)
-	// Close idle connections after 60s without a message.
 	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
-	// Phoenix protocol: respond to heartbeat messages and join confirmations
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		// Reset read deadline on any message.
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-		// Phoenix message format: [join_ref, ref, topic, event, payload]
-		var phoenix []json.RawMessage
-		if err := json.Unmarshal(msg, &phoenix); err != nil || len(phoenix) < 5 {
+		var req map[string]string
+		if err := json.Unmarshal(msg, &req); err != nil {
 			continue
 		}
-		var event string
-		json.Unmarshal(phoenix[3], &event)
 
-		switch event {
-		case "heartbeat":
-			// Reply with "ok" to keep connection alive
-			reply, _ := json.Marshal([]any{nil, phoenix[1], "phoenix", "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+		switch req["subscribe"] {
+		case "blocks", "transactions", "address":
+			reply, _ := json.Marshal(map[string]any{"type": "subscribed", "channel": req["subscribe"]})
 			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			conn.WriteMessage(websocket.TextMessage, reply)
-		case "phx_join":
-			// Acknowledge channel join
-			var topic string
-			json.Unmarshal(phoenix[2], &topic)
-			reply, _ := json.Marshal([]any{phoenix[0], phoenix[1], topic, "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+		case "ping":
+			reply, _ := json.Marshal(map[string]any{"type": "pong"})
 			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			conn.WriteMessage(websocket.TextMessage, reply)
 		}
 	}
-}
-
-func (s *StandaloneServer) backendConfig(r *http.Request) (any, int) {
-	return map[string]any{
-		"coin_name":         s.cfg.CoinSymbol,
-		"chain_id":          fmt.Sprintf("%d", s.cfg.ChainID),
-		"has_user_ops":      false,
-		"has_mud_framework": false,
-	}, 200
 }
 
 // ---- Search Redirect ----
