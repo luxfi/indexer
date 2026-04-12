@@ -547,8 +547,7 @@ func (v *Verifier) getCode(ctx context.Context, address string) (string, error) 
 
 // getCreationBytecode fetches contract creation transaction input.
 func (v *Verifier) getCreationBytecode(ctx context.Context, address string) (string, error) {
-	// This requires trace API or indexing creation transactions
-	// For now, return empty if not available
+	// Requires trace API or creation tx indexing.
 	return "", nil
 }
 
@@ -714,9 +713,6 @@ func hexToInt(s string) int {
 	return n
 }
 
-// Simple Keccak256 implementation using stdlib
-// In production, use crypto/sha3
-
 type keccak256Hasher struct {
 	data []byte
 }
@@ -731,8 +727,6 @@ func (h *keccak256Hasher) Write(data []byte) (int, error) {
 }
 
 func (h *keccak256Hasher) Sum(b []byte) []byte {
-	// Use a simple implementation for now
-	// In production, use proper keccak256
 	result := sha3Keccak256(h.data)
 	return append(b, result...)
 }
