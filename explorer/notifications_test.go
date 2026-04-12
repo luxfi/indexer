@@ -17,8 +17,11 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	tdb := testutil.NewTestDB(t)
 	w := NewNotificationWorker(tdb.DB, "transactions", nil)
 
+	testAddr := "0xABCdef0123456789abcdef0123456789AbCdEf01"
+	testAddrLower := "0xabcdef0123456789abcdef0123456789abcdef01"
+
 	if err := w.Register(WatchEntry{
-		Address:        "0xABC",
+		Address:        testAddr,
 		NotifyIncoming: true,
 		WebhookURL:     "https://example.com/hook",
 	}); err != nil {
@@ -29,13 +32,13 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("entries = %d, want 1", len(entries))
 	}
-	if entries[0].Address != "0xabc" {
-		t.Errorf("address = %s, want 0xabc (lowercase)", entries[0].Address)
+	if entries[0].Address != testAddrLower {
+		t.Errorf("address = %s, want %s (lowercase)", entries[0].Address, testAddrLower)
 	}
 
 	// Register another for same address.
 	if err := w.Register(WatchEntry{
-		Address:        "0xABC",
+		Address:        testAddr,
 		NotifyOutgoing: true,
 		WebhookURL:     "https://other.com/hook",
 	}); err != nil {
@@ -46,7 +49,7 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	}
 
 	// Unregister one.
-	w.Unregister("0xabc", "https://example.com/hook")
+	w.Unregister(testAddrLower, "https://example.com/hook")
 	entries = w.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("entries = %d, want 1 after unregister", len(entries))
@@ -56,7 +59,7 @@ func TestNotificationWorker_RegisterUnregister(t *testing.T) {
 	}
 
 	// Unregister last.
-	w.Unregister("0xabc", "https://other.com/hook")
+	w.Unregister(testAddrLower, "https://other.com/hook")
 	if len(w.Entries()) != 0 {
 		t.Fatalf("entries = %d, want 0", len(w.Entries()))
 	}

@@ -179,10 +179,14 @@ func (p *plugin) handleTokenDistribution(e *core.RequestEvent) error {
 
 // tokenDistribution serves GET /v1/explorer/tokens/{addr}/distribution (standalone mode).
 func (s *StandaloneServer) tokenDistribution(r *http.Request) (any, int) {
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid token address"}, 400
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	addr := r.PathValue("addr")
 	dist, err := queryTokenDistribution(ctx, s.db, s.t.balances, addr)
 	if err != nil {
 		log.Printf("[explorer] distribution error: %v", err)
