@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -149,10 +150,13 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET /v1/explorer/stats/charts/transactions", s.j(s.chartTxs))
 	m.HandleFunc("GET /v1/explorer/stats/charts/market", s.j(s.chartMarket))
 
-	// Homepage widgets
-	m.HandleFunc("GET /v1/explorer/homepage/blocks", s.j(s.mainPageBlocks))
-	m.HandleFunc("GET /v1/explorer/homepage/transactions", s.j(s.mainPageTxs))
-	m.HandleFunc("GET /v1/explorer/homepage/indexing-status", s.j(s.indexingStatus))
+	// Homepage widgets (paths match explore frontend: /main-page/*)
+	m.HandleFunc("GET /v1/explorer/main-page/blocks", s.j(s.mainPageBlocks))
+	m.HandleFunc("GET /v1/explorer/main-page/transactions", s.j(s.mainPageTxs))
+	m.HandleFunc("GET /v1/explorer/main-page/indexing-status", s.j(s.indexingStatus))
+
+	// Phoenix-compatible WebSocket for live updates
+	m.HandleFunc("/v1/explorer/socket/v2/websocket", s.phoenixSocket)
 
 	// Config
 	m.HandleFunc("GET /v1/explorer/config/backend-version", s.j(s.backendVersion))
@@ -257,7 +261,11 @@ func (s *StandaloneServer) q(r *http.Request, query string, args ...any) (*sql.R
 func ep() paginatedResponse { return paginatedResponse{Items: []any{}} }
 
 func lim(r *http.Request) int {
-	n, _ := strconv.Atoi(r.URL.Query().Get("items_count"))
+	q := r.URL.Query()
+	n, _ := strconv.Atoi(q.Get("items_count"))
+	if n <= 0 {
+		n, _ = strconv.Atoi(q.Get("limit"))
+	}
 	if n <= 0 {
 		n = 50
 	}
@@ -315,9 +323,9 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 	var rows *sql.Rows
 	var err error
 	if strings.HasPrefix(id, "0x") {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_hash = ? ORDER BY transaction_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_hash = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
 	} else {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_number = ? ORDER BY transaction_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_number = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
 	}
 	if err != nil {
 		return ep(), 200
@@ -330,7 +338,7 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) listTxs(r *http.Request) (any, int) {
 	l := lim(r)
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, transaction_index DESC LIMIT ?", s.t.txs), l+1)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT ?", s.t.txs), l+1)
 	if err != nil {
 		return ep(), 200
 	}
@@ -425,7 +433,7 @@ func (s *StandaloneServer) getAddr(r *http.Request) (any, int) {
 func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
 	l := lim(r)
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
 	if err != nil {
 		return ep(), 200
 	}
@@ -469,7 +477,7 @@ func (s *StandaloneServer) listTokens(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_address_hash = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -482,7 +490,7 @@ func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_contract_address_hash = ? ORDER BY value DESC LIMIT 50", s.t.balances), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY value DESC LIMIT 50", s.t.balances), r.PathValue("addr"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -491,7 +499,7 @@ func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
 	items := make([]map[string]any, len(maps))
 	for i, b := range maps {
 		items[i] = map[string]any{
-			"address": map[string]any{"hash": bytesToHex(b["address_hash"])},
+			"address": map[string]any{"hash": bytesToHex(b["address"])},
 			"value":   fmtNum(b["value"]),
 		}
 	}
@@ -499,7 +507,7 @@ func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address_hash = ? LIMIT 1", s.t.contracts), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? LIMIT 1", s.t.contracts), r.PathValue("addr"))
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -557,13 +565,22 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.txs)).Scan(&tc)
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.addrs)).Scan(&ac)
 	return map[string]any{
-		"total_blocks":                   bc,
-		"total_transactions":             tc,
-		"total_addresses":                ac,
+		"total_blocks":                   fmt.Sprintf("%d", bc),
+		"total_addresses":                fmt.Sprintf("%d", ac),
+		"total_transactions":             fmt.Sprintf("%d", tc),
+		"average_block_time":             0,
 		"coin_price":                     nil,
-		"market_cap":                     "0",
+		"coin_price_change_percentage":   nil,
+		"total_gas_used":                 "0",
+		"transactions_today":             nil,
+		"gas_used_today":                 "0",
+		"gas_prices":                     nil,
+		"gas_price_updated_at":           nil,
+		"gas_prices_update_in":           0,
+		"static_gas_price":               nil,
+		"market_cap":                     nil,
 		"network_utilization_percentage": 0,
-		"gas_price_percentiles":          s.gasPricePercentiles(r),
+		"tvl":                            nil,
 	}, 200
 }
 
@@ -584,7 +601,7 @@ func (s *StandaloneServer) mainPageBlocks(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) mainPageTxs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, transaction_index DESC LIMIT 6", s.t.txs))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT 6", s.t.txs))
 	if err != nil {
 		return []any{}, 200
 	}
@@ -612,6 +629,47 @@ func (s *StandaloneServer) indexingStatus(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) backendVersion(r *http.Request) (any, int) {
 	return map[string]any{"backend_version": "v2.0.0+explorer"}, 200
+}
+
+// phoenixSocket handles the Phoenix WebSocket endpoint for live block/tx updates.
+// The Blockscout frontend (phoenix.js) requires this to avoid crashing.
+func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	// Phoenix protocol: respond to heartbeat messages and join confirmations
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		// Phoenix message format: [join_ref, ref, topic, event, payload]
+		var phoenix []json.RawMessage
+		if err := json.Unmarshal(msg, &phoenix); err != nil || len(phoenix) < 5 {
+			continue
+		}
+		var event string
+		json.Unmarshal(phoenix[3], &event)
+
+		switch event {
+		case "heartbeat":
+			// Reply with "ok" to keep connection alive
+			reply, _ := json.Marshal([]any{nil, phoenix[1], "phoenix", "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+			conn.WriteMessage(websocket.TextMessage, reply)
+		case "phx_join":
+			// Acknowledge channel join
+			var topic string
+			json.Unmarshal(phoenix[2], &topic)
+			reply, _ := json.Marshal([]any{phoenix[0], phoenix[1], topic, "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+			conn.WriteMessage(websocket.TextMessage, reply)
+		}
+	}
 }
 
 func (s *StandaloneServer) backendConfig(r *http.Request) (any, int) {
@@ -650,7 +708,7 @@ func (s *StandaloneServer) chartMarket(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -665,7 +723,7 @@ func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrInternalTxs(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
-	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50`, s.t.itxs), addr, addr)
+	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50`, s.t.itxs), addr, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -679,7 +737,7 @@ func (s *StandaloneServer) addrInternalTxs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) addrLogs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), r.PathValue("hash"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), r.PathValue("hash"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -693,7 +751,7 @@ func (s *StandaloneServer) addrLogs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address_hash = ? ORDER BY value DESC LIMIT 100", s.t.balances), r.PathValue("hash"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY value DESC LIMIT 100", s.t.balances), r.PathValue("hash"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -702,7 +760,7 @@ func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
 	items := make([]map[string]any, len(maps))
 	for i, b := range maps {
 		items[i] = map[string]any{
-			"token":    map[string]any{"address": bytesToHex(b["token_contract_address_hash"]), "type": b["token_type"]},
+			"token":    map[string]any{"address": bytesToHex(b["token_address"]), "type": b["token_type"]},
 			"value":    fmtNum(b["value"]),
 			"token_id": b["token_id"],
 		}
@@ -717,7 +775,7 @@ func (s *StandaloneServer) addrCoinHistory(r *http.Request) (any, int) {
 // ---- Token Sub-resources ----
 
 func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_contract_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), r.PathValue("addr"))
 	if err != nil {
 		return ep(), 200
 	}
@@ -731,7 +789,7 @@ func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) tokenCounters(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_address_hash = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
 	if err != nil {
 		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 200
 	}
@@ -817,7 +875,7 @@ const csvMaxRows = 10000
 func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="transactions-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf("SELECT hash, block_number, from_address_hash, to_address_hash, value, gas_used, status, block_timestamp FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT hash, block_number, from_addr, to_addr, value, gas_used, status, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -840,7 +898,7 @@ func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="internal-transactions-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, "index", type, call_type, from_address_hash, to_address_hash, value, gas_used, error FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?`, s.t.itxs), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, "index", type, call_type, from_addr, to_addr, value, gas_used, error FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?`, s.t.itxs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -865,7 +923,7 @@ func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Req
 func (s *StandaloneServer) csvAddrTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="token-transfers-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_address_hash, to_address_hash, token_contract_address_hash, amount, token_type, block_timestamp FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT ?", s.t.transfers), addr, addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_addr, to_addr, token_address, amount, token_type, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.transfers), addr, addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -889,7 +947,7 @@ func (s *StandaloneServer) csvAddrTokenTransfers(w http.ResponseWriter, r *http.
 func (s *StandaloneServer) csvAddrLogs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="logs-%s.csv"`, addr))
-	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, transaction_hash, "index", address_hash, first_topic, second_topic, third_topic, fourth_topic, data FROM %s WHERE address_hash = ? ORDER BY block_number DESC LIMIT ?`, s.t.logs), addr, csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, transaction_hash, "index", address, first_topic, second_topic, third_topic, fourth_topic, data FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT ?`, s.t.logs), addr, csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -912,7 +970,7 @@ func (s *StandaloneServer) csvAddrLogs(w http.ResponseWriter, r *http.Request) {
 
 func (s *StandaloneServer) csvAllTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="token-transfers.csv"`)
-	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_address_hash, to_address_hash, token_contract_address_hash, amount, token_type, block_timestamp FROM %s ORDER BY block_number DESC LIMIT ?", s.t.transfers), csvMaxRows)
+	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_addr, to_addr, token_address, amount, token_type, timestamp FROM %s ORDER BY block_number DESC LIMIT ?", s.t.transfers), csvMaxRows)
 	if err != nil {
 		return
 	}
@@ -1025,7 +1083,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.txs), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.txs), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1036,7 +1094,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "transaction",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["block_timestamp"]),
+				timestamp: fmtTimestamp(m["timestamp"]),
 				data:      formatTx(m),
 			})
 		}
@@ -1047,7 +1105,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1058,7 +1116,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "token_transfer",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["block_timestamp"]),
+				timestamp: fmtTimestamp(m["timestamp"]),
 				data:      formatTokenTransfer(m),
 			})
 		}
@@ -1069,7 +1127,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_address_hash = ? OR to_address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.itxs), addr, addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.itxs), addr, addr)
 		if err != nil {
 			return
 		}
@@ -1080,7 +1138,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "internal_transaction",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["block_timestamp"]),
+				timestamp: fmtTimestamp(m["timestamp"]),
 				data:      formatInternalTx(m),
 			})
 		}
@@ -1091,7 +1149,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address_hash = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), addr)
+		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), addr)
 		if err != nil {
 			return
 		}
@@ -1102,7 +1160,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 			items = append(items, timelineItem{
 				typ:       "log",
 				blockNum:  toInt64(m["block_number"]),
-				timestamp: fmtTimestamp(m["block_timestamp"]),
+				timestamp: fmtTimestamp(m["timestamp"]),
 				data:      formatLog(m),
 			})
 		}
@@ -1144,7 +1202,7 @@ func fmtTxPage(rows *sql.Rows, limit int) paginatedResponse {
 	var np any
 	if len(maps) > limit {
 		last := maps[limit-1]
-		np = map[string]any{"block_number": last["block_number"], "index": last["transaction_index"], "items_count": limit}
+		np = map[string]any{"block_number": last["block_number"], "index": last["tx_index"], "items_count": limit}
 		maps = maps[:limit]
 	}
 	items := make([]map[string]any, len(maps))
