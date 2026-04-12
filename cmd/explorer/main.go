@@ -230,8 +230,14 @@ func main() {
 				if err != nil {
 					continue
 				}
-				mux.Handle("/v1/explorer/", apiSrv.Handler())
-				log.Printf("[%s] API mounted at /v1/explorer/*", chain.Slug)
+				if chain.Default {
+					mux.Handle("/v1/explorer/", apiSrv.Handler())
+					log.Printf("[%s] API mounted at /v1/explorer/* (default)", chain.Slug)
+				} else {
+					prefix := fmt.Sprintf("/v1/explorer/%s/", chain.Slug)
+					mux.Handle(prefix, http.StripPrefix(fmt.Sprintf("/v1/explorer/%s", chain.Slug), apiSrv.Handler()))
+					log.Printf("[%s] API mounted at %s*", chain.Slug, prefix)
+				}
 				return
 			}
 			log.Printf("[%s] API not mounted — DB not ready after 30s", chain.Slug)
