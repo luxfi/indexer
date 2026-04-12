@@ -108,10 +108,10 @@ func (p *plugin) handleBlockTransactions(e *core.RequestEvent) error {
 	var query string
 	var args []any
 	if strings.HasPrefix(id, "0x") {
-		query = "SELECT * FROM transactions WHERE chain_id = ? AND block_hash = ? ORDER BY transaction_index LIMIT ?"
+		query = "SELECT * FROM transactions WHERE chain_id = ? AND block_hash = ? ORDER BY tx_index LIMIT ?"
 		args = []any{p.config.ChainID, hexToBytes(id), limit}
 	} else {
-		query = "SELECT * FROM transactions WHERE chain_id = ? AND block_number = ? ORDER BY transaction_index LIMIT ?"
+		query = "SELECT * FROM transactions WHERE chain_id = ? AND block_number = ? ORDER BY tx_index LIMIT ?"
 		args = []any{p.config.ChainID, id, limit}
 	}
 
@@ -127,7 +127,7 @@ func (p *plugin) handleListTransactions(e *core.RequestEvent) error {
 	q := e.Request.URL.Query()
 	limit := intParam(q.Get("items_count"), 50)
 
-	query := "SELECT * FROM transactions WHERE chain_id = ? ORDER BY block_number DESC, transaction_index DESC LIMIT ?"
+	query := "SELECT * FROM transactions WHERE chain_id = ? ORDER BY block_number DESC, tx_index DESC LIMIT ?"
 	args := []any{p.config.ChainID, limit + 1}
 
 	return p.queryTxListCtx(e, ctx, query, args, limit)
@@ -268,7 +268,7 @@ func (p *plugin) handleAddressTransactions(e *core.RequestEvent) error {
 	addr := hexToBytes(hash)
 
 	rows, err := p.db.QueryContext(ctx,
-		"SELECT * FROM transactions WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC, transaction_index DESC LIMIT ?",
+		"SELECT * FROM transactions WHERE chain_id = ? AND (from_addr = ? OR to_addr = ?) ORDER BY block_number DESC, tx_index DESC LIMIT ?",
 		p.config.ChainID, addr, addr, limit+1)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -286,7 +286,7 @@ func (p *plugin) handleAddressTokenTransfers(e *core.RequestEvent) error {
 	addr := hexToBytes(hash)
 
 	rows, err := p.db.QueryContext(ctx,
-		"SELECT * FROM token_transfers WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC, log_index DESC LIMIT 50",
+		"SELECT * FROM token_transfers WHERE chain_id = ? AND (from_addr = ? OR to_addr = ?) ORDER BY block_number DESC, log_index DESC LIMIT 50",
 		p.config.ChainID, addr, addr)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -309,7 +309,7 @@ func (p *plugin) handleAddressInternalTxs(e *core.RequestEvent) error {
 	addr := hexToBytes(hash)
 
 	rows, err := p.db.QueryContext(ctx,
-		"SELECT * FROM internal_transactions WHERE chain_id = ? AND (from_address_hash = ? OR to_address_hash = ?) ORDER BY block_number DESC LIMIT 50",
+		"SELECT * FROM internal_transactions WHERE chain_id = ? AND (from_addr = ? OR to_addr = ?) ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, addr, addr)
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -363,7 +363,7 @@ func (p *plugin) handleAddressTokens(e *core.RequestEvent) error {
 	for i, b := range bals {
 		items[i] = map[string]any{
 			"token": map[string]any{
-				"address": bytesToHex(b["token_contract_address_hash"]),
+				"address": bytesToHex(b["token_contract_addr"]),
 				"type":    b["token_type"],
 			},
 			"value":    fmt.Sprintf("%v", b["value"]),
@@ -466,7 +466,7 @@ func (p *plugin) handleGetToken(e *core.RequestEvent) error {
 	defer cancel()
 
 	addr := e.Request.PathValue("address_hash")
-	rows, err := p.db.QueryContext(ctx, "SELECT * FROM tokens WHERE chain_id = ? AND contract_address_hash = ? LIMIT 1",
+	rows, err := p.db.QueryContext(ctx, "SELECT * FROM tokens WHERE chain_id = ? AND contract_addr = ? LIMIT 1",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
 		return e.NotFoundError("token not found", nil)
@@ -486,7 +486,7 @@ func (p *plugin) handleTokenTransfers(e *core.RequestEvent) error {
 
 	addr := e.Request.PathValue("address_hash")
 	rows, err := p.db.QueryContext(ctx,
-		"SELECT * FROM token_transfers WHERE chain_id = ? AND token_contract_address_hash = ? ORDER BY block_number DESC LIMIT 50",
+		"SELECT * FROM token_transfers WHERE chain_id = ? AND token_contract_addr = ? ORDER BY block_number DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -507,7 +507,7 @@ func (p *plugin) handleTokenHolders(e *core.RequestEvent) error {
 
 	addr := e.Request.PathValue("address_hash")
 	rows, err := p.db.QueryContext(ctx,
-		"SELECT * FROM address_current_token_balances WHERE chain_id = ? AND token_contract_address_hash = ? ORDER BY value DESC LIMIT 50",
+		"SELECT * FROM address_current_token_balances WHERE chain_id = ? AND token_contract_addr = ? ORDER BY value DESC LIMIT 50",
 		p.config.ChainID, hexToBytes(addr))
 	if err != nil {
 		return e.JSON(http.StatusOK, emptyPage())
@@ -634,7 +634,7 @@ func (p *plugin) handleSearch(e *core.RequestEvent) error {
 					"type":         "token",
 					"name":         t["name"],
 					"symbol":       t["symbol"],
-					"address_hash": bytesToHex(t["contract_address_hash"]),
+					"address_hash": bytesToHex(t["contract_addr"]),
 					"token_type":   t["type"],
 				})
 			}
@@ -733,7 +733,7 @@ func (p *plugin) formatTxRows(e *core.RequestEvent, rows *sql.Rows, limit int) e
 		last := txs[limit-1]
 		nextPage = map[string]any{
 			"block_number": last["block_number"],
-			"index":        last["transaction_index"],
+			"index":        last["tx_index"],
 			"items_count":  limit,
 		}
 		txs = txs[:limit]
