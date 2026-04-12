@@ -87,8 +87,8 @@ func LiquidityProtocolTopics() []string {
 	}
 }
 
-// LiquidityProtocolEvent represents a parsed Liquidity Protocol event.
-type LiquidityProtocolEvent struct {
+// OmniSwapEvent represents a parsed Liquidity Protocol event.
+type OmniSwapEvent struct {
 	Event    string // event name
 	Contract string
 	Block    uint64
@@ -153,9 +153,9 @@ type LiquidityProtocolEvent struct {
 	Reason   string
 }
 
-// ParseLiquidityProtocolEvents extracts Liquidity Protocol events from EVM logs.
-func ParseLiquidityProtocolEvents(logs []Log) []LiquidityProtocolEvent {
-	var events []LiquidityProtocolEvent
+// ParseOmniSwapEvents extracts Liquidity Protocol events from EVM logs.
+func ParseOmniSwapEvents(logs []Log) []OmniSwapEvent {
+	var events []OmniSwapEvent
 	for i := range logs {
 		l := &logs[i]
 		if len(l.Topics) == 0 {
@@ -233,12 +233,12 @@ func ParseLiquidityProtocolEvents(logs []Log) []LiquidityProtocolEvent {
 
 // CrossChainSwapInitiated(bytes32 indexed messageId, address indexed sender, uint256 srcChainId, uint256 dstChainId, address tokenIn, address tokenOut, uint256 amountIn, uint256 estimatedAmountOut)
 // data: srcChainId(0) | dstChainId(1) | tokenIn(2) | tokenOut(3) | amountIn(4) | estimatedAmountOut(5)
-func parseCrossChainSwapInitiated(l *Log) *LiquidityProtocolEvent {
+func parseCrossChainSwapInitiated(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 || len(l.Data) < 386 { // "0x" + 6*64
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "cross_chain_swap_initiated",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -255,12 +255,12 @@ func parseCrossChainSwapInitiated(l *Log) *LiquidityProtocolEvent {
 }
 
 // CrossChainSwapCompleted(bytes32 indexed messageId, address indexed recipient, address tokenOut, uint256 amountOut, uint256 executionPrice)
-func parseCrossChainSwapCompleted(l *Log) *LiquidityProtocolEvent {
+func parseCrossChainSwapCompleted(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 || len(l.Data) < 194 { // "0x" + 3*64
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:     "cross_chain_swap_completed",
 		Contract:  l.Address,
 		Block:     l.BlockNumber,
@@ -274,12 +274,12 @@ func parseCrossChainSwapCompleted(l *Log) *LiquidityProtocolEvent {
 }
 
 // CrossChainLimitOrderPlaced(bytes32 indexed orderId, address indexed trader, uint256 dstChainId, uint256 limitPrice)
-func parseCCLimitOrderPlaced(l *Log) *LiquidityProtocolEvent {
+func parseCCLimitOrderPlaced(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 || len(l.Data) < 130 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "cross_chain_limit_order_placed",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -292,12 +292,12 @@ func parseCCLimitOrderPlaced(l *Log) *LiquidityProtocolEvent {
 }
 
 // ArbitrageExecuted(address indexed executor, uint256 profit, address[] tokens, uint256[] chainIds)
-func parseArbitrageExecuted(l *Log) *LiquidityProtocolEvent {
+func parseArbitrageExecuted(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 66 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:    "arbitrage_executed",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -308,12 +308,12 @@ func parseArbitrageExecuted(l *Log) *LiquidityProtocolEvent {
 }
 
 // PoolAdded(address indexed pool, uint256 index)
-func parseOMAPoolAdded(l *Log) *LiquidityProtocolEvent {
+func parseOMAPoolAdded(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 66 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:    "oma_pool_added",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -324,11 +324,11 @@ func parseOMAPoolAdded(l *Log) *LiquidityProtocolEvent {
 }
 
 // PoolRemoved(address indexed pool)
-func parseOMAPoolRemoved(l *Log) *LiquidityProtocolEvent {
+func parseOMAPoolRemoved(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 {
 		return nil
 	}
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:    "oma_pool_removed",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -340,13 +340,13 @@ func parseOMAPoolRemoved(l *Log) *LiquidityProtocolEvent {
 // RouterSwap(address indexed user, string symbol, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 poolUsed)
 // Dynamic types: string encoded with offset. data: offset(0) | isBuy(1) | amountIn(2) | amountOut(3) | poolUsed(4) | strLen(5) | strData(6+)
 // Simplified: parse the numeric fields at known offsets.
-func parseOMARouterSwap(l *Log) *LiquidityProtocolEvent {
+func parseOMARouterSwap(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 322 { // 5 words min
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
 	isBuy := decodeWordStr(d, 1).Sign() > 0
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:     "oma_router_swap",
 		Contract:  l.Address,
 		Block:     l.BlockNumber,
@@ -360,12 +360,12 @@ func parseOMARouterSwap(l *Log) *LiquidityProtocolEvent {
 }
 
 // PriceUpdated(bytes32 indexed symbolHash, uint256 price, uint256 timestamp)
-func parsePriceUpdated(l *Log) *LiquidityProtocolEvent {
+func parsePriceUpdated(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 130 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "price_updated",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -377,12 +377,12 @@ func parsePriceUpdated(l *Log) *LiquidityProtocolEvent {
 }
 
 // PriceBatchUpdated(uint256 count, uint256 timestamp)
-func parsePriceBatchUpdated(l *Log) *LiquidityProtocolEvent {
+func parsePriceBatchUpdated(l *Log) *OmniSwapEvent {
 	if len(l.Data) < 130 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "price_batch_updated",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -393,12 +393,12 @@ func parsePriceBatchUpdated(l *Log) *LiquidityProtocolEvent {
 }
 
 // StrategyOrderCreated(bytes32 indexed strategyId, address indexed trader, uint8 strategy, address tokenIn, address tokenOut, uint256 totalAmount)
-func parseStrategyOrderCreated(l *Log) *LiquidityProtocolEvent {
+func parseStrategyOrderCreated(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 || len(l.Data) < 258 { // 4 words
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "strategy_order_created",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -413,12 +413,12 @@ func parseStrategyOrderCreated(l *Log) *LiquidityProtocolEvent {
 }
 
 // StrategyOrderExecuted(bytes32 indexed strategyId, uint256 sliceFilled, uint256 slicePrice, uint256 remainingAmount)
-func parseStrategyOrderExecuted(l *Log) *LiquidityProtocolEvent {
+func parseStrategyOrderExecuted(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 194 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:       "strategy_order_executed",
 		Contract:    l.Address,
 		Block:       l.BlockNumber,
@@ -431,12 +431,12 @@ func parseStrategyOrderExecuted(l *Log) *LiquidityProtocolEvent {
 }
 
 // MarketMakingStarted(bytes32 indexed mmId, address indexed maker, address token0, address token1, uint256 spread)
-func parseMarketMakingStarted(l *Log) *LiquidityProtocolEvent {
+func parseMarketMakingStarted(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 || len(l.Data) < 194 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:    "market_making_started",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -450,12 +450,12 @@ func parseMarketMakingStarted(l *Log) *LiquidityProtocolEvent {
 }
 
 // MarketMakingQuote(bytes32 indexed mmId, uint256 bidPrice, uint256 bidSize, uint256 askPrice, uint256 askSize)
-func parseMarketMakingQuote(l *Log) *LiquidityProtocolEvent {
+func parseMarketMakingQuote(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 2 || len(l.Data) < 258 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:    "market_making_quote",
 		Contract: l.Address,
 		Block:    l.BlockNumber,
@@ -469,14 +469,14 @@ func parseMarketMakingQuote(l *Log) *LiquidityProtocolEvent {
 }
 
 // BridgeInitiated(bytes32 indexed messageId, uint8 indexed protocol, uint256 srcChainId, uint256 dstChainId, address indexed sender, address recipient, address token, uint256 amount)
-func parseBridgeInitiated(l *Log) *LiquidityProtocolEvent {
+func parseBridgeInitiated(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 4 || len(l.Data) < 258 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
 	protocolBig := new(big.Int)
 	protocolBig.SetString(strings.TrimPrefix(l.Topics[2], "0x"), 16)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:      "bridge_initiated",
 		Contract:   l.Address,
 		Block:      l.BlockNumber,
@@ -493,14 +493,14 @@ func parseBridgeInitiated(l *Log) *LiquidityProtocolEvent {
 }
 
 // BridgeCompleted(bytes32 indexed messageId, uint8 indexed protocol, address indexed recipient, address token, uint256 amount)
-func parseBridgeCompleted(l *Log) *LiquidityProtocolEvent {
+func parseBridgeCompleted(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 4 || len(l.Data) < 130 {
 		return nil
 	}
 	d := stripHexPrefix(l.Data)
 	protocolBig := new(big.Int)
 	protocolBig.SetString(strings.TrimPrefix(l.Topics[2], "0x"), 16)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:     "bridge_completed",
 		Contract:  l.Address,
 		Block:     l.BlockNumber,
@@ -514,13 +514,13 @@ func parseBridgeCompleted(l *Log) *LiquidityProtocolEvent {
 }
 
 // BridgeFailed(bytes32 indexed messageId, uint8 indexed protocol, string reason)
-func parseBridgeFailed(l *Log) *LiquidityProtocolEvent {
+func parseBridgeFailed(l *Log) *OmniSwapEvent {
 	if len(l.Topics) < 3 {
 		return nil
 	}
 	protocolBig := new(big.Int)
 	protocolBig.SetString(strings.TrimPrefix(l.Topics[2], "0x"), 16)
-	return &LiquidityProtocolEvent{
+	return &OmniSwapEvent{
 		Event:     "bridge_failed",
 		Contract:  l.Address,
 		Block:     l.BlockNumber,
