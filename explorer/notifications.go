@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,25 +26,40 @@ func isInternalURL(rawURL string) bool {
 	if err != nil {
 		return true
 	}
+	// Only allow https (never http for webhook delivery).
+	if u.Scheme != "https" {
+		return true
+	}
 	host := u.Hostname()
 	if host == "" {
 		return true
 	}
-	// Reject loopback, private, link-local IPs
+	// Reject loopback, private, link-local IPs (IPv4 and IPv6).
 	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return true
 		}
+		// Reject IPv4-mapped IPv6 (::ffff:127.0.0.1, ::ffff:10.x.x.x, etc.)
+		if ip4 := ip.To4(); ip4 != nil {
+			if ip4.IsLoopback() || ip4.IsPrivate() || ip4.IsLinkLocalUnicast() {
+				return true
+			}
+		}
 	}
-	// Reject K8s internal domains
+	// Reject K8s internal domains.
 	lower := strings.ToLower(host)
 	for _, suffix := range []string{".svc", ".cluster.local", ".internal", "localhost"} {
 		if strings.HasSuffix(lower, suffix) || lower == strings.TrimPrefix(suffix, ".") {
 			return true
 		}
 	}
-	// Reject metadata endpoints
-	if host == "169.254.169.254" || host == "metadata.google.internal" {
+	// Reject cloud metadata endpoints (GCP, AWS, Azure).
+	if host == "169.254.169.254" || host == "metadata.google.internal" ||
+		host == "169.254.170.2" || host == "fd00:ec2::254" {
+		return true
+	}
+	// Reject URLs with userinfo (http://attacker@internal).
+	if u.User != nil {
 		return true
 	}
 	return false
@@ -100,10 +116,17 @@ func NewNotificationWorker(db *sql.DB, txTable string, logger *slog.Logger) *Not
 		logger = slog.Default()
 	}
 	return &NotificationWorker{
-		db:        db,
-		table:     txTable,
-		interval:  10 * time.Second,
-		client:    &http.Client{Timeout: 5 * time.Second},
+		db:       db,
+		table:    txTable,
+		interval: 10 * time.Second,
+		client: &http.Client{
+			Timeout: 5 * time.Second,
+			// Prevent redirect-based SSRF: do not follow redirects.
+			// An attacker could register https://evil.com which 302s to http://169.254.169.254.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		logger:    logger,
 		watchlist: make(map[string][]WatchEntry),
 		stop:      make(chan struct{}),
@@ -112,11 +135,15 @@ func NewNotificationWorker(db *sql.DB, txTable string, logger *slog.Logger) *Not
 }
 
 // Register adds a webhook subscription. Thread-safe.
-// Returns error if URL is internal or watchlist is full.
+// Returns error if URL is internal, address is invalid, or watchlist is full.
 // Set allowInternal=true for testing only.
 func (w *NotificationWorker) Register(entry WatchEntry) error {
 	if !w.allowInternal && isInternalURL(entry.WebhookURL) {
 		return fmt.Errorf("internal URLs not allowed")
+	}
+	// Validate address format to prevent garbage entries and potential abuse.
+	if !hexAddrPattern.MatchString(entry.Address) {
+		return fmt.Errorf("invalid address format")
 	}
 	addr := strings.ToLower(entry.Address)
 	entry.Address = addr
@@ -289,21 +316,29 @@ func (w *NotificationWorker) poll() {
 	}
 }
 
-func (w *NotificationWorker) deliver(url string, n Notification) {
+func (w *NotificationWorker) deliver(rawURL string, n Notification) {
+	// Re-check SSRF at delivery time to prevent DNS rebinding attacks.
+	// An attacker can register https://evil.com (resolves to public IP at registration),
+	// then change DNS to 169.254.169.254 before delivery.
+	if !w.allowInternal && isInternalURL(rawURL) {
+		w.logger.Warn("webhook blocked (internal URL at delivery time)",
+			slog.String("url", redactURL(rawURL)))
+		return
+	}
 	body, err := json.Marshal(n)
 	if err != nil {
 		return
 	}
-	resp, err := w.client.Post(url, "application/json", bytes.NewReader(body))
+	resp, err := w.client.Post(rawURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		w.logger.Warn("webhook delivery failed",
-			slog.String("url", url), slog.String("tx", n.TxHash), slog.String("error", err.Error()))
+			slog.String("url", redactURL(rawURL)), slog.String("tx", n.TxHash), slog.String("error", err.Error()))
 		return
 	}
 	resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		w.logger.Warn("webhook returned error",
-			slog.String("url", url), slog.Int("status", resp.StatusCode))
+			slog.String("url", redactURL(rawURL)), slog.Int("status", resp.StatusCode))
 	}
 }
 
@@ -312,7 +347,7 @@ func (w *NotificationWorker) deliver(url string, n Notification) {
 // handleRegisterWebhook handles POST /v1/explorer/webhooks (plugin mode).
 func (p *plugin) handleRegisterWebhook(e *core.RequestEvent) error {
 	var entry WatchEntry
-	if err := json.NewDecoder(e.Request.Body).Decode(&entry); err != nil {
+	if err := json.NewDecoder(io.LimitReader(e.Request.Body, maxRequestBodyBytes)).Decode(&entry); err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 	}
 	if entry.WebhookURL == "" || entry.Address == "" {
@@ -341,7 +376,7 @@ func (p *plugin) handleDeleteWebhook(e *core.RequestEvent) error {
 		Address string `json:"address"`
 		URL     string `json:"url"`
 	}
-	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(e.Request.Body, maxRequestBodyBytes)).Decode(&req); err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 	}
 	if p.notifWorker == nil {
@@ -354,7 +389,7 @@ func (p *plugin) handleDeleteWebhook(e *core.RequestEvent) error {
 // registerWebhookStandalone handles POST /v1/explorer/webhooks (standalone mode).
 func (s *StandaloneServer) registerWebhook(r *http.Request) (any, int) {
 	var entry WatchEntry
-	if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodyBytes)).Decode(&entry); err != nil {
 		return map[string]string{"error": "invalid JSON"}, 400
 	}
 	if entry.WebhookURL == "" || entry.Address == "" {
@@ -383,7 +418,7 @@ func (s *StandaloneServer) deleteWebhook(r *http.Request) (any, int) {
 		Address string `json:"address"`
 		URL     string `json:"url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodyBytes)).Decode(&req); err != nil {
 		return map[string]string{"error": "invalid JSON"}, 400
 	}
 	if s.notifWorker == nil {
