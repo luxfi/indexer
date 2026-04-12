@@ -23,20 +23,20 @@ var (
 	FutureFinalSettlementSig    = "0xf5de83102745507f9f4b93fa940cf2f58ec798b98da1dada890c933a867a6df8" // FinalSettlement(uint256,uint256,uint256)
 
 	// Options events
-	OptionSeriesCreatedSig    = "0x727bc414c30014514f8b0adc9ac9ff9b821f18cf70ed672317e91479941bd2f7" // SeriesCreated(uint256,address,address,uint256,uint256,uint8,uint8)
-	OptionWrittenSig          = "0xd5fd99b18aab94ea2fbf75a74c92fccc5c07940e97b04dcbe531bf105c1cc2a6" // OptionsWritten(uint256,address,uint256,uint256)
-	OptionExercisedSig        = "0xded41ab6df0aa12ad2217eab957fce80b8acd05bde48ba1169797c41a75ec007" // OptionsExercised(uint256,address,uint256,uint256)
-	OptionSeriesSettledSig    = "0x142bbcdf6be41b73bec58380b4a9fdeaf778b97cd45a07664fc1d60390fc716f" // SeriesSettled(uint256,uint256,uint256)
+	OptionSeriesCreatedSig     = "0x727bc414c30014514f8b0adc9ac9ff9b821f18cf70ed672317e91479941bd2f7" // SeriesCreated(uint256,address,address,uint256,uint256,uint8,uint8)
+	OptionWrittenSig           = "0xd5fd99b18aab94ea2fbf75a74c92fccc5c07940e97b04dcbe531bf105c1cc2a6" // OptionsWritten(uint256,address,uint256,uint256)
+	OptionExercisedSig         = "0xded41ab6df0aa12ad2217eab957fce80b8acd05bde48ba1169797c41a75ec007" // OptionsExercised(uint256,address,uint256,uint256)
+	OptionSeriesSettledSig     = "0x142bbcdf6be41b73bec58380b4a9fdeaf778b97cd45a07664fc1d60390fc716f" // SeriesSettled(uint256,uint256,uint256)
 	OptionCollateralClaimedSig = "0xea28f19c369f33d25e9c28fae79ce8e3461feb799b5d9beb660e82906b7cc1ef" // CollateralClaimed(uint256,address,uint256)
 )
 
 // DerivativesIndexer indexes futures and options events
 type DerivativesIndexer struct {
-	futures     map[uint64]*FutureContract // contractId -> future
-	options     map[uint64]*OptionSeries   // seriesId -> option
-	events      []*DerivativesEvent
-	onFuture    func(*DerivativesEvent)
-	onOption    func(*DerivativesEvent)
+	futures  map[uint64]*FutureContract // contractId -> future
+	options  map[uint64]*OptionSeries   // seriesId -> option
+	events   []*DerivativesEvent
+	onFuture func(*DerivativesEvent)
+	onOption func(*DerivativesEvent)
 }
 
 // FutureContract represents a futures contract specification
@@ -58,18 +58,18 @@ type FutureContract struct {
 
 // OptionSeries represents an option series
 type OptionSeries struct {
-	SeriesID       uint64    `json:"seriesId"`
-	Underlying     string    `json:"underlying"`
-	Quote          string    `json:"quote"`
-	StrikePrice    *big.Int  `json:"strikePrice"`
-	Expiry         uint64    `json:"expiry"`
-	OptionType     uint8     `json:"optionType"`     // 0=CALL, 1=PUT
-	SettlementType uint8     `json:"settlementType"` // 0=CASH, 1=PHYSICAL
-	OpenInterest   *big.Int  `json:"openInterest"`
-	IsSettled      bool      `json:"isSettled"`
-	SettlementPrice *big.Int `json:"settlementPrice,omitempty"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	SeriesID        uint64    `json:"seriesId"`
+	Underlying      string    `json:"underlying"`
+	Quote           string    `json:"quote"`
+	StrikePrice     *big.Int  `json:"strikePrice"`
+	Expiry          uint64    `json:"expiry"`
+	OptionType      uint8     `json:"optionType"`     // 0=CALL, 1=PUT
+	SettlementType  uint8     `json:"settlementType"` // 0=CASH, 1=PHYSICAL
+	OpenInterest    *big.Int  `json:"openInterest"`
+	IsSettled       bool      `json:"isSettled"`
+	SettlementPrice *big.Int  `json:"settlementPrice,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // DerivativesEvent represents a derivatives event
@@ -678,12 +678,12 @@ func (d *DerivativesIndexer) GetActiveOptions() []*OptionSeries {
 
 // DerivativesStats represents derivatives indexer statistics
 type DerivativesStats struct {
-	TotalFutures   uint64    `json:"totalFutures"`
-	ActiveFutures  uint64    `json:"activeFutures"`
-	TotalOptions   uint64    `json:"totalOptions"`
-	ActiveOptions  uint64    `json:"activeOptions"`
-	TotalEvents    uint64    `json:"totalEvents"`
-	LastUpdated    time.Time `json:"lastUpdated"`
+	TotalFutures  uint64    `json:"totalFutures"`
+	ActiveFutures uint64    `json:"activeFutures"`
+	TotalOptions  uint64    `json:"totalOptions"`
+	ActiveOptions uint64    `json:"activeOptions"`
+	TotalEvents   uint64    `json:"totalEvents"`
+	LastUpdated   time.Time `json:"lastUpdated"`
 }
 
 // GetStats returns aggregate statistics

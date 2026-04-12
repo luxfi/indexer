@@ -41,9 +41,9 @@ var (
 
 // SecuritiesIndexer indexes security token events
 type SecuritiesIndexer struct {
-	compliance map[string]*ComplianceStatus // address -> compliance
-	dividends  map[uint64]*DividendRound   // roundId -> dividend
-	events     []*SecuritiesEvent
+	compliance   map[string]*ComplianceStatus // address -> compliance
+	dividends    map[uint64]*DividendRound    // roundId -> dividend
+	events       []*SecuritiesEvent
 	onCompliance func(*SecuritiesEvent)
 	onDividend   func(*SecuritiesEvent)
 	onCorporate  func(*SecuritiesEvent)
