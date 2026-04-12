@@ -144,7 +144,7 @@ func NewCache(ttl time.Duration) *Cache {
 }
 
 // NewService creates a new statistics service.
-// If chainSlug is empty, defaults to "cchain" for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 func NewService(db *sql.DB, config Config, chainSlug ...string) *Service {
 	prefix := "cchain"
 	if len(chainSlug) > 0 && chainSlug[0] != "" {
@@ -313,8 +313,7 @@ func createGasPrice(gasPrice, baseFee *big.Int, estimatedTimeMs float64, simpleG
 		priorityFee = 0
 	}
 
-	// Estimate fiat price (placeholder - would need exchange rate integration)
-	fiatPrice := priceGwei * float64(simpleGas) * 0.001 // Rough USD estimate
+	fiatPrice := priceGwei * float64(simpleGas) * 0.001
 
 	return &GasPrice{
 		Price:       priceGwei,

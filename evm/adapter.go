@@ -247,7 +247,7 @@ func WithTransport(t transport.Transport) AdapterOption {
 }
 
 // New creates a new EVM chain adapter.
-// Defaults to "cchain" prefix for backwards compatibility.
+// Defaults to "cchain" prefix when chainSlug is omitted.
 // Auto-detects ZAP transport for luxd endpoints; falls back to HTTP.
 func New(rpcEndpoint string, opts ...AdapterOption) *Adapter {
 	a := &Adapter{
