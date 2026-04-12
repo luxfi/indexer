@@ -383,7 +383,7 @@ func (a *Adapter) GetLatestBlock(ctx context.Context) (*EVMBlock, error) {
 // GetBlockByNumber fetches a specific block by number and returns a parsed EVMBlock
 func (a *Adapter) GetBlockByNumber(ctx context.Context, number uint64) (*EVMBlock, error) {
 	blockNum := fmt.Sprintf("0x%x", number)
-	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, false})
 	if err != nil {
 		return nil, err
 	}
