@@ -9,6 +9,8 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +20,42 @@ import (
 	"github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// osLookupEnv is the real os.LookupEnv, assigned at init to allow test overrides.
+var osLookupEnv = os.LookupEnv
+
+// Input validation patterns for path parameters.
+var (
+	hexHashPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)  // tx/block hash
+	hexAddrPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)  // address
+	hexPrefPattern = regexp.MustCompile(`^0x[0-9a-fA-F]+$`)     // any hex
+	blockIDPattern = regexp.MustCompile(`^([0-9]+|0x[0-9a-fA-F]{64})$`) // block number or hash
+	pairPattern    = regexp.MustCompile(`^[A-Za-z0-9_/-]{1,40}$`)       // DEX pair symbols
+	poolIDPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)        // pool IDs
+)
+
+// isValidHexAddr checks if s is a valid 0x-prefixed 40-char hex address.
+func isValidHexAddr(s string) bool { return hexAddrPattern.MatchString(s) }
+
+// isValidHexHash checks if s is a valid 0x-prefixed 64-char hex hash.
+func isValidHexHash(s string) bool { return hexHashPattern.MatchString(s) }
+
+// sanitizeFilename strips non-hex characters from values used in Content-Disposition.
+func sanitizeFilename(s string) string {
+	s = strings.TrimPrefix(strings.ToLower(s), "0x")
+	out := make([]byte, 0, len(s))
+	for _, b := range []byte(s) {
+		if (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') {
+			out = append(out, b)
+		}
+	}
+	if len(out) == 0 {
+		return "export"
+	}
+	return "0x" + string(out)
+}
+
+const maxRequestBodyBytes = 4096 // 4KB limit for webhook JSON payloads
 
 // StandaloneServer serves /v1/explorer/* on a standard net/http mux.
 type StandaloneServer struct {
@@ -31,6 +69,9 @@ type StandaloneServer struct {
 	gasCacheExpiry time.Time
 
 	notifWorker *NotificationWorker
+
+	// wsSem limits concurrent WebSocket connections to prevent resource exhaustion.
+	wsSem chan struct{}
 }
 
 type tableNames struct {
@@ -54,7 +95,7 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 		return nil, err
 	}
 
-	s := &StandaloneServer{db: db, cfg: cfg, mux: http.NewServeMux()}
+	s := &StandaloneServer{db: db, cfg: cfg, mux: http.NewServeMux(), wsSem: make(chan struct{}, 128)}
 	s.detectTables()
 	s.notifWorker = NewNotificationWorker(db, s.t.txs, nil)
 	s.notifWorker.Start()
@@ -63,18 +104,77 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	return s, nil
 }
 
-// Handler returns the http.Handler with CORS and trailing-slash normalization.
+// AllowedOrigins returns the set of permitted CORS origins.
+// Falls back to wildcard only if EXPLORER_CORS_ORIGINS is unset.
+func AllowedOrigins() []string {
+	if v := strings.TrimSpace(envOrDefault("EXPLORER_CORS_ORIGINS", "")); v != "" {
+		return strings.Split(v, ",")
+	}
+	return []string{"*"}
+}
+
+func envOrDefault(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return fallback
+}
+
+// corsOriginAllowed checks if the request origin matches the allowed list.
+func corsOriginAllowed(origin string, allowed []string) bool {
+	if len(allowed) == 0 {
+		return false
+	}
+	for _, a := range allowed {
+		if a == "*" || strings.EqualFold(a, origin) {
+			return true
+		}
+	}
+	return false
+}
+
+// securityHeaders sets defense-in-depth HTTP headers on every response.
+func securityHeaders(w http.ResponseWriter) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+	// HSTS: 1 year, includeSubDomains
+	w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	// CSP: restrict to self, allow inline styles for SPA
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss: ws:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+}
+
+// Handler returns the http.Handler with security headers, CORS, and trailing-slash normalization.
 func (s *StandaloneServer) Handler() http.Handler {
+	allowed := AllowedOrigins()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Security headers on every response
+		securityHeaders(w)
+
+		origin := r.Header.Get("Origin")
+
 		// CORS preflight
 		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			if corsOriginAllowed(origin, allowed) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.Header().Set("Vary", "Origin")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
+		// Set CORS for non-preflight
+		if corsOriginAllowed(origin, allowed) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+
 		// Normalize trailing slashes: /v1/explorer/blocks/ → /v1/explorer/blocks
 		if len(r.URL.Path) > 1 && r.URL.Path[len(r.URL.Path)-1] == '/' {
 			r.URL.Path = r.URL.Path[:len(r.URL.Path)-1]
@@ -224,7 +324,7 @@ type jfn func(*http.Request) (any, int)
 func (s *StandaloneServer) j(fn jfn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// CORS handled by Handler() middleware — no per-handler wildcard.
 		data, code := fn(r)
 		w.WriteHeader(code)
 		json.NewEncoder(w).Encode(data)
@@ -236,7 +336,7 @@ type csvfn func(http.ResponseWriter, *http.Request)
 func (s *StandaloneServer) csvHandler(fn csvfn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// CORS handled by Handler() middleware — no per-handler wildcard.
 		fn(w, r)
 	}
 }
@@ -299,6 +399,9 @@ func (s *StandaloneServer) listBlocks(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) getBlock(r *http.Request) (any, int) {
 	id := r.PathValue("id")
+	if !blockIDPattern.MatchString(id) {
+		return map[string]string{"error": "invalid block id"}, 400
+	}
 	var rows *sql.Rows
 	var err error
 	if strings.HasPrefix(id, "0x") {
@@ -319,6 +422,9 @@ func (s *StandaloneServer) getBlock(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 	id := r.PathValue("id")
+	if !blockIDPattern.MatchString(id) {
+		return ep(), 400
+	}
 	l := lim(r)
 	var rows *sql.Rows
 	var err error
@@ -347,7 +453,11 @@ func (s *StandaloneServer) listTxs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getTx(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.txs), r.PathValue("hash"))
+	hash := r.PathValue("hash")
+	if !isValidHexHash(hash) {
+		return map[string]string{"error": "invalid tx hash"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.txs), hash)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -360,7 +470,11 @@ func (s *StandaloneServer) getTx(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) txTransfers(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE transaction_hash = ? ORDER BY log_index", s.t.transfers), r.PathValue("hash"))
+	hash := r.PathValue("hash")
+	if !isValidHexHash(hash) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE transaction_hash = ? ORDER BY log_index", s.t.transfers), hash)
 	if err != nil {
 		return ep(), 200
 	}
@@ -374,7 +488,11 @@ func (s *StandaloneServer) txTransfers(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) txInternal(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.itxs), r.PathValue("hash"))
+	hash := r.PathValue("hash")
+	if !isValidHexHash(hash) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.itxs), hash)
 	if err != nil {
 		return ep(), 200
 	}
@@ -388,7 +506,11 @@ func (s *StandaloneServer) txInternal(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) txLogs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.logs), r.PathValue("hash"))
+	hash := r.PathValue("hash")
+	if !isValidHexHash(hash) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.logs), hash)
 	if err != nil {
 		return ep(), 200
 	}
@@ -418,7 +540,11 @@ func (s *StandaloneServer) listAddrs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getAddr(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.addrs), r.PathValue("hash"))
+	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid address"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.addrs), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -433,6 +559,9 @@ func (s *StandaloneServer) getAddr(r *http.Request) (any, int) {
 func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
 	l := lim(r)
 	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
 	if err != nil {
 		return ep(), 200
@@ -442,7 +571,11 @@ func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) addrCounters(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.addrs), r.PathValue("hash"))
+	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid address"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.addrs), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -477,7 +610,11 @@ func (s *StandaloneServer) listTokens(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid token address"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -490,7 +627,11 @@ func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY value DESC LIMIT 50", s.t.balances), r.PathValue("addr"))
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY value DESC LIMIT 50", s.t.balances), addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -507,7 +648,11 @@ func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? LIMIT 1", s.t.contracts), r.PathValue("addr"))
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid contract address"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? LIMIT 1", s.t.contracts), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -523,13 +668,17 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) search(r *http.Request) (any, int) {
 	q := r.URL.Query().Get("q")
-	// Strip null bytes and control characters
+	// Strip null bytes, control characters, and enforce max length.
 	q = strings.Map(func(r rune) rune {
 		if r < 32 {
 			return -1
 		}
 		return r
 	}, q)
+	q = strings.TrimSpace(q)
+	if len(q) > 128 {
+		q = q[:128]
+	}
 	if q == "" {
 		return ep(), 200
 	}
@@ -634,8 +783,25 @@ func (s *StandaloneServer) backendVersion(r *http.Request) (any, int) {
 // phoenixSocket handles the Phoenix WebSocket endpoint for live block/tx updates.
 // The Blockscout frontend (phoenix.js) requires this to avoid crashing.
 func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request) {
+	// Enforce concurrent WebSocket connection limit.
+	select {
+	case s.wsSem <- struct{}{}:
+		defer func() { <-s.wsSem }()
+	default:
+		http.Error(w, "too many connections", http.StatusServiceUnavailable)
+		return
+	}
+
+	allowed := AllowedOrigins()
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // non-browser clients (curl, etc.)
+			}
+			return corsOriginAllowed(origin, allowed)
+		},
+		HandshakeTimeout: 10 * time.Second,
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -643,12 +809,24 @@ func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request)
 	}
 	defer conn.Close()
 
+	// Limit message size to prevent memory exhaustion (Phoenix messages are small).
+	conn.SetReadLimit(4096)
+	// Close idle connections after 60s without a message.
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	// Phoenix protocol: respond to heartbeat messages and join confirmations
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
+		// Reset read deadline on any message.
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
 		// Phoenix message format: [join_ref, ref, topic, event, payload]
 		var phoenix []json.RawMessage
 		if err := json.Unmarshal(msg, &phoenix); err != nil || len(phoenix) < 5 {
@@ -661,12 +839,14 @@ func (s *StandaloneServer) phoenixSocket(w http.ResponseWriter, r *http.Request)
 		case "heartbeat":
 			// Reply with "ok" to keep connection alive
 			reply, _ := json.Marshal([]any{nil, phoenix[1], "phoenix", "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			conn.WriteMessage(websocket.TextMessage, reply)
 		case "phx_join":
 			// Acknowledge channel join
 			var topic string
 			json.Unmarshal(phoenix[2], &topic)
 			reply, _ := json.Marshal([]any{phoenix[0], phoenix[1], topic, "phx_reply", map[string]any{"status": "ok", "response": map[string]any{}}})
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			conn.WriteMessage(websocket.TextMessage, reply)
 		}
 	}
@@ -685,10 +865,10 @@ func (s *StandaloneServer) backendConfig(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) searchRedirect(r *http.Request) (any, int) {
 	q := r.URL.Query().Get("q")
-	if strings.HasPrefix(q, "0x") && len(q) == 66 {
+	if isValidHexHash(q) {
 		return map[string]any{"redirect": true, "type": "transaction", "parameter": q}, 200
 	}
-	if strings.HasPrefix(q, "0x") && len(q) == 42 {
+	if isValidHexAddr(q) {
 		return map[string]any{"redirect": true, "type": "address", "parameter": q}, 200
 	}
 	return map[string]any{"redirect": false}, 200
@@ -708,6 +888,9 @@ func (s *StandaloneServer) chartMarket(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr, addr)
 	if err != nil {
 		return ep(), 200
@@ -723,6 +906,9 @@ func (s *StandaloneServer) addrTokenTransfers(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) addrInternalTxs(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
 	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50`, s.t.itxs), addr, addr)
 	if err != nil {
 		return ep(), 200
@@ -737,7 +923,11 @@ func (s *StandaloneServer) addrInternalTxs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) addrLogs(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), r.PathValue("hash"))
+	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT 50", s.t.logs), addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -751,7 +941,11 @@ func (s *StandaloneServer) addrLogs(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY value DESC LIMIT 100", s.t.balances), r.PathValue("hash"))
+	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY value DESC LIMIT 100", s.t.balances), addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -775,7 +969,11 @@ func (s *StandaloneServer) addrCoinHistory(r *http.Request) (any, int) {
 // ---- Token Sub-resources ----
 
 func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), r.PathValue("addr"))
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY block_number DESC LIMIT 50", s.t.transfers), addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -789,7 +987,11 @@ func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
 }
 
 func (s *StandaloneServer) tokenCounters(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), r.PathValue("addr"))
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 400
+	}
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), addr)
 	if err != nil {
 		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 200
 	}
@@ -874,7 +1076,11 @@ const csvMaxRows = 10000
 
 func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="transactions-%s.csv"`, addr))
+	if !isValidHexAddr(addr) {
+		http.Error(w, "invalid address", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="transactions-%s.csv"`, sanitizeFilename(addr)))
 	rows, err := s.q(r, fmt.Sprintf("SELECT hash, block_number, from_addr, to_addr, value, gas_used, status, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
@@ -897,7 +1103,11 @@ func (s *StandaloneServer) csvAddrTxs(w http.ResponseWriter, r *http.Request) {
 
 func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="internal-transactions-%s.csv"`, addr))
+	if !isValidHexAddr(addr) {
+		http.Error(w, "invalid address", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="internal-transactions-%s.csv"`, sanitizeFilename(addr)))
 	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, "index", type, call_type, from_addr, to_addr, value, gas_used, error FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?`, s.t.itxs), addr, addr, csvMaxRows)
 	if err != nil {
 		return
@@ -922,7 +1132,11 @@ func (s *StandaloneServer) csvAddrInternalTxs(w http.ResponseWriter, r *http.Req
 
 func (s *StandaloneServer) csvAddrTokenTransfers(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="token-transfers-%s.csv"`, addr))
+	if !isValidHexAddr(addr) {
+		http.Error(w, "invalid address", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="token-transfers-%s.csv"`, sanitizeFilename(addr)))
 	rows, err := s.q(r, fmt.Sprintf("SELECT transaction_hash, log_index, from_addr, to_addr, token_address, amount, token_type, timestamp FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.transfers), addr, addr, csvMaxRows)
 	if err != nil {
 		return
@@ -946,7 +1160,11 @@ func (s *StandaloneServer) csvAddrTokenTransfers(w http.ResponseWriter, r *http.
 
 func (s *StandaloneServer) csvAddrLogs(w http.ResponseWriter, r *http.Request) {
 	addr := r.PathValue("hash")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="logs-%s.csv"`, addr))
+	if !isValidHexAddr(addr) {
+		http.Error(w, "invalid address", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="logs-%s.csv"`, sanitizeFilename(addr)))
 	rows, err := s.q(r, fmt.Sprintf(`SELECT block_number, transaction_hash, "index", address, first_topic, second_topic, third_topic, fourth_topic, data FROM %s WHERE address = ? ORDER BY block_number DESC LIMIT ?`, s.t.logs), addr, csvMaxRows)
 	if err != nil {
 		return
@@ -1072,6 +1290,9 @@ type timelineItem struct {
 
 func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 	addr := r.PathValue("hash")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
 
 	var (
 		wg       sync.WaitGroup
@@ -1238,6 +1459,9 @@ func (s *StandaloneServer) dexMarketDetail(r *http.Request) (any, int) {
 		return map[string]string{"error": "not found"}, 404
 	}
 	pair := r.PathValue("pair")
+	if !pairPattern.MatchString(pair) {
+		return map[string]string{"error": "invalid pair"}, 400
+	}
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE symbol = ? LIMIT 1", s.t.dexMarkets), pair)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
@@ -1277,6 +1501,9 @@ func (s *StandaloneServer) dexTradesByPair(r *http.Request) (any, int) {
 		return ep(), 200
 	}
 	pair := r.PathValue("pair")
+	if !pairPattern.MatchString(pair) {
+		return ep(), 400
+	}
 	l := lim(r)
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?", s.t.dexTrades), pair, l+1)
 	if err != nil {
@@ -1300,6 +1527,9 @@ func (s *StandaloneServer) dexOrderbook(r *http.Request) (any, int) {
 		return map[string]any{"bids": []any{}, "asks": []any{}}, 200
 	}
 	pair := r.PathValue("pair")
+	if !pairPattern.MatchString(pair) {
+		return map[string]any{"bids": []any{}, "asks": []any{}}, 400
+	}
 	l := lim(r)
 
 	bids, err := s.q(r, fmt.Sprintf(
@@ -1346,6 +1576,9 @@ func (s *StandaloneServer) dexCandles(r *http.Request) (any, int) {
 		return ep(), 200
 	}
 	pair := r.PathValue("pair")
+	if !pairPattern.MatchString(pair) {
+		return ep(), 400
+	}
 	q := r.URL.Query()
 
 	interval := q.Get("interval")
@@ -1464,6 +1697,9 @@ func (s *StandaloneServer) poolDetail(r *http.Request) (any, int) {
 		return map[string]string{"error": "not found"}, 404
 	}
 	id := r.PathValue("id")
+	if !poolIDPattern.MatchString(id) {
+		return map[string]string{"error": "invalid pool id"}, 400
+	}
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE id = ? LIMIT 1", s.t.dexPools), id)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
@@ -1496,6 +1732,9 @@ func (s *StandaloneServer) poolSwaps(r *http.Request) (any, int) {
 		return ep(), 200
 	}
 	id := r.PathValue("id")
+	if !poolIDPattern.MatchString(id) {
+		return ep(), 400
+	}
 	l := lim(r)
 	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE pool_id = ? ORDER BY timestamp DESC LIMIT ?", s.t.dexSwaps), id, l+1)
 	if err != nil {
