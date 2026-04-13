@@ -1,13 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 155 20">
-  <!-- L block = the "L" -->
-  <rect x="0" y="0" width="4" height="4" fill="#299BEF"/>
-  <rect x="0" y="4" width="4" height="4" fill="#0E7DE0"/>
-  <rect x="0" y="8" width="4" height="4" fill="#0051CC"/>
-  <rect x="4" y="8" width="4" height="4" fill="#0E7DE0"/>
-  <rect x="0" y="12" width="4" height="4" fill="#0045AA"/>
-  <rect x="4" y="12" width="4" height="4" fill="#0051CC"/>
-  <rect x="8" y="12" width="4" height="4" fill="#0E7DE0"/>
-  <!-- "iquidity" text, baseline-aligned to bottom of L block -->
-  <text x="14" y="15.5" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
-    font-size="14.5" font-weight="500" fill="white" letter-spacing="-0.2">iquidity</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 24">
+  <!-- Hanzo H icon (simplified from the full logo) -->
+  <rect x="0" y="0" width="5" height="10" fill="white"/>
+  <rect x="0" y="14" width="5" height="10" fill="white"/>
+  <rect x="12" y="0" width="5" height="10" fill="white"/>
+  <rect x="12" y="14" width="5" height="10" fill="white"/>
+  <rect x="0" y="9" width="17" height="6" fill="white"/>
+  <!-- "anzo" wordmark -->
+  <text x="22" y="18" font-family="Geist, Inter, -apple-system, sans-serif"
+    font-size="15" font-weight="500" fill="white">anzo</text>
 </svg>

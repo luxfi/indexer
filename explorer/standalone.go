@@ -717,25 +717,84 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	var bc, tc, ac int
+	var totalGas, avgBlockTime float64
+	var gasUsedToday int64
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.blocks)).Scan(&bc)
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.txs)).Scan(&tc)
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.addrs)).Scan(&ac)
+	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COALESCE(SUM(gas_used), 0) FROM %s", s.t.blocks)).Scan(&totalGas)
+	// Average block time from last 50 blocks
+	s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COALESCE(AVG(dt), 0) FROM (
+			SELECT timestamp - LAG(timestamp) OVER (ORDER BY number) AS dt
+			FROM %s ORDER BY number DESC LIMIT 50
+		) WHERE dt > 0 AND dt < 60`, s.t.blocks)).Scan(&avgBlockTime)
+	// Gas used in last 24h
+	s.db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT COALESCE(SUM(gas_used), 0) FROM %s WHERE timestamp > datetime('now', '-1 day')", s.t.blocks)).Scan(&gasUsedToday)
+	// Gas prices: try tx gas_price first, fall back to block base_fee
+	var slowGas, avgGas, fastGas float64
+	s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT COALESCE(MIN(CAST(gas_price AS REAL)), 0),
+		       COALESCE(AVG(CAST(gas_price AS REAL)), 0),
+		       COALESCE(MAX(CAST(gas_price AS REAL)), 0)
+		FROM (SELECT gas_price FROM %s WHERE gas_price != '' AND gas_price != '0' ORDER BY block_number DESC LIMIT 100)`, s.t.txs)).Scan(&slowGas, &avgGas, &fastGas)
+	// If no tx gas prices, compute from block base_fee (stored as hex)
+	if avgGas == 0 {
+		rows, _ := s.db.QueryContext(ctx, fmt.Sprintf(
+			"SELECT base_fee FROM %s WHERE base_fee != '' ORDER BY number DESC LIMIT 50", s.t.blocks))
+		if rows != nil {
+			var fees []float64
+			for rows.Next() {
+				var raw string
+				rows.Scan(&raw)
+				if v, err := strconv.ParseInt(strings.TrimPrefix(raw, "0x"), 16, 64); err == nil && v > 0 {
+					fees = append(fees, float64(v))
+				}
+			}
+			rows.Close()
+			if len(fees) > 0 {
+				sort.Float64s(fees)
+				slowGas = fees[0]
+				fastGas = fees[len(fees)-1]
+				var sum float64
+				for _, f := range fees { sum += f }
+				avgGas = sum / float64(len(fees))
+			}
+		}
+	}
+
+	var gasPrices any
+	if avgGas > 0 {
+		toGwei := func(wei float64) float64 { return wei / 1e9 }
+		gasPrices = map[string]any{
+			"slow":    map[string]any{"price": toGwei(slowGas), "time": 30000, "base_fee": toGwei(slowGas), "priority_fee": 0, "fiat_price": nil},
+			"average": map[string]any{"price": toGwei(avgGas), "time": 15000, "base_fee": toGwei(avgGas), "priority_fee": 0, "fiat_price": nil},
+			"fast":    map[string]any{"price": toGwei(fastGas), "time": 5000, "base_fee": toGwei(fastGas), "priority_fee": 0, "fiat_price": nil},
+		}
+	}
+
+	// Network utilization (gas used / gas limit from latest block)
+	var utilization float64
+	s.db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT CASE WHEN gas_limit > 0 THEN CAST(gas_used AS REAL) / gas_limit * 100 ELSE 0 END FROM %s ORDER BY number DESC LIMIT 1", s.t.blocks)).Scan(&utilization)
+
 	return map[string]any{
 		"total_blocks":                   fmt.Sprintf("%d", bc),
 		"total_addresses":                fmt.Sprintf("%d", ac),
 		"total_transactions":             fmt.Sprintf("%d", tc),
-		"average_block_time":             0,
+		"average_block_time":             avgBlockTime,
 		"coin_price":                     nil,
 		"coin_price_change_percentage":   nil,
-		"total_gas_used":                 "0",
+		"total_gas_used":                 fmt.Sprintf("%.0f", totalGas),
 		"transactions_today":             nil,
-		"gas_used_today":                 "0",
-		"gas_prices":                     nil,
-		"gas_price_updated_at":           nil,
-		"gas_prices_update_in":           0,
+		"gas_used_today":                 fmt.Sprintf("%d", gasUsedToday),
+		"gas_prices":                     gasPrices,
+		"gas_price_updated_at":           time.Now().UTC().Format(time.RFC3339),
+		"gas_prices_update_in":           30,
 		"static_gas_price":               nil,
 		"market_cap":                     nil,
-		"network_utilization_percentage": 0,
+		"network_utilization_percentage": utilization,
 		"tvl":                            nil,
 	}, 200
 }
