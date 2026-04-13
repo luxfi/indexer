@@ -1,6 +1,6 @@
 # LUX Indexer Docker Compose
 # Full stack for indexing all LUX chains (P, X, A, B, Q, T, Z)
-# C-Chain uses Blockscout separately
+# C-Chain uses its own explorer instance
 
 version: '3.8'
 
@@ -24,8 +24,8 @@ services:
     container_name: lux-indexer-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: blockscout
-      POSTGRES_PASSWORD: blockscout
+      POSTGRES_USER: explorer
+      POSTGRES_PASSWORD: explorer
       POSTGRES_DB: indexer
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -35,7 +35,7 @@ services:
     networks:
       - hanzo-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blockscout"]
+      test: ["CMD-SHELL", "pg_isready -U explorer"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,7 +47,7 @@ services:
     command: ["-chain", "pchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/P
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_pchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_pchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4100:4000"
@@ -64,7 +64,7 @@ services:
     command: ["-chain", "xchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/X
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_xchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_xchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4200:4000"
@@ -81,7 +81,7 @@ services:
     command: ["-chain", "achain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/A
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_achain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_achain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4500:4000"
@@ -98,7 +98,7 @@ services:
     command: ["-chain", "bchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/B
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_bchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_bchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4600:4000"
@@ -115,7 +115,7 @@ services:
     command: ["-chain", "qchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Q
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_qchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_qchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4300:4000"
@@ -132,7 +132,7 @@ services:
     command: ["-chain", "tchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/T
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_tchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_tchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4700:4000"
@@ -149,7 +149,7 @@ services:
     command: ["-chain", "zchain", "-port", "4000"]
     environment:
       RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Z
-      DATABASE_URL: postgresql://blockscout:blockscout@postgres:5432/explorer_zchain?sslmode=disable
+      DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_zchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
       - "4400:4000"
