@@ -223,22 +223,25 @@ func main() {
 			defer apiReady.Done()
 			for i := 0; i < 30; i++ {
 				time.Sleep(time.Second)
+				apiPrefix := "/v1/indexer"
+				if !chain.Default {
+					apiPrefix = fmt.Sprintf("/v1/indexer/%s", chain.Slug)
+				}
 				apiSrv, err := explorer.NewStandaloneServer(explorer.Config{
 					IndexerDBPath: path,
 					ChainID:       chain.ChainID,
 					ChainName:     chain.Name,
 					CoinSymbol:    chain.CoinSymbol,
+					APIPrefix:     apiPrefix,
 				})
 				if err != nil {
 					continue
 				}
+				mux.Handle(apiPrefix+"/", apiSrv.Handler())
 				if chain.Default {
-					mux.Handle("/v1/indexer/", apiSrv.Handler())
 					log.Printf("[%s] API mounted at /v1/indexer/* (default)", chain.Slug)
 				} else {
-					prefix := fmt.Sprintf("/v1/indexer/%s/", chain.Slug)
-					mux.Handle(prefix, http.StripPrefix(fmt.Sprintf("/v1/indexer/%s", chain.Slug), apiSrv.Handler()))
-					log.Printf("[%s] API mounted at %s*", chain.Slug, prefix)
+					log.Printf("[%s] API mounted at %s/*", chain.Slug, apiPrefix)
 				}
 				return
 			}
