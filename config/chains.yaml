@@ -1429,7 +1429,7 @@ other:
 # =============================================================================
 indexer:
   database:
-    url: "${DATABASE_URL:-postgresql://blockscout:blockscout@localhost:5432/nft_indexer}"
+    url: "${DATABASE_URL:-postgresql://explorer:explorer@localhost:5432/nft_indexer}"
     max_connections: 200
 
   redis:
