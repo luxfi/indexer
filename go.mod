@@ -69,7 +69,7 @@ require (
 	github.com/luxfi/mdns v0.1.0 // indirect
 	github.com/luxfi/metric v1.5.1 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
-	github.com/luxfi/zapdb/v4 v4.9.3 // indirect
+	github.com/luxfi/zapdb v1.8.0 // indirect
 	github.com/magefile/mage v1.14.0 // indirect
 	github.com/markusmobius/go-dateparser v1.2.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
