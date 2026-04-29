@@ -205,6 +205,13 @@ const (
 	ProtocolMango    ProtocolType = "mango"
 	ProtocolPhoenix  ProtocolType = "phoenix"
 	ProtocolMetaplex ProtocolType = "metaplex"
+
+	// Regulated digital securities (ERC-3643 / T-REX + ONCHAINID)
+	ProtocolERC3643   ProtocolType = "erc3643"   // T-REX security tokens (IToken, IdentityRegistry, ModularCompliance, TrustedIssuersRegistry, ClaimTopicsRegistry)
+	ProtocolONCHAINID ProtocolType = "onchainid" // ERC-734 + ERC-735 identity contracts
+
+	// Bitcoin metaprotocols (additions)
+	ProtocolOPNET ProtocolType = "opnet" // OP_NET (Bitcoin L1 metaprotocol, AssemblyScript runtime, virtual chain ID 4294967299)
 )
 
 // ChainConfig holds configuration for a single chain
