@@ -134,7 +134,7 @@ github.com/hablullah/go-hijri v1.0.2 h1:drT/MZpSZJQXo7jftf5fthArShcaMtsal0Zf/dnm
 github.com/hablullah/go-hijri v1.0.2/go.mod h1:OS5qyYLDjORXzK4O1adFw9Q5WfhOcMdAKglDkcTxgWQ=
 github.com/hablullah/go-juliandays v1.0.0 h1:A8YM7wIj16SzlKT0SRJc9CD29iiaUzpBLzh5hr0/5p0=
 github.com/hablullah/go-juliandays v1.0.0/go.mod h1:0JOYq4oFOuDja+oospuc61YoX+uNEn7Z6uHYTbBzdGc=
-github.com/hanzoai/replicate v0.6.0 h1:YxjIynlo3iKtpf6GeQngeB5RbexIKPPKsZIoq5EHe3E=
+github.com/hanzoai/replicate v0.6.0 h1:5Rl34569IHJ5hXOvrkjbadfKNt/2rGZd83vhcSIRSPE=
 github.com/hanzoai/replicate v0.6.0/go.mod h1:PBvHNQ7cXBJejTWDWxXWvtUwjT5O66pTC7npxLWu8H0=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
