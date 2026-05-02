@@ -127,7 +127,14 @@ func main() {
 		*dataDir = envOr("DATA_DIR", filepath.Join(homeDir(), ".explorer", "data"))
 	}
 	if *httpAddr == "" {
-		*httpAddr = envOr("HTTP_ADDR", ":8090")
+		// HTTP_ADDR wins; otherwise honour the K8s-style PORT env (just a number).
+		if addr := os.Getenv("HTTP_ADDR"); addr != "" {
+			*httpAddr = addr
+		} else if p := os.Getenv("PORT"); p != "" {
+			*httpAddr = ":" + p
+		} else {
+			*httpAddr = ":8090"
+		}
 	}
 
 	// Load config: either YAML multi-chain or CLI single-chain
@@ -138,7 +145,16 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to load config: %v", err)
 		}
-	} else if rpc := envOr("RPC_ENDPOINT", *rpcEndpoint); rpc != "" {
+	} else if rpc := func() string {
+		// RPC source priority: --rpc flag, RPC_ENDPOINT, CHAIN_RPC_URL (LiquidExplorer operator).
+		if *rpcEndpoint != "" {
+			return *rpcEndpoint
+		}
+		if v := os.Getenv("RPC_ENDPOINT"); v != "" {
+			return v
+		}
+		return os.Getenv("CHAIN_RPC_URL")
+	}(); rpc != "" {
 		// Single-chain mode
 		if *chainName == "" {
 			*chainName = envOr("CHAIN_NAME", "EVM Chain")
@@ -243,14 +259,18 @@ func main() {
 
 	// Start HTTP server with explorer API
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Write([]byte(`{"status":"ok"}`))
-	})
+	}
+	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /healthz", healthHandler) // K8s-style alias for operator probes
 
-	// Mount explorer API for each chain — wait for DB before starting server
+	// Mount explorer API for each chain — wait for DB and schema before starting server.
+	// Retries until ctx is done (no fixed timeout) and logs every failure reason
+	// so misconfigurations (bad RPC, missing dir, schema init failure) are visible.
 	log.Printf("  http:  %s", cfg.HTTPAddr)
 	var apiReady sync.WaitGroup
 	for _, c := range enabled {
@@ -258,11 +278,26 @@ func main() {
 		apiReady.Add(1)
 		go func(chain ChainConfig, path string) {
 			defer apiReady.Done()
-			for i := 0; i < 30; i++ {
-				time.Sleep(time.Second)
-				apiPrefix := "/v1/indexer"
-				if !chain.Default {
-					apiPrefix = fmt.Sprintf("/v1/indexer/%s", chain.Slug)
+			apiPrefix := "/v1/indexer"
+			if !chain.Default {
+				apiPrefix = fmt.Sprintf("/v1/indexer/%s", chain.Slug)
+			}
+			var lastErr error
+			deadline := time.Now().Add(5 * time.Minute)
+			for attempt := 0; ; attempt++ {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+				// Wait for DB file to exist.
+				if _, err := os.Stat(path); err != nil {
+					lastErr = fmt.Errorf("db file not yet created: %w", err)
+					if time.Now().After(deadline) {
+						log.Printf("[%s] API mount waiting on DB file %s (attempt %d): %v", chain.Slug, path, attempt, lastErr)
+						deadline = time.Now().Add(5 * time.Minute)
+					}
+					continue
 				}
 				apiSrv, err := explorer.NewStandaloneServer(explorer.Config{
 					IndexerDBPath: path,
@@ -272,17 +307,51 @@ func main() {
 					APIPrefix:     apiPrefix,
 				})
 				if err != nil {
+					lastErr = err
+					if time.Now().After(deadline) {
+						log.Printf("[%s] API mount failed (attempt %d): %v", chain.Slug, attempt, err)
+						deadline = time.Now().Add(5 * time.Minute)
+					}
 					continue
 				}
+				// Mount the configured prefix.
 				mux.Handle(apiPrefix+"/", apiSrv.Handler())
+				// Backward-compat: also serve at /v1/explorer/* (legacy prefix
+				// used by older clients and docs). For non-default chains the
+				// alias is /v1/explorer/{slug}/*.
+				legacyPrefix := strings.Replace(apiPrefix, "/v1/indexer", "/v1/explorer", 1)
+				if legacyPrefix != apiPrefix {
+					legacySrv, _ := explorer.NewStandaloneServer(explorer.Config{
+						IndexerDBPath: path,
+						ChainID:       chain.ChainID,
+						ChainName:     chain.Name,
+						CoinSymbol:    chain.CoinSymbol,
+						APIPrefix:     legacyPrefix,
+					})
+					if legacySrv != nil {
+						mux.Handle(legacyPrefix+"/", legacySrv.Handler())
+					}
+				}
+				// Default chain also mounts under its slug so /v1/indexer/cchain/*
+				// works alongside /v1/indexer/*. Hostname-based routing in the
+				// ingress can then pin a frontend to a specific chain.
 				if chain.Default {
-					log.Printf("[%s] API mounted at /v1/indexer/* (default)", chain.Slug)
+					slugSrv, _ := explorer.NewStandaloneServer(explorer.Config{
+						IndexerDBPath: path,
+						ChainID:       chain.ChainID,
+						ChainName:     chain.Name,
+						CoinSymbol:    chain.CoinSymbol,
+						APIPrefix:     fmt.Sprintf("/v1/indexer/%s", chain.Slug),
+					})
+					if slugSrv != nil {
+						mux.Handle(fmt.Sprintf("/v1/indexer/%s/", chain.Slug), slugSrv.Handler())
+					}
+					log.Printf("[%s] API mounted at /v1/indexer/* and /v1/indexer/%s/* (default)", chain.Slug, chain.Slug)
 				} else {
 					log.Printf("[%s] API mounted at %s/*", chain.Slug, apiPrefix)
 				}
 				return
 			}
-			log.Printf("[%s] API not mounted — DB not ready after 30s", chain.Slug)
 		}(c, dbPath)
 
 		if c.Default {
@@ -395,6 +464,16 @@ func runChain(ctx context.Context, baseDir string, chain ChainConfig) {
 			log.Printf("[%s] failed to create indexer: %v", chain.Slug, err)
 			return
 		}
+		// Initialize the EVM schema *before* the indexing loop runs. The API
+		// server polls for the schema and won't mount handlers until tables
+		// exist — without this pre-init, the API for non-default chains gets
+		// stuck behind a slow first RPC call and the frontend falls through
+		// to the SPA placeholder.
+		if err := idx.Init(ctx); err != nil {
+			log.Printf("[%s] failed to init evm schema: %v", chain.Slug, err)
+			return
+		}
+		log.Printf("[%s] evm schema initialized", chain.Slug)
 		if err := idx.Run(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("[%s] indexer error: %v", chain.Slug, err)
 		}
