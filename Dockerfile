@@ -6,16 +6,18 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ARG VERSION=dev
-RUN mkdir -p cmd/explorer/static && \
-    echo '<html><body>Indexer API — use luxfi/explorer for the frontend</body></html>' > cmd/explorer/static/index.html
-RUN CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" GOOS=linux go build \
-    -ldflags="-s -w -X main.version=${VERSION}" -o /indexer ./cmd/indexer/
+# Ensure embedded static/ is non-empty (real Vite build copied in via COPY above).
+# If the build context did not include the SPA, fall back to a minimal placeholder
+# so go:embed succeeds. Real builds ship the full SPA from cmd/explorer/static/.
+RUN test -s cmd/explorer/static/index.html || ( \
+        mkdir -p cmd/explorer/static && \
+        echo '<html><body>Explorer placeholder — SPA not built. Run vite build before docker build.</body></html>' > cmd/explorer/static/index.html \
+    )
 RUN CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" GOOS=linux go build \
     -ldflags="-s -w -X main.version=${VERSION}" -o /explorer ./cmd/explorer/
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates sqlite-libs
-COPY --from=builder /indexer /usr/local/bin/indexer
 COPY --from=builder /explorer /usr/local/bin/explorer
 RUN adduser -D -u 65532 explorer
 USER explorer
