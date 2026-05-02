@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.12.1
 	github.com/luxfi/age v1.4.0
 	github.com/luxfi/database v1.17.44
+	github.com/luxfi/graph v0.1.0
 	github.com/luxfi/zap v0.2.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/onsi/ginkgo/v2 v2.28.1
@@ -49,7 +50,6 @@ require (
 	github.com/luxfi/compress v0.0.5 // indirect
 	github.com/luxfi/concurrent v0.0.3 // indirect
 	github.com/luxfi/crypto v1.17.45 // indirect
-	github.com/luxfi/graph v0.1.0 // indirect
 	github.com/luxfi/ids v1.2.9 // indirect
 	github.com/luxfi/log v1.4.1 // indirect
 	github.com/luxfi/math v1.2.4 // indirect
