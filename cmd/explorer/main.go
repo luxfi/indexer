@@ -23,6 +23,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -298,6 +299,26 @@ func main() {
 						deadline = time.Now().Add(5 * time.Minute)
 					}
 					continue
+				}
+				// Wait for evm_blocks table to exist before mounting — the
+				// standalone server caches the table name on construction
+				// and won't see later schema changes. EVM-typed chains use
+				// evm_blocks; non-EVM chains skip this check.
+				if chain.Type == "evm" {
+					db, openErr := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro", path))
+					if openErr == nil {
+						var c int
+						err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='evm_blocks'").Scan(&c)
+						db.Close()
+						if err != nil || c == 0 {
+							lastErr = fmt.Errorf("evm_blocks table not yet created (count=%d, err=%v)", c, err)
+							if time.Now().After(deadline) {
+								log.Printf("[%s] API mount waiting on evm_blocks table (attempt %d): %v", chain.Slug, attempt, lastErr)
+								deadline = time.Now().Add(5 * time.Minute)
+							}
+							continue
+						}
+					}
 				}
 				apiSrv, err := explorer.NewStandaloneServer(explorer.Config{
 					IndexerDBPath: path,
