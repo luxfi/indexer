@@ -2,7 +2,6 @@
 
 **Version**: 3.0.0
 **Status**: PRODUCTION
-**Date**: 2026-04-10
 
 ---
 
@@ -121,7 +120,7 @@ Each chain gets its own directory with independent SQLite + KV:
 
 | Type | Chains | Indexer |
 |---|---|---|
-| EVM | Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, + 30 more | `multichain/evm_indexer.go` |
+| EVM | Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, + 30 more | `multichain/evm_indexer.go` |
 | Solana | Mainnet, Devnet | `multichain/solana_indexer.go` |
 | Bitcoin | Mainnet (Ordinals, Runes, BRC-20) | `multichain/bitcoin_indexer.go` |
 | Cosmos | Hub, Osmosis, Injective, dYdX, Celestia | `multichain/cosmos_indexer.go` |
