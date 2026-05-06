@@ -7,17 +7,104 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 # Multi-arch (amd64 + arm64) on native hanzo ARC runners.
-# No QEMU emulation. No GitHub-hosted fallback.
-# Semver-only tags (v*); see hanzoai/.github docker-build.yml.
+# No QEMU emulation. No GitHub-hosted fallback. Inlined (no cross-org reusable).
+# Semver-only — only v* tags produce {{version}} manifests.
+
 jobs:
-  docker:
-    uses: hanzoai/.github/.github/workflows/docker-build.yml@main
-    with:
-      image: ghcr.io/luxfi/indexer
-      platforms: linux/amd64,linux/arm64
-      runner-amd64: hanzo-build-linux-amd64
-      runner-arm64: hanzo-build-linux-arm64
-      runner-deploy: hanzo-deploy-linux-amd64
-    secrets: inherit
+  build-amd64:
+    runs-on: hanzo-build-linux-amd64
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/luxfi/indexer
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},suffix=-amd64
+            type=sha,prefix=sha-,suffix=-amd64
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=indexer-amd64
+          cache-to: type=gha,scope=indexer-amd64,mode=max
+          provenance: false
+          push: true
+
+  build-arm64:
+    runs-on: hanzo-build-linux-arm64
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/luxfi/indexer
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},suffix=-arm64
+            type=sha,prefix=sha-,suffix=-arm64
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=indexer-arm64
+          cache-to: type=gha,scope=indexer-arm64,mode=max
+          provenance: false
+          push: true
+
+  manifest:
+    runs-on: hanzo-build-linux-amd64
+    needs: [build-amd64, build-arm64]
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/luxfi/indexer
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+      - run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$JSON") \
+            "ghcr.io/luxfi/indexer@${{ needs.build-amd64.outputs.digest }}" \
+            "ghcr.io/luxfi/indexer@${{ needs.build-arm64.outputs.digest }}"
+        env:
+          JSON: ${{ steps.meta.outputs.json }}
