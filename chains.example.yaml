@@ -1,9 +1,13 @@
-# Explorer multi-chain configuration
+# indexerd multi-chain configuration.
 # Each chain gets its own SQLite file: {data_dir}/{slug}/query/indexer.db
-# Scale: tested with 200+ chains concurrently, ~2MB RAM per idle chain
+# Scale: tested with 200+ chains concurrently, ~2MB RAM per idle chain.
+#
+# Frontend brand, per-chain graph schemas, and cross-explorer link lists
+# are read by the unified luxfi/explorer binary — extra YAML fields on
+# this file are silently ignored by indexerd.
 
 data_dir: ${DATA_DIR:-~/.explorer/data}
-http_addr: ${HTTP_ADDR:-:8090}
+http_addr: ${HTTP_ADDR:-:8091}
 
 chains:
   # ============================================================
