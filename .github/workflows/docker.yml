@@ -8,7 +8,7 @@ permissions:
   contents: read
   packages: write
 
-# Multi-arch (amd64 + arm64) on native lux ARC runners.
+# Multi-arch (amd64 + arm64) on native hanzo ARC runners.
 # No QEMU emulation. No GitHub-hosted fallback.
 # Semver-only tags (v*); see hanzoai/.github docker-build.yml.
 jobs:
@@ -17,7 +17,7 @@ jobs:
     with:
       image: ghcr.io/luxfi/indexer
       platforms: linux/amd64,linux/arm64
-      runner-amd64: lux-build-linux-amd64
-      runner-arm64: lux-build-linux-arm64
-      runner-deploy: lux-build-linux-amd64
+      runner-amd64: hanzo-build-linux-amd64
+      runner-arm64: hanzo-build-linux-arm64
+      runner-deploy: hanzo-deploy-linux-amd64
     secrets: inherit
