@@ -1,36 +1,38 @@
 name: Build and Push
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
   push:
-    branches:
-    - main
-    - hanzo-dev
-    tags:
-    - v*
+    branches: [main]
+    tags: ['v*']
   pull_request:
-    branches:
-    - main
+    branches: [main]
+
 env:
   GO_VERSION: 1.26.1
-  REGISTRY: ghcr.io
+
 jobs:
   test:
     runs-on: lux-build-linux-amd64
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-    - run: go mod download
-    - run: go test -race -count=1 ./...
-      env:
-        CGO_ENABLED: 1
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcc libsqlite3-dev
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go mod download
+      - run: go test -race -count=1 ./...
+        env:
+          CGO_ENABLED: 1
+
   lint:
     runs-on: lux-build-linux-amd64
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-    - run: go vet ./...
-    - run: test -z "$(gofmt -l .)"
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcc libsqlite3-dev
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go vet ./...
+      - run: test -z "$(gofmt -l .)"
