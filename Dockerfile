@@ -3,14 +3,14 @@
 FROM golang:1.26-alpine AS builder
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 WORKDIR /src
-COPY go.mod go.sum ./
+COPY . .
 # proxy.golang.org has inconsistent caching for hanzoai/replicate@v0.6.0
 # (different POPs serve different zip hashes). Regenerate go.sum from the
 # proxy state we actually see at build time and skip sum.golang.org.
 RUN rm -f go.sum && GOSUMDB=off go mod download
-COPY . .
 ARG VERSION=dev
-RUN CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" GOOS=linux go build \
+RUN CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" GOOS=linux \
+    GOSUMDB=off go build \
     -ldflags="-s -w -X main.version=${VERSION}" -o /indexerd ./cmd/indexerd/
 
 FROM alpine:3.21
