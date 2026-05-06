@@ -15,8 +15,13 @@ jobs:
     runs-on: lux-build-linux-amd64
     steps:
       - uses: actions/checkout@v4
-      - name: Install build deps
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcc libsqlite3-dev
+      - name: Verify build deps
+        run: |
+          set -e
+          command -v gcc || { echo "gcc not installed on runner"; exit 1; }
+          # libsqlite3-dev provides sqlite3.h; mattn/go-sqlite3 vendors its own
+          # sqlite C source, so the system header is not strictly required.
+          gcc --version | head -1
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -27,13 +32,19 @@ jobs:
       - run: go test -race -count=1 ./...
         env:
           CGO_ENABLED: 1
+          GOSUMDB: "off"
 
   lint:
     runs-on: lux-build-linux-amd64
     steps:
       - uses: actions/checkout@v4
-      - name: Install build deps
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcc libsqlite3-dev
+      - name: Verify build deps
+        run: |
+          set -e
+          command -v gcc || { echo "gcc not installed on runner"; exit 1; }
+          # libsqlite3-dev provides sqlite3.h; mattn/go-sqlite3 vendors its own
+          # sqlite C source, so the system header is not strictly required.
+          gcc --version | head -1
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -42,4 +53,6 @@ jobs:
         env:
           GOSUMDB: "off"
       - run: go vet ./...
+        env:
+          GOSUMDB: "off"
       - run: test -z "$(gofmt -l .)"
