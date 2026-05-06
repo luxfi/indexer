@@ -20,7 +20,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      - run: go mod download
+      - name: Refresh go.sum (proxy cache inconsistency)
+        run: rm -f go.sum && GOSUMDB=off go mod download
+        env:
+          GOSUMDB: "off"
       - run: go test -race -count=1 ./...
         env:
           CGO_ENABLED: 1
@@ -34,5 +37,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Refresh go.sum (proxy cache inconsistency)
+        run: rm -f go.sum && GOSUMDB=off go mod download
+        env:
+          GOSUMDB: "off"
       - run: go vet ./...
       - run: test -z "$(gofmt -l .)"
