@@ -325,8 +325,8 @@ func TestGetRecentVerticesRequestValidation(t *testing.T) {
 		if req["jsonrpc"] != "2.0" {
 			t.Errorf("expected jsonrpc 2.0, got %v", req["jsonrpc"])
 		}
-		if req["method"] != "xvm.getRecentVertices" {
-			t.Errorf("expected method xvm.getRecentVertices, got %v", req["method"])
+		if req["method"] != "aivm.getRecentVertices" {
+			t.Errorf("expected method aivm.getRecentVertices, got %v", req["method"])
 		}
 
 		params := req["params"].(map[string]interface{})
@@ -383,8 +383,8 @@ func TestGetVertexByID(t *testing.T) {
 				var req map[string]interface{}
 				json.NewDecoder(r.Body).Decode(&req)
 
-				if req["method"] != "xvm.getVertex" {
-					t.Errorf("expected method xvm.getVertex, got %v", req["method"])
+				if req["method"] != "aivm.getVertex" {
+					t.Errorf("expected method aivm.getVertex, got %v", req["method"])
 				}
 
 				params := req["params"].(map[string]interface{})
