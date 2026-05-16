@@ -91,7 +91,7 @@ var _ = BeforeSuite(func() {
 	// Check if luxd is available
 	luxdPath := findLuxd()
 	if luxdPath == "" {
-		Skip("luxd not found in PATH or LUX_NODE_PATH")
+		Skip("luxd not found in PATH or NODE_PATH")
 	}
 
 	GinkgoWriter.Printf("Starting luxd in dev mode at %s\n", luxdPath)
@@ -168,7 +168,7 @@ var _ = AfterSuite(func() {
 // findLuxd looks for luxd binary
 func findLuxd() string {
 	// Check environment variable first
-	if path := os.Getenv("LUX_NODE_PATH"); path != "" {
+	if path := os.Getenv("NODE_PATH"); path != "" {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}

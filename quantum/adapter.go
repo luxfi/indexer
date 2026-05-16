@@ -29,7 +29,7 @@ const (
 //
 // Two verification paths:
 //  1. BLS aggregate (48 bytes) — classical fast-path consensus (BLS12-381)
-//  2. PQ proof (variable) — post-quantum certificate (ML-DSA-65 or Ringtail)
+//  2. PQ proof (variable) — post-quantum certificate (ML-DSA-65 or Corona)
 type QuasarCert struct {
 	ID         string    `json:"id"`
 	VertexID   string    `json:"vertexId"`
@@ -88,14 +88,14 @@ type QuantumStamp struct {
 	BlockHeight uint64    `json:"blockHeight"` // Block height being stamped
 	BlockHash   []byte    `json:"blockHash"`   // Block hash being certified
 	Entropy     []byte    `json:"entropy"`     // Quantum random entropy
-	KeyID       string    `json:"keyId"`       // Ringtail key used for signing
+	KeyID       string    `json:"keyId"`       // Corona key used for signing
 	Signature   []byte    `json:"signature"`   // Quantum-resistant signature
 	Timestamp   time.Time `json:"timestamp"`
 	Certified   bool      `json:"certified"` // Whether stamp has been verified
 }
 
-// RingtailKey represents a quantum-resistant signing key (Ringtail is LUX's post-quantum signature scheme)
-type RingtailKey struct {
+// CoronaKey represents a quantum-resistant signing key (Corona is LUX's post-quantum signature scheme)
+type CoronaKey struct {
 	ID          string    `json:"id"`
 	PublicKey   []byte    `json:"publicKey"`
 	KeyType     ProofType `json:"keyType"`       // dilithium, falcon, sphincs+
@@ -370,7 +370,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_key ON qchain_stamps(key_id)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_stamps_certified ON qchain_stamps(certified)`)
 
-	// Create Ringtail keys table
+	// Create Corona keys table
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_ringtail_keys (
 			id TEXT PRIMARY KEY,
@@ -387,14 +387,14 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("create ringtail keys table: %w", err)
+		return fmt.Errorf("create corona keys table: %w", err)
 	}
 
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_owner ON qchain_ringtail_keys(owner)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_type ON qchain_ringtail_keys(key_type)`)
 	_ = store.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_qchain_keys_active ON qchain_ringtail_keys(revoked, valid_until)`)
 
-	// Create QuasarCert table (triple consensus: BLS + ZK(ML-DSA) + Ringtail)
+	// Create QuasarCert table (triple consensus: BLS + ZK(ML-DSA) + Corona)
 	err = store.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS qchain_quasar_certs (
 			id TEXT PRIMARY KEY,
@@ -736,8 +736,8 @@ func (a *Adapter) StoreStamp(ctx context.Context, store storage.Store, stamp *Qu
 		stamp.Entropy, stamp.KeyID, stamp.Signature, stamp.Timestamp, certified)
 }
 
-// StoreRingtailKey stores a quantum-resistant signing key
-func (a *Adapter) StoreRingtailKey(ctx context.Context, store storage.Store, key *RingtailKey, vertexID string) error {
+// StoreCoronaKey stores a quantum-resistant signing key
+func (a *Adapter) StoreCoronaKey(ctx context.Context, store storage.Store, key *CoronaKey, vertexID string) error {
 	revoked := 0
 	if key.Revoked {
 		revoked = 1
@@ -811,8 +811,8 @@ func (a *Adapter) GetStampsByChain(ctx context.Context, store storage.Store, cha
 	return stamps, nil
 }
 
-// GetActiveKeys retrieves active Ringtail keys for an owner
-func (a *Adapter) GetActiveKeys(ctx context.Context, store storage.Store, owner string) ([]RingtailKey, error) {
+// GetActiveKeys retrieves active Corona keys for an owner
+func (a *Adapter) GetActiveKeys(ctx context.Context, store storage.Store, owner string) ([]CoronaKey, error) {
 	rows, err := store.Query(ctx, `
 		SELECT id, public_key, key_type, algorithm, security_level, owner, valid_from, valid_until, revoked, created_at
 		FROM qchain_ringtail_keys
@@ -823,9 +823,9 @@ func (a *Adapter) GetActiveKeys(ctx context.Context, store storage.Store, owner 
 		return nil, err
 	}
 
-	var keys []RingtailKey
+	var keys []CoronaKey
 	for _, row := range rows {
-		k := RingtailKey{}
+		k := CoronaKey{}
 		if v, ok := row["id"].(string); ok {
 			k.ID = v
 		}

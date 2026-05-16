@@ -200,10 +200,10 @@ func TestQuantumStampJSON(t *testing.T) {
 	}
 }
 
-// TestRingtailKeyJSON tests RingtailKey JSON serialization
-func TestRingtailKeyJSON(t *testing.T) {
+// TestCoronaKeyJSON tests CoronaKey JSON serialization
+func TestCoronaKeyJSON(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	key := RingtailKey{
+	key := CoronaKey{
 		ID:          "key-123",
 		PublicKey:   []byte{0x01, 0x02, 0x03, 0x04},
 		KeyType:     ProofDilithium,
@@ -221,7 +221,7 @@ func TestRingtailKeyJSON(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	var decoded RingtailKey
+	var decoded CoronaKey
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -605,10 +605,10 @@ func TestQuantumVertexEmbedding(t *testing.T) {
 	}
 }
 
-// TestRingtailKeyValidity tests key validity period
-func TestRingtailKeyValidity(t *testing.T) {
+// TestCoronaKeyValidity tests key validity period
+func TestCoronaKeyValidity(t *testing.T) {
 	now := time.Now().UTC()
-	key := RingtailKey{
+	key := CoronaKey{
 		ID:         "key-valid",
 		ValidFrom:  now.Add(-24 * time.Hour),
 		ValidUntil: now.Add(365 * 24 * time.Hour),
@@ -621,7 +621,7 @@ func TestRingtailKeyValidity(t *testing.T) {
 	}
 
 	// Test expired key
-	expiredKey := RingtailKey{
+	expiredKey := CoronaKey{
 		ID:         "key-expired",
 		ValidFrom:  now.Add(-48 * time.Hour),
 		ValidUntil: now.Add(-24 * time.Hour),
@@ -634,7 +634,7 @@ func TestRingtailKeyValidity(t *testing.T) {
 	}
 
 	// Test revoked key
-	revokedKey := RingtailKey{
+	revokedKey := CoronaKey{
 		ID:         "key-revoked",
 		ValidFrom:  now.Add(-24 * time.Hour),
 		ValidUntil: now.Add(365 * 24 * time.Hour),
