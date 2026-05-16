@@ -207,9 +207,9 @@ func TestQuantumStampAllFields(t *testing.T) {
 	}
 }
 
-// TestRingtailKeyRevoked tests revoked key state
-func TestRingtailKeyRevoked(t *testing.T) {
-	key := RingtailKey{
+// TestCoronaKeyRevoked tests revoked key state
+func TestCoronaKeyRevoked(t *testing.T) {
+	key := CoronaKey{
 		ID:          "key-rev",
 		PublicKey:   []byte{0x01},
 		KeyType:     ProofDilithium,
@@ -231,7 +231,7 @@ func TestRingtailKeyRevoked(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	var decoded RingtailKey
+	var decoded CoronaKey
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
