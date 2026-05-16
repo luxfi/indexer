@@ -1,6 +1,6 @@
 # luxfi/indexer — standalone chain-indexer daemon.
 # The unified explorer + graph live in luxfi/explorer and luxfi/graph.
-FROM golang:1.26-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 WORKDIR /src
 COPY . .
