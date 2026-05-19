@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   docker:
-    runs-on: hanzo-build-linux-amd64
+    runs-on: lux-build
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
