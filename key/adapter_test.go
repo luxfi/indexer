@@ -824,7 +824,7 @@ func TestPostQuantumAlgorithms(t *testing.T) {
 	pqAlgorithms := []string{
 		"ml-kem-512", "ml-kem-768", "ml-kem-1024",
 		"ml-dsa-44", "ml-dsa-65", "ml-dsa-87",
-		"ringtail",
+		"corona",
 	}
 
 	for _, alg := range pqAlgorithms {
