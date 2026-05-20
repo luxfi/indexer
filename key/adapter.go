@@ -633,7 +633,7 @@ func (a *Adapter) UpdateExtendedStats(ctx context.Context, store storage.Store) 
 			total_operations = (SELECT COUNT(*) FROM kchain_key_operations),
 			total_encryptions = (SELECT COUNT(*) FROM kchain_encryption_requests),
 			total_signatures = (SELECT COUNT(*) FROM kchain_signature_requests),
-			pq_keys_count = (SELECT COUNT(*) FROM kchain_keys WHERE algorithm LIKE 'ml-%' OR algorithm = 'ringtail'),
+			pq_keys_count = (SELECT COUNT(*) FROM kchain_keys WHERE algorithm LIKE 'ml-%' OR algorithm = 'corona'),
 			threshold_keys_count = (SELECT COUNT(*) FROM kchain_keys WHERE threshold > 1),
 			algorithm_distribution = ?,
 			updated_at = CURRENT_TIMESTAMP
@@ -664,7 +664,7 @@ func (a *Adapter) GetPostQuantumKeys(ctx context.Context, store storage.Store, l
 		SELECT id, name, algorithm, key_type, public_key, threshold, total_shares,
 		       status, tags, created_at, updated_at
 		FROM kchain_keys
-		WHERE algorithm LIKE 'ml-%' OR algorithm = 'ringtail'
+		WHERE algorithm LIKE 'ml-%' OR algorithm = 'corona'
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
 	`, limit, offset)
