@@ -36,20 +36,86 @@ var (
 	TeleporterReceiveSig = "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
 )
 
-// Chain identifiers for Lux ecosystem
+// ChainID is the canonical string identifier used in indexed bridge rows.
+// Format is "<family>-<eip155-id>" for EVM chains and a single-letter code
+// for Lux-internal chains (P/X/B/T). Values come from the chain registry
+// below — there is no brand-keyed const for any ecosystem chain.
 type ChainID string
 
-const (
-	ChainCMainnet ChainID = "C-96369"  // Lux C-Chain Mainnet
-	ChainCTestnet ChainID = "C-96368"  // Lux C-Chain Testnet
-	ChainZoo      ChainID = "Z-200200" // Zoo Network Mainnet
-	ChainZooTest  ChainID = "Z-200201" // Zoo Network Testnet
-	ChainHanzo    ChainID = "H-36963"  // Hanzo AI Chain
-	ChainPChain   ChainID = "P"        // Platform Chain (validators)
-	ChainXChain   ChainID = "X"        // UTXO Chain (assets)
-	ChainBChain   ChainID = "B"        // Bridge Chain
-	ChainTChain   ChainID = "T"        // Teleporter Chain
-)
+// Chain is one row of the indexed bridge's chain registry. EVMID is the
+// EIP-155 chain id used in log topics; zero means non-EVM (P/X/B/T).
+type Chain struct {
+	ID    ChainID
+	Name  string
+	EVMID uint64
+}
+
+// ChainRegistry resolves indexed chain rows by id or EIP-155 chain number.
+type ChainRegistry interface {
+	Get(id ChainID) (Chain, bool)
+	GetByEVMID(evmID uint64) (Chain, bool)
+	All() []Chain
+}
+
+// DefaultBridgeChainSeed is the canonical set of chains the bridge indexer
+// recognizes. Adding a chain is one row here. The numeric id is EIP-155 for
+// EVM rows so log topics decode deterministically.
+func DefaultBridgeChainSeed() []Chain {
+	return []Chain{
+		{ID: "C-96369", Name: "lux", EVMID: 96369},
+		{ID: "C-96368", Name: "lux-test", EVMID: 96368},
+		{ID: "Z-200200", Name: "zoo", EVMID: 200200},
+		{ID: "Z-200201", Name: "zoo-test", EVMID: 200201},
+		{ID: "H-36963", Name: "hanzo", EVMID: 36963},
+		// Internal chains have no EIP-155 id; they never appear in log topics
+		// but live here so the registry is the single source of supported ids.
+		{ID: "P", Name: "platform", EVMID: 0},
+		{ID: "X", Name: "utxo", EVMID: 0},
+		{ID: "B", Name: "bridge", EVMID: 0},
+		{ID: "T", Name: "teleporter", EVMID: 0},
+	}
+}
+
+// staticBridgeChainRegistry is an immutable ChainRegistry implementation.
+type staticBridgeChainRegistry struct {
+	chains   []Chain
+	byID     map[ChainID]Chain
+	byEVMID  map[uint64]Chain
+}
+
+// NewStaticBridgeChainRegistry returns a ChainRegistry over an immutable list.
+func NewStaticBridgeChainRegistry(chains []Chain) ChainRegistry {
+	byID := make(map[ChainID]Chain, len(chains))
+	byEVM := make(map[uint64]Chain, len(chains))
+	out := make([]Chain, len(chains))
+	for i, c := range chains {
+		out[i] = c
+		byID[c.ID] = c
+		if c.EVMID != 0 {
+			byEVM[c.EVMID] = c
+		}
+	}
+	return &staticBridgeChainRegistry{chains: out, byID: byID, byEVMID: byEVM}
+}
+
+func (r *staticBridgeChainRegistry) Get(id ChainID) (Chain, bool) {
+	c, ok := r.byID[id]
+	return c, ok
+}
+
+func (r *staticBridgeChainRegistry) GetByEVMID(evmID uint64) (Chain, bool) {
+	c, ok := r.byEVMID[evmID]
+	return c, ok
+}
+
+func (r *staticBridgeChainRegistry) All() []Chain {
+	out := make([]Chain, len(r.chains))
+	copy(out, r.chains)
+	return out
+}
+
+// defaultBridgeRegistry is built once at package init from the canonical seed.
+var defaultBridgeRegistry = NewStaticBridgeChainRegistry(DefaultBridgeChainSeed())
 
 // BridgeType represents different bridge mechanisms
 type BridgeType string
@@ -1028,29 +1094,19 @@ func (b *BridgeIndexer) checkPendingTransfers() {
 	}
 }
 
-// parseChainID parses a chain ID from a topic
+// parseChainID parses a chain ID from a log topic via the default bridge
+// chain registry. Adding a chain is one row in DefaultBridgeChainSeed — no
+// source edits here. Unknown EIP-155 ids fall through to "unknown-<n>" so
+// indexer state remains deterministic on novel chains.
 func parseChainID(topic string) ChainID {
-	// Parse chain ID from topic (last 4 bytes typically)
 	if len(topic) < 10 {
 		return ChainID(topic)
 	}
-
-	chainNum := new(big.Int).SetBytes(hexToBytes(topic[len(topic)-8:]))
-
-	switch chainNum.Uint64() {
-	case 96369:
-		return ChainCMainnet
-	case 96368:
-		return ChainCTestnet
-	case 200200:
-		return ChainZoo
-	case 200201:
-		return ChainZooTest
-	case 36963:
-		return ChainHanzo
-	default:
-		return ChainID(fmt.Sprintf("unknown-%d", chainNum.Uint64()))
+	chainNum := new(big.Int).SetBytes(hexToBytes(topic[len(topic)-8:])).Uint64()
+	if c, ok := defaultBridgeRegistry.GetByEVMID(chainNum); ok {
+		return c.ID
 	}
+	return ChainID(fmt.Sprintf("unknown-%d", chainNum))
 }
 
 // Note: hexToBytes is defined in amm.go as the canonical implementation
