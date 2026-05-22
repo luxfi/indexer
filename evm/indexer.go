@@ -72,6 +72,17 @@ func NewIndexer(cfg Config, store storage.Store) (*Indexer, error) {
 	return idx, nil
 }
 
+// Subscriber returns the indexer's internal WebSocket subscriber so an
+// embedder (e.g. luxfi/explorer) can install a Subscriber.OnBroadcast
+// callback to bridge block events into its own pub/sub fabric.
+//
+// Returns nil if the indexer was constructed without an internal
+// subscriber (currently always non-nil — NewIndexer always allocates
+// one — but the contract permits nil so callers must guard).
+func (idx *Indexer) Subscriber() *Subscriber {
+	return idx.subscriber
+}
+
 // Init initializes the EVM indexer schema
 func (idx *Indexer) Init(ctx context.Context) error {
 	schema := storage.Schema{
