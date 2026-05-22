@@ -709,16 +709,33 @@ func (idx *Indexer) processBlockEvent(ctx context.Context, event NodeEvent) erro
 	return nil
 }
 
-// Subscriber handles WebSocket for live block streaming
+// Subscriber handles WebSocket for live block streaming.
+//
+// External pub/sub hook (2026-05-21):
+//
+// `OnBroadcast` is an optional callback fired on every
+// BroadcastBlock / BroadcastTransaction. It lets an enclosing process
+// — e.g. luxfi/explorer which embeds this indexer as a library — re-
+// publish the same events to its own pub/sub fabric (SSE channels,
+// gRPC streams, NATS, etc.) without touching the indexer's own
+// WebSocket flow.
+//
+// The callback is invoked synchronously from the indexing goroutine,
+// so implementations must NOT block on slow consumers (use a buffered
+// channel + drop-on-full, the way luxfi/explorer's SSE registry does).
+//
+// Zero-value (nil) is a no-op: existing WebSocket subscribers see no
+// change, and the indexer keeps working standalone.
 type Subscriber struct {
-	clients    map[*websocket.Conn]bool
-	broadcast  chan interface{}
-	register   chan *websocket.Conn
-	unregister chan *websocket.Conn
-	mu         sync.RWMutex
-	upgrader   websocket.Upgrader
-	maxClients int
-	clientSem  chan struct{}
+	clients     map[*websocket.Conn]bool
+	broadcast   chan interface{}
+	register    chan *websocket.Conn
+	unregister  chan *websocket.Conn
+	mu          sync.RWMutex
+	upgrader    websocket.Upgrader
+	maxClients  int
+	clientSem   chan struct{}
+	OnBroadcast func(eventType string, data any) // optional, see header
 }
 
 func NewSubscriber() *Subscriber {
@@ -803,4 +820,10 @@ func (s *Subscriber) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func (s *Subscriber) BroadcastBlock(block *EVMBlock) {
 	s.broadcast <- map[string]interface{}{"type": "block", "data": block}
+	if s.OnBroadcast != nil {
+		// `"blocks"` (plural) is the channel name the explorer SPA
+		// subscribes to via SSE/WS. Keeping the wire-shape consistent
+		// across embedders.
+		s.OnBroadcast("blocks", block)
+	}
 }
