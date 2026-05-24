@@ -25,6 +25,15 @@ type Config struct {
 	RPCEndpoint  string
 	HTTPPort     int
 	PollInterval time.Duration
+
+	// StartBlock is the lowest block to index when there is no existing
+	// stored state (i.e. on a fresh DB). Set this when running against a
+	// long-history chain — most useful for mainnet-fork devnets where the
+	// fork inherits millions of historical blocks but the operator only
+	// cares about the post-fork (locally-mined) activity. Once the indexer
+	// has any rows in evm_blocks, this field is ignored and indexing
+	// resumes from MAX(number)+1.
+	StartBlock uint64
 }
 
 // Indexer is the main EVM chain indexer
@@ -296,10 +305,15 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 		}
 	}
 
-	// Index new blocks (start from 0 if nothing indexed yet)
+	// Index new blocks. When there is existing state, resume from MAX+1.
+	// Otherwise, honor an operator-supplied StartBlock (useful for
+	// mainnet-fork devnets where genesis-from-0 backfill is wasteful), or
+	// fall back to 0 for a true fresh-genesis chain.
 	startBlock := lastIndexed
 	if lastIndexed > 0 {
 		startBlock = lastIndexed + 1
+	} else if idx.config.StartBlock > 0 {
+		startBlock = idx.config.StartBlock
 	}
 
 	if startBlock <= block.Number && idx.lastLogTime.Add(30*time.Second).Before(time.Now()) {
