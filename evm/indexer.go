@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -354,8 +355,12 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 	// it was a contract).
 	addrTxCount := make(map[string]uint64)
 	addrIsContract := make(map[string]bool)
+	// Track tokens discovered in this block so we can insert a placeholder
+	// row in evm_tokens with the metadata best-effort resolved via eth_call
+	// (name/symbol/decimals).
+	tokensSeen := make(map[string]string) // address → token_type
 	for i, txHash := range block.Transactions {
-		tx, _, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
+		tx, logs, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
 		if err != nil || tx == nil {
 			continue
 		}
@@ -375,6 +380,51 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 			continue
 		}
 
+		// Index logs + extract token transfers. Receipts include the full
+		// log list already, so this is "free" — no separate eth_getLogs.
+		for _, l := range logs {
+			logID := fmt.Sprintf("%s-%d", l.TxHash, l.LogIndex)
+			topic0, topic1, topic2, topic3 := "", "", "", ""
+			if len(l.Topics) > 0 {
+				topic0 = l.Topics[0]
+			}
+			if len(l.Topics) > 1 {
+				topic1 = l.Topics[1]
+			}
+			if len(l.Topics) > 2 {
+				topic2 = l.Topics[2]
+			}
+			if len(l.Topics) > 3 {
+				topic3 = l.Topics[3]
+			}
+			_ = idx.store.Exec(ctx, idx.upsertLogSQL(),
+				logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
+				l.Address, topic0, topic1, topic2, topic3, l.Data,
+				block.Timestamp, time.Now())
+
+			// Topic-0 of ERC-20 Transfer is identical to ERC-721 Transfer;
+			// distinguish on topic count (ERC-20 has 3 topics, ERC-721 has 4).
+			if topic0 == TopicTransferERC20 {
+				from := topicToAddr(topic1)
+				to := topicToAddr(topic2)
+				if len(l.Topics) == 3 {
+					// ERC-20: value is the data field (uint256 hex)
+					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
+						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
+						l.Address, "ERC-20", from, to, l.Data, "",
+						block.Timestamp, time.Now())
+					tokensSeen[strings.ToLower(l.Address)] = "ERC-20"
+				} else if len(l.Topics) == 4 {
+					// ERC-721: token_id in topic3, value is "1"
+					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
+						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
+						l.Address, "ERC-721", from, to, "1", topic3,
+						block.Timestamp, time.Now())
+					tokensSeen[strings.ToLower(l.Address)] = "ERC-721"
+				}
+			}
+		}
+
 		// Each tx touches up to 3 distinct addresses. Dedup per-tx so a
 		// self-send doesn't double-count.
 		touched := make(map[string]struct{}, 3)
@@ -391,6 +441,18 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		for a := range touched {
 			addrTxCount[a]++
 		}
+	}
+
+	// Resolve token metadata (name/symbol/decimals) via eth_call for any
+	// token we saw a transfer for and haven't already cached. Best-effort:
+	// failures emit a row with empty metadata so the explorer at least
+	// shows the address + transfer count.
+	for tokenAddr, tType := range tokensSeen {
+		addrIsContract[tokenAddr] = true
+		name, symbol, decimals, totalSupply := idx.resolveTokenMeta(ctx, tokenAddr, tType)
+		_ = idx.store.Exec(ctx, idx.upsertTokenSQL(),
+			tokenAddr, name, symbol, decimals, totalSupply, tType,
+			time.Now(), time.Now())
 	}
 
 	// Resolve is_contract for everything we haven't already pinned as
@@ -917,4 +979,97 @@ func (s *Subscriber) BroadcastBlock(block *EVMBlock) {
 		// across embedders.
 		s.OnBroadcast("blocks", block)
 	}
+}
+
+// upsertLogSQL returns the correct upsert SQL for evm_logs.
+// Param order: (id, tx_hash, log_index, block_number, address,
+//                topic0, topic1, topic2, topic3, data, timestamp, created_at)
+func (idx *Indexer) upsertLogSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_logs
+			(id, tx_hash, log_index, block_number, address, topic0, topic1, topic2, topic3, data, timestamp, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			ON CONFLICT (id) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_logs
+			(id, tx_hash, log_index, block_number, address, topic0, topic1, topic2, topic3, data, timestamp, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+	}
+}
+
+// upsertTokenTransferSQL returns the correct upsert SQL for evm_token_transfers.
+// Param order: (id, tx_hash, log_index, block_number, token_address, token_type,
+//                from_addr, to_addr, value, token_id, timestamp, created_at)
+func (idx *Indexer) upsertTokenTransferSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_token_transfers
+			(id, tx_hash, log_index, block_number, token_address, token_type, from_addr, to_addr, value, token_id, timestamp, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			ON CONFLICT (id) DO NOTHING`
+	default:
+		return `INSERT OR IGNORE INTO evm_token_transfers
+			(id, tx_hash, log_index, block_number, token_address, token_type, from_addr, to_addr, value, token_id, timestamp, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+	}
+}
+
+// upsertTokenSQL returns the correct upsert SQL for evm_tokens.
+// Param order: (address, name, symbol, decimals, total_supply, token_type,
+//                created_at, updated_at). tx_count + holder_count are
+//                maintained separately and default to 0 on first insert.
+func (idx *Indexer) upsertTokenSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_tokens
+			(address, name, symbol, decimals, total_supply, token_type, created_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			ON CONFLICT (address) DO UPDATE SET
+				name         = COALESCE(NULLIF(EXCLUDED.name,    ''), evm_tokens.name),
+				symbol       = COALESCE(NULLIF(EXCLUDED.symbol,  ''), evm_tokens.symbol),
+				decimals     = COALESCE(NULLIF(EXCLUDED.decimals, 0), evm_tokens.decimals),
+				total_supply = COALESCE(NULLIF(EXCLUDED.total_supply, ''), evm_tokens.total_supply),
+				token_type   = COALESCE(NULLIF(EXCLUDED.token_type,   ''), evm_tokens.token_type),
+				updated_at   = EXCLUDED.updated_at`
+	default:
+		return `INSERT INTO evm_tokens
+			(address, name, symbol, decimals, total_supply, token_type, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?)
+			ON CONFLICT (address) DO UPDATE SET
+				name         = CASE WHEN excluded.name         != '' THEN excluded.name         ELSE evm_tokens.name         END,
+				symbol       = CASE WHEN excluded.symbol       != '' THEN excluded.symbol       ELSE evm_tokens.symbol       END,
+				decimals     = CASE WHEN excluded.decimals     != 0  THEN excluded.decimals     ELSE evm_tokens.decimals     END,
+				total_supply = CASE WHEN excluded.total_supply != '' THEN excluded.total_supply ELSE evm_tokens.total_supply END,
+				token_type   = CASE WHEN excluded.token_type   != '' THEN excluded.token_type   ELSE evm_tokens.token_type   END,
+				updated_at   = excluded.updated_at`
+	}
+}
+
+// resolveTokenMeta does a best-effort eth_call name/symbol/decimals/totalSupply
+// resolution. Empty strings + 0 decimals for the metadata when the contract
+// doesn't implement the ERC-20 interface (or the call reverts). For ERC-721 we
+// don't fetch totalSupply (the standard's totalSupply is optional + expensive).
+func (idx *Indexer) resolveTokenMeta(ctx context.Context, addr, tokenType string) (name, symbol string, decimals uint8, totalSupply string) {
+	info, err := idx.adapter.GetTokenInfo(ctx, addr)
+	if err != nil || info == nil {
+		return "", "", 0, "0"
+	}
+	totalSupply = info.TotalSupply
+	if totalSupply == "" {
+		totalSupply = "0"
+	}
+	return info.Name, info.Symbol, info.Decimals, totalSupply
+}
+
+// topicToAddr extracts the trailing 20-byte address from a 32-byte indexed
+// topic. ERC-20 Transfer indexes `from` + `to` as topics in their
+// uint256-padded form: a topic looks like 0x0000…<20-byte addr>. Returns
+// "" for empty / malformed input.
+func topicToAddr(topic string) string {
+	t := strings.TrimPrefix(topic, "0x")
+	if len(t) < 40 {
+		return ""
+	}
+	return "0x" + strings.ToLower(t[len(t)-40:])
 }
