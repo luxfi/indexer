@@ -297,6 +297,13 @@ func formatContract(c map[string]any) map[string]any {
 // shorter `tx_count` / `code` columns. Read whichever is present and never
 // emit a JSON `null` for the counters — the Blockscout-derived SPA does
 // `transactions_count.toLocaleString()` without a guard and crashes on null.
+//
+// is_contract resolution order, most authoritative first:
+//   1. boolean column `is_contract` (the indexer's address upsert
+//      populates this via the per-block eth_getCode resolve loop in
+//      luxfi/indexer#10).
+//   2. non-empty contract_code / code column (legacy Postgres shape).
+// EOAs end up as false in both — no false positives.
 func formatAddress(a map[string]any) map[string]any {
 	txCount := firstNonNil(a, "transactions_count", "tx_count")
 	if txCount == nil {
@@ -306,17 +313,16 @@ func formatAddress(a map[string]any) map[string]any {
 	if ttCount == nil {
 		ttCount = int64(0)
 	}
-	code := firstNonNil(a, "contract_code", "code")
-	hasCode := false
-	switch v := code.(type) {
-	case nil:
-		hasCode = false
-	case string:
-		hasCode = v != "" && v != "0x"
-	case []byte:
-		hasCode = len(v) > 0
-	default:
-		hasCode = true
+	isContract := toBool(a["is_contract"])
+	if !isContract {
+		// Fallback: derive from a non-empty code column (legacy Postgres
+		// shape where the boolean column doesn't exist).
+		switch v := firstNonNil(a, "contract_code", "code").(type) {
+		case string:
+			isContract = v != "" && v != "0x"
+		case []byte:
+			isContract = len(v) > 0
+		}
 	}
 	return map[string]any{
 		"hash":                                bytesToHex(a["hash"]),
@@ -324,12 +330,14 @@ func formatAddress(a map[string]any) map[string]any {
 		"block_number_balance_was_fetched_at": firstNonNil(a, "fetched_coin_balance_block_number"),
 		"transactions_count":                  txCount,
 		"token_transfers_count":               ttCount,
-		"is_contract":                         hasCode,
+		"is_contract":                         isContract,
 		"is_verified":                         firstNonNil(a, "verified"),
 		"has_token_balances":                  false,
 		"exchange_rate":                       nil,
 	}
 }
+
+// toBool is defined in tokenscore.go in this same package.
 
 // firstNonNil returns the first non-nil value at any of the given map keys,
 // or nil if all are missing/nil. Lets callers tolerate schema drift between
