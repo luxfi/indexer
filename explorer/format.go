@@ -242,27 +242,37 @@ func formatLog(l map[string]any) map[string]any {
 
 // formatTokenTransfer formats a token transfer row.
 func formatTokenTransfer(t map[string]any) map[string]any {
+	// Column-spelling variants between luxfi/indexer evm_token_transfers
+	// ("tx_hash", "value") and Blockscout-legacy ("transaction_hash",
+	// "amount"). Fall through both so the response works against either.
 	return map[string]any{
 		"from":             map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
 		"to":               map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
 		"token":            map[string]any{"address": bytesToHex(t["token_address"]), "type": t["token_type"]},
-		"total":            map[string]any{"value": fmtNum(t["amount"]), "decimals": nil},
+		"total":            map[string]any{"value": fmtNum(col(t, "value", "amount")), "decimals": nil},
 		"log_index":        t["log_index"],
 		"block_number":     t["block_number"],
-		"transaction_hash": bytesToHex(t["transaction_hash"]),
+		"transaction_hash": bytesToHex(col(t, "tx_hash", "transaction_hash")),
 		"timestamp":        fmtTimestamp(t["timestamp"]),
 	}
 }
 
 // formatToken formats a token row.
 func formatToken(t map[string]any) map[string]any {
+	// Schema variants:
+	//   - luxfi/indexer evm_tokens:        column "address",   "token_type"
+	//   - Blockscout legacy tokens:        "contract_address", "type"
+	//   - blockscout-derivative variants:  "contract_addr", "created_contract_address_hash",
+	//                                      "address_hash"
+	// Fall through every known spelling so the response shape works against
+	// any schema this binary is bolted onto.
 	return map[string]any{
-		"address":                bytesToHex(col(t, "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
+		"address":                bytesToHex(col(t, "address", "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
 		"name":                   t["name"],
 		"symbol":                 t["symbol"],
 		"total_supply":           fmtNum(t["total_supply"]),
 		"decimals":               fmtNum(t["decimals"]),
-		"type":                   t["type"],
+		"type":                   col(t, "token_type", "type"),
 		"holders":                fmtNum(t["holder_count"]),
 		"exchange_rate":          t["fiat_value"],
 		"circulating_market_cap": fmtNum(t["circulating_market_cap"]),
