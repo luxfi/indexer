@@ -597,9 +597,23 @@ func (s *StandaloneServer) addrCounters(r *http.Request) (any, int) {
 		return map[string]string{"error": "not found"}, 404
 	}
 	a := maps[0]
+	// Counters tolerate the legacy `transactions_count` vs trimmed `tx_count`
+	// schema drift and always emit a number (never JSON null) — the
+	// Blockscout-derived SPA does `.toLocaleString()` without a guard.
+	txC := a["transactions_count"]
+	if txC == nil {
+		txC = a["tx_count"]
+	}
+	if txC == nil {
+		txC = int64(0)
+	}
+	ttC := a["token_transfers_count"]
+	if ttC == nil {
+		ttC = int64(0)
+	}
 	return map[string]any{
-		"transactions_count":    a["transactions_count"],
-		"token_transfers_count": a["token_transfers_count"],
+		"transactions_count":    txC,
+		"token_transfers_count": ttC,
 		"gas_usage_count":       fmtNum(a["gas_used"]),
 		"validations_count":     0,
 	}, 200
