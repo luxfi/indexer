@@ -685,7 +685,18 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 	defer rows.Close()
 	maps, _ := scanMaps(rows)
 	if len(maps) == 0 {
-		return map[string]string{"error": "not found"}, 404
+		// No verified-contract row: return 200 with an "unverified" shape
+		// rather than 404. Blockscout-derived SPAs (incl. the liquidityio
+		// explorer) fetch this endpoint unconditionally on every address
+		// page and the 404 shows up as noise in devtools even for EOAs.
+		// The SPA's contract-tab gate is `i.is_contract && c` — so returning
+		// is_verified=false on an EOA is structurally identical to the 404
+		// case (no contract panel is rendered) but keeps the network log
+		// clean.
+		return map[string]any{
+			"is_verified":   false,
+			"is_self_destructed": false,
+		}, 200
 	}
 	return formatContract(maps[0]), 200
 }
