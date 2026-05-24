@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -70,10 +71,28 @@ func hexToBytes(s string) []byte {
 	return b
 }
 
-// fmtNum formats a numeric value as string.
+// fmtNum formats a numeric value as a decimal string.
+//
+// Token-transfer value comes from the log's `data` field, which is a
+// hex-encoded uint256 ("0x000…0de0b6b3a7640000" = 1e18). Same for stored
+// block.base_fee + tx.value (hex from RPC). Detect "0x"-prefixed strings
+// and convert via math/big so the SPA gets "1000000000000000000" instead
+// of an unparseable hex string.
+//
+// Plain decimal strings (token total_supply, scanned int columns) pass
+// through unchanged via fmt.Sprintf.
 func fmtNum(v any) string {
 	if v == nil {
 		return "0"
+	}
+	if s, ok := v.(string); ok && strings.HasPrefix(s, "0x") {
+		trimmed := strings.TrimPrefix(s, "0x")
+		if trimmed == "" {
+			return "0"
+		}
+		if n, ok := new(big.Int).SetString(trimmed, 16); ok {
+			return n.String()
+		}
 	}
 	return fmt.Sprintf("%v", v)
 }
@@ -242,27 +261,37 @@ func formatLog(l map[string]any) map[string]any {
 
 // formatTokenTransfer formats a token transfer row.
 func formatTokenTransfer(t map[string]any) map[string]any {
+	// Column-spelling variants between luxfi/indexer evm_token_transfers
+	// ("tx_hash", "value") and Blockscout-legacy ("transaction_hash",
+	// "amount"). Fall through both so the response works against either.
 	return map[string]any{
 		"from":             map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
 		"to":               map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
 		"token":            map[string]any{"address": bytesToHex(t["token_address"]), "type": t["token_type"]},
-		"total":            map[string]any{"value": fmtNum(t["amount"]), "decimals": nil},
+		"total":            map[string]any{"value": fmtNum(col(t, "value", "amount")), "decimals": nil},
 		"log_index":        t["log_index"],
 		"block_number":     t["block_number"],
-		"transaction_hash": bytesToHex(t["transaction_hash"]),
+		"transaction_hash": bytesToHex(col(t, "tx_hash", "transaction_hash")),
 		"timestamp":        fmtTimestamp(t["timestamp"]),
 	}
 }
 
 // formatToken formats a token row.
 func formatToken(t map[string]any) map[string]any {
+	// Schema variants:
+	//   - luxfi/indexer evm_tokens:        column "address",   "token_type"
+	//   - Blockscout legacy tokens:        "contract_address", "type"
+	//   - blockscout-derivative variants:  "contract_addr", "created_contract_address_hash",
+	//                                      "address_hash"
+	// Fall through every known spelling so the response shape works against
+	// any schema this binary is bolted onto.
 	return map[string]any{
-		"address":                bytesToHex(col(t, "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
+		"address":                bytesToHex(col(t, "address", "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
 		"name":                   t["name"],
 		"symbol":                 t["symbol"],
 		"total_supply":           fmtNum(t["total_supply"]),
 		"decimals":               fmtNum(t["decimals"]),
-		"type":                   t["type"],
+		"type":                   col(t, "token_type", "type"),
 		"holders":                fmtNum(t["holder_count"]),
 		"exchange_rate":          t["fiat_value"],
 		"circulating_market_cap": fmtNum(t["circulating_market_cap"]),
@@ -324,11 +353,19 @@ func formatAddress(a map[string]any) map[string]any {
 			isContract = len(v) > 0
 		}
 	}
+	balance := fmtNum(firstNonNil(a, "fetched_coin_balance", "balance"))
 	return map[string]any{
 		"hash":                                bytesToHex(a["hash"]),
-		"coin_balance":                        fmtNum(firstNonNil(a, "fetched_coin_balance", "balance")),
+		"coin_balance":                        balance,
+		// SPA reads `balance` directly in `Number(i.balance)/1e18`; alias to
+		// `coin_balance` so the Blockscout-derived `coin_balance` and the
+		// liquidityio-SPA's `balance` both work without a SPA rebuild.
+		"balance":                             balance,
 		"block_number_balance_was_fetched_at": firstNonNil(a, "fetched_coin_balance_block_number"),
 		"transactions_count":                  txCount,
+		// SPA reads `tx_count` directly (the field on block rows). Alias so the
+		// SPA's `i.tx_count.toLocaleString()` on the address-detail page works.
+		"tx_count":                            txCount,
 		"token_transfers_count":               ttCount,
 		"is_contract":                         isContract,
 		"is_verified":                         firstNonNil(a, "verified"),

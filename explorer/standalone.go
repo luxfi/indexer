@@ -77,6 +77,11 @@ type StandaloneServer struct {
 type tableNames struct {
 	blocks, txs, addrs, tokens, transfers, logs, itxs, contracts, balances string
 	dexOrders, dexTrades, dexMarkets, dexPools, dexSwaps                   string
+	// tokenAddrCol is the column to filter on for "find token by address".
+	// luxfi/indexer evm_tokens uses "address"; Blockscout-legacy tokens
+	// table uses "contract_address". detectTables() sets this based on
+	// which schema is live.
+	tokenAddrCol string
 }
 
 func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
@@ -202,12 +207,14 @@ func (s *StandaloneServer) detectTables() {
 			blocks: "evm_blocks", txs: "evm_transactions", addrs: "evm_addresses", tokens: "evm_tokens",
 			transfers: "evm_token_transfers", logs: "evm_logs", itxs: "evm_internal_transactions",
 			contracts: "evm_smart_contracts", balances: "evm_token_balances",
+			tokenAddrCol: "address",
 		}
 	} else {
 		s.t = tableNames{
 			blocks: "blocks", txs: "transactions", addrs: "addresses", tokens: "tokens",
 			transfers: "token_transfers", logs: "logs", itxs: "internal_transactions",
 			contracts: "smart_contracts", balances: "address_current_token_balances",
+			tokenAddrCol: "contract_address",
 		}
 	}
 	// DEX tables: detect dex_orders or evm_dex_orders
@@ -640,7 +647,7 @@ func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return map[string]string{"error": "invalid token address"}, 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), addr)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", s.t.tokens, s.t.tokenAddrCol), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -685,7 +692,18 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 	defer rows.Close()
 	maps, _ := scanMaps(rows)
 	if len(maps) == 0 {
-		return map[string]string{"error": "not found"}, 404
+		// No verified-contract row: return 200 with an "unverified" shape
+		// rather than 404. Blockscout-derived SPAs (incl. the liquidityio
+		// explorer) fetch this endpoint unconditionally on every address
+		// page and the 404 shows up as noise in devtools even for EOAs.
+		// The SPA's contract-tab gate is `i.is_contract && c` — so returning
+		// is_verified=false on an EOA is structurally identical to the 404
+		// case (no contract panel is rendered) but keeps the network log
+		// clean.
+		return map[string]any{
+			"is_verified":   false,
+			"is_self_destructed": false,
+		}, 200
 	}
 	return formatContract(maps[0]), 200
 }
@@ -1071,7 +1089,7 @@ func (s *StandaloneServer) tokenCounters(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE contract_addr = ? LIMIT 1", s.t.tokens), addr)
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", s.t.tokens, s.t.tokenAddrCol), addr)
 	if err != nil {
 		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 200
 	}
