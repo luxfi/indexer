@@ -291,18 +291,56 @@ func formatContract(c map[string]any) map[string]any {
 }
 
 // formatAddress formats an address row.
+//
+// Some installs use the legacy `transactions_count` / `token_transfers_count`
+// / `contract_code` columns; the SQLite path in evm/indexer.go writes the
+// shorter `tx_count` / `code` columns. Read whichever is present and never
+// emit a JSON `null` for the counters — the Blockscout-derived SPA does
+// `transactions_count.toLocaleString()` without a guard and crashes on null.
 func formatAddress(a map[string]any) map[string]any {
+	txCount := firstNonNil(a, "transactions_count", "tx_count")
+	if txCount == nil {
+		txCount = int64(0)
+	}
+	ttCount := firstNonNil(a, "token_transfers_count")
+	if ttCount == nil {
+		ttCount = int64(0)
+	}
+	code := firstNonNil(a, "contract_code", "code")
+	hasCode := false
+	switch v := code.(type) {
+	case nil:
+		hasCode = false
+	case string:
+		hasCode = v != "" && v != "0x"
+	case []byte:
+		hasCode = len(v) > 0
+	default:
+		hasCode = true
+	}
 	return map[string]any{
 		"hash":                                bytesToHex(a["hash"]),
-		"coin_balance":                        fmtNum(a["fetched_coin_balance"]),
-		"block_number_balance_was_fetched_at": a["fetched_coin_balance_block_number"],
-		"transactions_count":                  a["transactions_count"],
-		"token_transfers_count":               a["token_transfers_count"],
-		"is_contract":                         a["contract_code"] != nil,
-		"is_verified":                         a["verified"],
+		"coin_balance":                        fmtNum(firstNonNil(a, "fetched_coin_balance", "balance")),
+		"block_number_balance_was_fetched_at": firstNonNil(a, "fetched_coin_balance_block_number"),
+		"transactions_count":                  txCount,
+		"token_transfers_count":               ttCount,
+		"is_contract":                         hasCode,
+		"is_verified":                         firstNonNil(a, "verified"),
 		"has_token_balances":                  false,
 		"exchange_rate":                       nil,
 	}
+}
+
+// firstNonNil returns the first non-nil value at any of the given map keys,
+// or nil if all are missing/nil. Lets callers tolerate schema drift between
+// the legacy Postgres column layout and the trimmed SQLite one.
+func firstNonNil(a map[string]any, keys ...string) any {
+	for _, k := range keys {
+		if v, ok := a[k]; ok && v != nil {
+			return v
+		}
+	}
+	return nil
 }
 
 func txStatusStr(v any) string {
