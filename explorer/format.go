@@ -324,11 +324,19 @@ func formatAddress(a map[string]any) map[string]any {
 			isContract = len(v) > 0
 		}
 	}
+	balance := fmtNum(firstNonNil(a, "fetched_coin_balance", "balance"))
 	return map[string]any{
 		"hash":                                bytesToHex(a["hash"]),
-		"coin_balance":                        fmtNum(firstNonNil(a, "fetched_coin_balance", "balance")),
+		"coin_balance":                        balance,
+		// SPA reads `balance` directly in `Number(i.balance)/1e18`; alias to
+		// `coin_balance` so the Blockscout-derived `coin_balance` and the
+		// liquidityio-SPA's `balance` both work without a SPA rebuild.
+		"balance":                             balance,
 		"block_number_balance_was_fetched_at": firstNonNil(a, "fetched_coin_balance_block_number"),
 		"transactions_count":                  txCount,
+		// SPA reads `tx_count` directly (the field on block rows). Alias so the
+		// SPA's `i.tx_count.toLocaleString()` on the address-detail page works.
+		"tx_count":                            txCount,
 		"token_transfers_count":               ttCount,
 		"is_contract":                         isContract,
 		"is_verified":                         firstNonNil(a, "verified"),
