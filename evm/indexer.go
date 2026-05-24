@@ -344,14 +344,19 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		return fmt.Errorf("store block: %w", err)
 	}
 
-	// Index transactions: fetch receipts for each tx hash
-	addrs := make(map[string]bool)
+	// Index transactions: fetch receipts for each tx hash. Track each
+	// address's per-block tx count and known contract status so the
+	// downstream upsert can increment counters and resolve is_contract
+	// (the old code passed isContract:false for every from/to and only
+	// flagged the contract-creation address — but a SimplePool created
+	// via `new` inside a script is a regular CALL to the creator's
+	// factory, not a top-level creation tx, so the indexer never knew
+	// it was a contract).
+	addrTxCount := make(map[string]uint64)
+	addrIsContract := make(map[string]bool)
 	for i, txHash := range block.Transactions {
 		tx, _, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
-		if err != nil {
-			continue
-		}
-		if tx == nil {
+		if err != nil || tx == nil {
 			continue
 		}
 		status := 0
@@ -369,20 +374,46 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		if err := idx.store.Exec(ctx, txQ, txArgs...); err != nil {
 			continue
 		}
+
+		// Each tx touches up to 3 distinct addresses. Dedup per-tx so a
+		// self-send doesn't double-count.
+		touched := make(map[string]struct{}, 3)
 		if tx.From != "" {
-			addrs[tx.From] = false
+			touched[tx.From] = struct{}{}
 		}
 		if tx.To != "" {
-			addrs[tx.To] = false
+			touched[tx.To] = struct{}{}
 		}
 		if tx.ContractAddress != "" {
-			addrs[tx.ContractAddress] = true
+			touched[tx.ContractAddress] = struct{}{}
+			addrIsContract[tx.ContractAddress] = true
+		}
+		for a := range touched {
+			addrTxCount[a]++
 		}
 	}
 
-	// Upsert discovered addresses
-	for addr, isContract := range addrs {
-		_ = idx.store.Exec(ctx, idx.upsertAddrSQL(), addr, isContract, time.Now(), time.Now())
+	// Resolve is_contract for everything we haven't already pinned as
+	// a contract via tx.ContractAddress. Anvil-local RPCs return code
+	// for any address in O(1); cost is bounded by unique addresses per
+	// block (~5 typical). Failures are non-fatal — fall back to false.
+	for addr := range addrTxCount {
+		if addrIsContract[addr] {
+			continue
+		}
+		code, err := idx.adapter.GetCode(ctx, addr)
+		if err == nil && code != "" && code != "0x" {
+			addrIsContract[addr] = true
+		}
+	}
+
+	// Upsert discovered addresses with tx_count increment + is_contract
+	// OR-merge so contract status, once true, stays true. Parameter order
+	// must match the SQL: (hash, tx_count, is_contract, created_at, updated_at).
+	now := time.Now()
+	for addr, dCount := range addrTxCount {
+		_ = idx.store.Exec(ctx, idx.upsertAddrSQL(),
+			addr, int64(dCount), addrIsContract[addr], now, now)
 	}
 
 	// Broadcast new block
@@ -392,49 +423,84 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 }
 
 // backfillAddresses upserts every from/to/contract address found in
-// evm_transactions into evm_addresses. Idempotent (ON CONFLICT DO NOTHING).
-// Returns the count upserted.
+// evm_transactions into evm_addresses, counting how many distinct txs
+// touched each address and verifying contract status via eth_getCode for
+// any address not already flagged. Safe to re-run: the upsert is an
+// increment of tx_count, but if the caller has already seeded the table
+// with per-block deltas, running this again would double-count. Intended
+// for first-time bootstrap on an empty addresses table; the
+// per-block upsert in Run() is the steady-state path.
 func (idx *Indexer) backfillAddresses(ctx context.Context) (int, error) {
-	addrs := make(map[string]bool)
+	addrTxCount := make(map[string]uint64)
+	addrIsContract := make(map[string]bool)
 	rows, err := idx.store.Query(ctx, `SELECT from_addr, to_addr, contract_addr FROM evm_transactions`)
 	if err != nil {
 		return 0, err
 	}
 	for _, r := range rows {
+		touched := make(map[string]struct{}, 3)
 		if v, ok := r["from_addr"].(string); ok && v != "" {
-			addrs[v] = false
+			touched[v] = struct{}{}
 		}
 		if v, ok := r["to_addr"].(string); ok && v != "" {
-			if _, seen := addrs[v]; !seen {
-				addrs[v] = false
-			}
+			touched[v] = struct{}{}
 		}
 		if v, ok := r["contract_addr"].(string); ok && v != "" {
-			addrs[v] = true
+			touched[v] = struct{}{}
+			addrIsContract[v] = true
+		}
+		for a := range touched {
+			addrTxCount[a]++
+		}
+	}
+	for a := range addrTxCount {
+		if addrIsContract[a] {
+			continue
+		}
+		code, err := idx.adapter.GetCode(ctx, a)
+		if err == nil && code != "" && code != "0x" {
+			addrIsContract[a] = true
 		}
 	}
 	now := time.Now()
 	q := idx.upsertAddrSQL()
-	for a, isContract := range addrs {
-		_ = idx.store.Exec(ctx, q, a, isContract, now, now)
+	for a, c := range addrTxCount {
+		_ = idx.store.Exec(ctx, q, a, int64(c), addrIsContract[a], now, now)
 	}
-	return len(addrs), nil
+	return len(addrTxCount), nil
 }
 
-// upsertAddrSQL returns the correct upsert SQL for addresses.
-// Writes all NOT NULL columns explicitly — a schema without defaults rejects
-// partial inserts silently, which is how this broke before.
+// upsertAddrSQL returns an INSERT … ON CONFLICT … DO UPDATE that:
+//   • on first sight: writes hash, is_contract, tx_count delta, timestamps.
+//   • on subsequent sight: increments tx_count by the delta and OR-merges
+//     is_contract (once true, stays true).
+//
+// The legacy form was INSERT OR IGNORE / ON CONFLICT DO NOTHING, which
+// meant tx_count was permanently 0 for every address ever seen and
+// is_contract could never be retro-corrected if an address was first
+// observed as plain `to` and only later resolved as a contract.
+//
+// Caller passes: (addr, isContract, txCountDelta, createdAt, updatedAt).
 func (idx *Indexer) upsertAddrSQL() string {
 	switch idx.store.Backend() {
 	case storage.BackendPostgres:
 		return `INSERT INTO evm_addresses
 			(hash, balance, tx_count, is_contract, code, creator, creation_tx, created_at, updated_at)
-			VALUES ($1,'0',0,$2,'','','',$3,$4)
-			ON CONFLICT (hash) DO NOTHING`
+			VALUES ($1,'0',$3,$2,'','','',$4,$5)
+			ON CONFLICT (hash) DO UPDATE SET
+				tx_count    = evm_addresses.tx_count + EXCLUDED.tx_count,
+				is_contract = evm_addresses.is_contract OR EXCLUDED.is_contract,
+				updated_at  = EXCLUDED.updated_at`
 	default:
-		return `INSERT OR IGNORE INTO evm_addresses
+		// SQLite: `OR` between integers works as bitwise/logical for the 0/1
+		// boolean column. MAX() also works and is more obviously a merge.
+		return `INSERT INTO evm_addresses
 			(hash, balance, tx_count, is_contract, code, creator, creation_tx, created_at, updated_at)
-			VALUES (?,'0',0,?,'','','',?,?)`
+			VALUES (?,'0',?,?,'','','',?,?)
+			ON CONFLICT (hash) DO UPDATE SET
+				tx_count    = evm_addresses.tx_count + excluded.tx_count,
+				is_contract = MAX(evm_addresses.is_contract, excluded.is_contract),
+				updated_at  = excluded.updated_at`
 	}
 }
 
