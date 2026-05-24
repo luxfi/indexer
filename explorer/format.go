@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -70,10 +71,28 @@ func hexToBytes(s string) []byte {
 	return b
 }
 
-// fmtNum formats a numeric value as string.
+// fmtNum formats a numeric value as a decimal string.
+//
+// Token-transfer value comes from the log's `data` field, which is a
+// hex-encoded uint256 ("0x000…0de0b6b3a7640000" = 1e18). Same for stored
+// block.base_fee + tx.value (hex from RPC). Detect "0x"-prefixed strings
+// and convert via math/big so the SPA gets "1000000000000000000" instead
+// of an unparseable hex string.
+//
+// Plain decimal strings (token total_supply, scanned int columns) pass
+// through unchanged via fmt.Sprintf.
 func fmtNum(v any) string {
 	if v == nil {
 		return "0"
+	}
+	if s, ok := v.(string); ok && strings.HasPrefix(s, "0x") {
+		trimmed := strings.TrimPrefix(s, "0x")
+		if trimmed == "" {
+			return "0"
+		}
+		if n, ok := new(big.Int).SetString(trimmed, 16); ok {
+			return n.String()
+		}
 	}
 	return fmt.Sprintf("%v", v)
 }
