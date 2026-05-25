@@ -211,9 +211,14 @@ func (idx *Indexer) Init(ctx context.Context) error {
 				// ERC-721 (one row per NFT, owner stored in `address`).
 				Name: "evm_token_balances",
 				Columns: []storage.Column{
-					{Name: "token_address", Type: storage.TypeText, Nullable: false},
-					{Name: "address", Type: storage.TypeText, Nullable: false},
-					{Name: "token_id", Type: storage.TypeText, Default: "''"},
+					// Composite PK (token_address, address, token_id) is
+					// required so the upsert's ON CONFLICT clause has a
+					// constraint to match against — without it, every
+					// balance write was silently lost on duplicate
+					// (token, holder) inserts.
+					{Name: "token_address", Type: storage.TypeText, Nullable: false, Primary: true},
+					{Name: "address", Type: storage.TypeText, Nullable: false, Primary: true},
+					{Name: "token_id", Type: storage.TypeText, Default: "''", Primary: true},
 					{Name: "value", Type: storage.TypeText, Default: "'0'"},
 					{Name: "token_type", Type: storage.TypeText, Default: "''"},
 					{Name: "updated_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
