@@ -927,6 +927,33 @@ func (s *StandaloneServer) search(r *http.Request) (any, int) {
 			items = append(items, map[string]any{"type": "block", "block_number": n})
 		}
 	}
+	// Search the tokens table by name/symbol substring (case-insensitive)
+	// when the query isn't a hash/address/block-number — covers the common
+	// case of typing "USDL" or "VCC" into the search bar to jump to the
+	// token-detail page. Up to 5 token hits, ordered by holder count.
+	if !strings.HasPrefix(q, "0x") && s.t.tokens != "" {
+		escaped := strings.NewReplacer("%", `\%`, "_", `\_`).Replace(q)
+		like := "%" + strings.ToLower(escaped) + "%"
+		rows, err := s.q(r, fmt.Sprintf(
+			`SELECT %s AS addr_col, name, symbol FROM %s
+			 WHERE LOWER(name) LIKE ? ESCAPE '\' OR LOWER(symbol) LIKE ? ESCAPE '\'
+			 ORDER BY holder_count DESC, name LIMIT 5`,
+			s.t.tokenAddrCol, s.t.tokens), like, like)
+		if err == nil {
+			defer rows.Close()
+			maps, _ := scanMaps(rows)
+			for _, t := range maps {
+				addr := bytesToHex(t["addr_col"])
+				items = append(items, map[string]any{
+					"type":         "token",
+					"address":      addr,
+					"address_hash": addr,
+					"name":         t["name"],
+					"symbol":       t["symbol"],
+				})
+			}
+		}
+	}
 	return paginatedResponse{Items: items}, 200
 }
 
