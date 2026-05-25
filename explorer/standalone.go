@@ -718,7 +718,13 @@ func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return ep(), 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE token_address = ? ORDER BY value DESC LIMIT 50", s.t.balances), addr)
+	addr = strings.ToLower(addr)
+	// Filter out zero-balance rows + sort by value DESC. CAST to REAL
+	// for ordering since `value` is a TEXT column holding decimal strings.
+	q := fmt.Sprintf(`SELECT address, value FROM %s
+		WHERE LOWER(token_address) = ? AND value != '0' AND value != ''
+		ORDER BY CAST(value AS REAL) DESC LIMIT 50`, s.t.balances)
+	rows, err := s.q(r, q, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -1261,7 +1267,19 @@ func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return ep(), 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? ORDER BY value DESC LIMIT 100", s.t.balances), addr)
+	addr = strings.ToLower(addr)
+	// LEFT JOIN evm_tokens so the SPA gets symbol/decimals/name in one
+	// call instead of N follow-up /tokens/{addr} lookups. Filter out
+	// zero-balance rows (debits that hit zero leave the row in place).
+	q := fmt.Sprintf(`
+		SELECT b.token_address AS token_address, b.address AS address,
+		       b.token_id AS token_id, b.value AS value, b.token_type AS token_type,
+		       t.name AS name, t.symbol AS symbol, t.decimals AS decimals
+		FROM %s b LEFT JOIN %s t ON LOWER(t.%s) = LOWER(b.token_address)
+		WHERE LOWER(b.address) = ? AND b.value != '0' AND b.value != ''
+		ORDER BY CAST(b.value AS REAL) DESC LIMIT 100`,
+		s.t.balances, s.t.tokens, s.t.tokenAddrCol)
+	rows, err := s.q(r, q, addr)
 	if err != nil {
 		return ep(), 200
 	}
@@ -1270,7 +1288,13 @@ func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
 	items := make([]map[string]any, len(maps))
 	for i, b := range maps {
 		items[i] = map[string]any{
-			"token":    map[string]any{"address": bytesToHex(b["token_address"]), "type": b["token_type"]},
+			"token": map[string]any{
+				"address":  bytesToHex(b["token_address"]),
+				"type":     b["token_type"],
+				"name":     b["name"],
+				"symbol":   b["symbol"],
+				"decimals": fmtNum(b["decimals"]),
+			},
 			"value":    fmtNum(b["value"]),
 			"token_id": b["token_id"],
 		}

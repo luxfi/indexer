@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -202,6 +203,22 @@ func (idx *Indexer) Init(ctx context.Context) error {
 					{Name: "created_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
 				},
 			},
+			{
+				// Per-(token, holder) balance state. Maintained on every
+				// detected Transfer log via applyERC20BalanceDelta /
+				// applyERC721BalanceDelta. token_id is "" for ERC-20
+				// (one row per holder per token) or the hex tokenId for
+				// ERC-721 (one row per NFT, owner stored in `address`).
+				Name: "evm_token_balances",
+				Columns: []storage.Column{
+					{Name: "token_address", Type: storage.TypeText, Nullable: false},
+					{Name: "address", Type: storage.TypeText, Nullable: false},
+					{Name: "token_id", Type: storage.TypeText, Default: "''"},
+					{Name: "value", Type: storage.TypeText, Default: "'0'"},
+					{Name: "token_type", Type: storage.TypeText, Default: "''"},
+					{Name: "updated_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
+				},
+			},
 		},
 		Indexes: []storage.Index{
 			{Name: "idx_evm_blocks_number", Table: "evm_blocks", Columns: []string{"number"}},
@@ -218,6 +235,8 @@ func (idx *Indexer) Init(ctx context.Context) error {
 			{Name: "idx_evm_token_transfers_to", Table: "evm_token_transfers", Columns: []string{"to_addr"}},
 			{Name: "idx_evm_logs_address", Table: "evm_logs", Columns: []string{"address"}},
 			{Name: "idx_evm_logs_topic0", Table: "evm_logs", Columns: []string{"topic0"}},
+			{Name: "idx_evm_token_balances_token", Table: "evm_token_balances", Columns: []string{"token_address"}},
+			{Name: "idx_evm_token_balances_addr", Table: "evm_token_balances", Columns: []string{"address"}},
 		},
 	}
 
@@ -407,20 +426,29 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 			if topic0 == TopicTransferERC20 {
 				from := topicToAddr(topic1)
 				to := topicToAddr(topic2)
+				tokenLo := strings.ToLower(l.Address)
 				if len(l.Topics) == 3 {
 					// ERC-20: value is the data field (uint256 hex)
 					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
 						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
 						l.Address, "ERC-20", from, to, l.Data, "",
 						block.Timestamp, time.Now())
-					tokensSeen[strings.ToLower(l.Address)] = "ERC-20"
+					tokensSeen[tokenLo] = "ERC-20"
+					// Update per-holder balance state. l.Data is the
+					// 32-byte uint256 value. We move it from `from` to
+					// `to`, skipping the zero-address (mint source +
+					// burn sink — those aren't real holders).
+					idx.applyERC20BalanceDelta(ctx, tokenLo, from, to, l.Data)
 				} else if len(l.Topics) == 4 {
 					// ERC-721: token_id in topic3, value is "1"
 					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
 						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
 						l.Address, "ERC-721", from, to, "1", topic3,
 						block.Timestamp, time.Now())
-					tokensSeen[strings.ToLower(l.Address)] = "ERC-721"
+					tokensSeen[tokenLo] = "ERC-721"
+					// For ERC-721 the entire token_id moves: delete
+					// from the old owner, insert for the new owner.
+					idx.applyERC721BalanceDelta(ctx, tokenLo, from, to, topic3)
 				}
 			}
 		}
@@ -1072,4 +1100,98 @@ func topicToAddr(topic string) string {
 		return ""
 	}
 	return "0x" + strings.ToLower(t[len(t)-40:])
+}
+
+// upsertBalanceSQL returns the correct upsert SQL for evm_token_balances.
+//
+// Schema: (token_address, address, token_id, value, token_type, updated_at)
+// Primary key: (token_address, address, token_id). token_id is "" for
+// ERC-20 holdings, the actual hex tokenId for ERC-721.
+func (idx *Indexer) upsertBalanceSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_token_balances
+			(token_address, address, token_id, value, token_type, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6)
+			ON CONFLICT (token_address, address, token_id) DO UPDATE SET
+				value      = EXCLUDED.value,
+				token_type = COALESCE(NULLIF(EXCLUDED.token_type,''), evm_token_balances.token_type),
+				updated_at = EXCLUDED.updated_at`
+	default:
+		return `INSERT INTO evm_token_balances
+			(token_address, address, token_id, value, token_type, updated_at)
+			VALUES (?,?,?,?,?,?)
+			ON CONFLICT (token_address, address, token_id) DO UPDATE SET
+				value      = excluded.value,
+				token_type = CASE WHEN excluded.token_type != '' THEN excluded.token_type ELSE evm_token_balances.token_type END,
+				updated_at = excluded.updated_at`
+	}
+}
+
+// readBalance loads the current `value` for (token, holder, tokenId) as a
+// *big.Int. Returns big.NewInt(0) when no row exists.
+func (idx *Indexer) readBalance(ctx context.Context, token, holder, tokenID string) *big.Int {
+	rows, err := idx.store.Query(ctx,
+		"SELECT value FROM evm_token_balances WHERE token_address = ? AND address = ? AND token_id = ? LIMIT 1",
+		token, holder, tokenID,
+	)
+	if err != nil || len(rows) == 0 {
+		return big.NewInt(0)
+	}
+	v, _ := rows[0]["value"].(string)
+	if v == "" {
+		return big.NewInt(0)
+	}
+	n, ok := new(big.Int).SetString(v, 10)
+	if !ok {
+		return big.NewInt(0)
+	}
+	return n
+}
+
+// applyERC20BalanceDelta moves `valueHex` (32-byte uint256, hex with "0x"
+// prefix optional) from `fromAddr` to `toAddr` in evm_token_balances. The
+// zero address is excluded (it's the conventional mint source + burn sink,
+// not a real holder).
+func (idx *Indexer) applyERC20BalanceDelta(ctx context.Context, token, fromAddr, toAddr, valueHex string) {
+	v, ok := new(big.Int).SetString(strings.TrimPrefix(valueHex, "0x"), 16)
+	if !ok || v.Sign() == 0 {
+		return
+	}
+	now := time.Now()
+	zero := "0x0000000000000000000000000000000000000000"
+	if fromAddr != "" && fromAddr != zero {
+		cur := idx.readBalance(ctx, token, fromAddr, "")
+		newV := new(big.Int).Sub(cur, v)
+		if newV.Sign() < 0 {
+			newV = big.NewInt(0)
+		}
+		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
+			token, fromAddr, "", newV.String(), "ERC-20", now)
+	}
+	if toAddr != "" && toAddr != zero {
+		cur := idx.readBalance(ctx, token, toAddr, "")
+		newV := new(big.Int).Add(cur, v)
+		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
+			token, toAddr, "", newV.String(), "ERC-20", now)
+	}
+}
+
+// applyERC721BalanceDelta moves a single NFT (tokenId from topic3) between
+// owners. Each ERC-721 row represents "this address owns tokenId X" with
+// value="1". On transfer we remove the source row and write a destination
+// row.
+func (idx *Indexer) applyERC721BalanceDelta(ctx context.Context, token, fromAddr, toAddr, tokenIDHex string) {
+	now := time.Now()
+	zero := "0x0000000000000000000000000000000000000000"
+	if fromAddr != "" && fromAddr != zero {
+		_ = idx.store.Exec(ctx,
+			"DELETE FROM evm_token_balances WHERE token_address = ? AND address = ? AND token_id = ?",
+			token, fromAddr, tokenIDHex,
+		)
+	}
+	if toAddr != "" && toAddr != zero {
+		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
+			token, toAddr, tokenIDHex, "1", "ERC-721", now)
+	}
 }
