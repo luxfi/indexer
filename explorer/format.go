@@ -177,6 +177,7 @@ func formatTx(t map[string]any) map[string]any {
 		"status":                   txStatusStr(t["status"]),
 		"timestamp":                fmtTimestamp(t["timestamp"]),
 		"method":                   txMethodStr(t["input"]),
+		"input":                    bytesToHex(t["input"]),
 		"result":                   txResultStr(t),
 	}
 
