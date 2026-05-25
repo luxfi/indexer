@@ -531,7 +531,13 @@ func (s *StandaloneServer) txTransfers(r *http.Request) (any, int) {
 	if !isValidHexHash(hash) {
 		return ep(), 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE transaction_hash = ? ORDER BY log_index", s.t.transfers), hash)
+	// evm_token_transfers uses `tx_hash`; Blockscout-legacy uses
+	// `transaction_hash`. Try the modern column first, fall back if the
+	// query errors (most likely "no such column").
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE tx_hash = ? ORDER BY log_index", s.t.transfers), hash)
+	if err != nil {
+		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE transaction_hash = ? ORDER BY log_index", s.t.transfers), hash)
+	}
 	if err != nil {
 		return ep(), 200
 	}
@@ -567,7 +573,12 @@ func (s *StandaloneServer) txLogs(r *http.Request) (any, int) {
 	if !isValidHexHash(hash) {
 		return ep(), 400
 	}
-	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.logs), hash)
+	// evm_logs uses tx_hash + log_index; Blockscout-legacy uses
+	// transaction_hash + index. Try the modern column first.
+	rows, err := s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE tx_hash = ? ORDER BY log_index`, s.t.logs), hash)
+	if err != nil {
+		rows, err = s.q(r, fmt.Sprintf(`SELECT * FROM %s WHERE transaction_hash = ? ORDER BY "index"`, s.t.logs), hash)
+	}
 	if err != nil {
 		return ep(), 200
 	}
