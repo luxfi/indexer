@@ -506,6 +506,33 @@ func (a *Adapter) GetTransactionReceipt(ctx context.Context, txHash string) (*Tr
 		})
 	}
 
+	// Second hop: eth_getTransactionByHash. The receipt has the post-
+	// execution fields (status, gasUsed, logs) but NOT the calldata
+	// (input), nor the original-submission fields (value, gasPrice, gas
+	// limit, nonce, type). The explorer needs `input` for the SPA's
+	// method-decode panel + `value/gasPrice/gas/nonce` for the tx-detail
+	// summary. Combine both responses into the single Transaction shape.
+	if byHash, err := a.call(ctx, "eth_getTransactionByHash", []interface{}{txHash}); err == nil {
+		var t2 struct {
+			Input    string `json:"input"`
+			Value    string `json:"value"`
+			GasPrice string `json:"gasPrice"`
+			Gas      string `json:"gas"`
+			Nonce    string `json:"nonce"`
+			Type     string `json:"type"`
+			MaxFeePerGas         string `json:"maxFeePerGas"`
+			MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas"`
+		}
+		if json.Unmarshal(byHash, &t2) == nil {
+			tx.Input = t2.Input
+			tx.Value = t2.Value
+			tx.GasPrice = t2.GasPrice
+			tx.Gas = hexToUint64(t2.Gas)
+			tx.Nonce = hexToUint64(t2.Nonce)
+			tx.Type = uint8(hexToUint64(t2.Type))
+		}
+	}
+
 	return tx, logs, nil
 }
 
