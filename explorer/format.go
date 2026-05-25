@@ -301,6 +301,12 @@ func formatToken(t map[string]any) map[string]any {
 }
 
 // formatContract formats a smart contract row.
+//
+// Returns the full verified-contract envelope used by the SPA contract
+// panel. `secondary_sources` carries multi-file source bundles (one entry
+// per import the deployer ships alongside the main `source_code`), with
+// the standard Blockscout/Sourcify shape: an array of
+// `{ file_path, contract_source_code }` objects.
 func formatContract(c map[string]any) map[string]any {
 	return map[string]any{
 		"address":            map[string]any{"hash": bytesToHex(c["address"])},
@@ -316,6 +322,9 @@ func formatContract(c map[string]any) map[string]any {
 		"is_vyper_contract":  c["is_vyper_contract"],
 		"license_type":       c["license_type"],
 		"external_libraries": c["external_libraries"],
+		"secondary_sources":  c["secondary_sources"],
+		"file_path":          c["file_path"],
+		"verified_via":       c["verified_via"],
 	}
 }
 
