@@ -91,7 +91,12 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	if cfg.APIPrefix == "" {
 		cfg.APIPrefix = "/v1/explorer"
 	}
-	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
+	// Read-mostly connection for the bulk of API queries. Open in RW mode
+	// (not RO) so the verify endpoint can INSERT into evm_smart_contracts.
+	// SQLite's WAL journal lets the indexer's writer + this connection's
+	// occasional verify writes coexist without lockup; readers continue
+	// concurrently via separate connections in the same pool.
+	dsn := fmt.Sprintf("file:%s?mode=rw&_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
@@ -105,6 +110,7 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 
 	s := &StandaloneServer{db: db, cfg: cfg, mux: http.NewServeMux(), wsSem: make(chan struct{}, 128)}
 	s.detectTables()
+	s.ensureContractsTable()
 	s.notifWorker = NewNotificationWorker(db, s.t.txs, nil)
 	s.notifWorker.Start()
 	s.routes()
@@ -225,6 +231,42 @@ func (s *StandaloneServer) detectTables() {
 	s.t.dexSwaps = s.detectTable("dex_swaps", "evm_dex_swaps")
 }
 
+// ensureContractsTable creates evm_smart_contracts if it doesn't yet exist.
+// The luxfi/indexer evm pipeline (evm/indexer.go) doesn't allocate this
+// table — it's verifier-driven, populated when the operator POSTs source
+// code via /smart-contracts/{addr}/verify. Schema mirrors the Postgres
+// migration shape (migrations/001_initial_schema.sql) trimmed for SQLite.
+func (s *StandaloneServer) ensureContractsTable() {
+	if s.t.contracts == "" {
+		return
+	}
+	// CREATE IF NOT EXISTS is idempotent — running it on every API-pod
+	// boot is cheap and ensures verify endpoints work even on a fresh DB
+	// that pre-dates this feature.
+	_, _ = s.db.Exec(fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+			address               TEXT PRIMARY KEY,
+			name                  TEXT NOT NULL,
+			compiler_version      TEXT NOT NULL,
+			optimization          INTEGER DEFAULT 0,
+			optimization_runs     INTEGER DEFAULT 200,
+			contract_source_code  TEXT,
+			abi                   TEXT,
+			constructor_arguments TEXT,
+			evm_version           TEXT DEFAULT 'paris',
+			file_path             TEXT DEFAULT '',
+			external_libraries    TEXT DEFAULT '[]',
+			secondary_sources     TEXT DEFAULT '[]',
+			verified_via          TEXT DEFAULT 'manual',
+			partially_verified    INTEGER DEFAULT 0,
+			is_vyper_contract     INTEGER DEFAULT 0,
+			is_changed_bytecode   INTEGER DEFAULT 0,
+			license_type          TEXT DEFAULT 'UNLICENSED',
+			inserted_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`, s.t.contracts))
+}
+
 // detectTable returns the first table name that exists, or empty string.
 func (s *StandaloneServer) detectTable(names ...string) string {
 	for _, name := range names {
@@ -287,6 +329,7 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET "+p+"/smart-contracts", s.j(s.listContracts))
 	m.HandleFunc("GET "+p+"/smart-contracts/{addr}", s.j(s.getContract))
 	m.HandleFunc("GET "+p+"/smart-contracts/counters", s.j(s.contractCounters))
+	m.HandleFunc("POST "+p+"/smart-contracts/{addr}/verify", s.j(s.verifyContract))
 	m.HandleFunc("GET "+p+"/token-transfers", s.j(s.allTokenTransfers))
 	m.HandleFunc("GET "+p+"/internal-transactions", s.j(s.allInternalTxs))
 
@@ -706,6 +749,143 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 		}, 200
 	}
 	return formatContract(maps[0]), 200
+}
+
+// verifyContract accepts a JSON or form-encoded body with source + metadata,
+// INSERTs (or UPSERTs) into evm_smart_contracts, and returns the resulting
+// formatContract shape so the SPA can immediately render the verified page.
+//
+// Trust model: this endpoint is "manual" verification — the submitter is
+// the deployer (or someone holding the deployer's private key); they're
+// claiming the source matches the on-chain bytecode. There's no recompile
+// + bytecode-compare step here. Future iterations can hook in solc or
+// Sourcify; the schema already has `verified_via` to distinguish.
+//
+// Expected JSON body shape:
+//
+//	{
+//	  "name":                  "VccGrowthFund",
+//	  "compiler_version":      "v0.8.31+commit.bb7f4f8d",
+//	  "optimization":          true,
+//	  "optimization_runs":     200,
+//	  "evm_version":           "paris",
+//	  "license_type":          "MIT",
+//	  "constructor_arguments": "0x000...",
+//	  "abi":                   "[...]",
+//	  "contract_source_code":  "// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.28;\\n..."
+//	}
+func (s *StandaloneServer) verifyContract(r *http.Request) (any, int) {
+	if s.t.contracts == "" {
+		return map[string]string{"error": "contracts table not configured for this chain"}, 501
+	}
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return map[string]string{"error": "invalid contract address"}, 400
+	}
+	addr = strings.ToLower(addr)
+
+	var body struct {
+		Name                 string `json:"name"`
+		CompilerVersion      string `json:"compiler_version"`
+		Optimization         *bool  `json:"optimization"`
+		OptimizationRuns     *int64 `json:"optimization_runs"`
+		EVMVersion           string `json:"evm_version"`
+		LicenseType          string `json:"license_type"`
+		ConstructorArguments string `json:"constructor_arguments"`
+		ABI                  any    `json:"abi"`
+		ContractSourceCode   string `json:"contract_source_code"`
+		IsVyperContract      *bool  `json:"is_vyper_contract"`
+		ExternalLibraries    any    `json:"external_libraries"`
+		SecondarySources     any    `json:"secondary_sources"`
+		FilePath             string `json:"file_path"`
+		VerifiedVia          string `json:"verified_via"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return map[string]string{"error": "invalid JSON body: " + err.Error()}, 400
+	}
+	if body.Name == "" || body.CompilerVersion == "" {
+		return map[string]string{"error": "name + compiler_version are required"}, 400
+	}
+
+	// abi + external_libraries + secondary_sources are stored as JSON-text
+	// columns; marshal whatever the caller sent so the API GET can pass
+	// them straight back to the SPA.
+	abiJSON, _ := json.Marshal(body.ABI)
+	extLibsJSON, _ := json.Marshal(body.ExternalLibraries)
+	secSrcJSON, _ := json.Marshal(body.SecondarySources)
+
+	optimization := 0
+	if body.Optimization != nil && *body.Optimization {
+		optimization = 1
+	}
+	var optRuns int64 = 200
+	if body.OptimizationRuns != nil {
+		optRuns = *body.OptimizationRuns
+	}
+	if body.EVMVersion == "" {
+		body.EVMVersion = "paris"
+	}
+	if body.LicenseType == "" {
+		body.LicenseType = "UNLICENSED"
+	}
+	if body.VerifiedVia == "" {
+		body.VerifiedVia = "manual"
+	}
+	isVyper := 0
+	if body.IsVyperContract != nil && *body.IsVyperContract {
+		isVyper = 1
+	}
+
+	now := time.Now().UTC()
+	q := fmt.Sprintf(`
+		INSERT INTO %s
+			(address, name, compiler_version, optimization, optimization_runs,
+			 contract_source_code, abi, constructor_arguments, evm_version,
+			 file_path, external_libraries, secondary_sources, verified_via,
+			 partially_verified, is_vyper_contract, is_changed_bytecode,
+			 license_type, inserted_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,?,?,?)
+		ON CONFLICT (address) DO UPDATE SET
+			name                  = excluded.name,
+			compiler_version      = excluded.compiler_version,
+			optimization          = excluded.optimization,
+			optimization_runs     = excluded.optimization_runs,
+			contract_source_code  = excluded.contract_source_code,
+			abi                   = excluded.abi,
+			constructor_arguments = excluded.constructor_arguments,
+			evm_version           = excluded.evm_version,
+			file_path             = excluded.file_path,
+			external_libraries    = excluded.external_libraries,
+			secondary_sources     = excluded.secondary_sources,
+			verified_via          = excluded.verified_via,
+			is_vyper_contract     = excluded.is_vyper_contract,
+			license_type          = excluded.license_type,
+			updated_at            = excluded.updated_at
+	`, s.t.contracts)
+
+	if _, err := s.db.ExecContext(r.Context(), q,
+		addr, body.Name, body.CompilerVersion, optimization, optRuns,
+		body.ContractSourceCode, string(abiJSON), body.ConstructorArguments, body.EVMVersion,
+		body.FilePath, string(extLibsJSON), string(secSrcJSON), body.VerifiedVia,
+		isVyper, body.LicenseType, now, now,
+	); err != nil {
+		return map[string]string{"error": "insert: " + err.Error()}, 500
+	}
+
+	// Echo back the row we just wrote via the standard formatter so the
+	// SPA can flip the page state immediately without re-fetching.
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE address = ? LIMIT 1", s.t.contracts), addr)
+	if err != nil {
+		return map[string]any{"status": "verified", "address": addr}, 200
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	if len(maps) == 0 {
+		return map[string]any{"status": "verified", "address": addr}, 200
+	}
+	out := formatContract(maps[0])
+	out["status"] = "verified"
+	return out, 200
 }
 
 // ---- Search + Stats ----
