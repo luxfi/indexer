@@ -27,7 +27,7 @@ chains:
       enabled: true
       schema: amm           # uniswap-v2/v3 compatible DEX indexing
 
-  # Platform — validators, staking, subnets
+  # Platform — validators, staking, L2 EVM provisioning
   - slug: pchain
     name: P-Chain
     type: linear
@@ -92,7 +92,7 @@ chains:
     enabled: true
 
   # ============================================================
-  # Lux Subnet Chains (EVM-compatible)
+  # Lux L2 EVM Chains
   # ============================================================
 
   - slug: zoo

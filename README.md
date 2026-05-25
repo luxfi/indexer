@@ -125,7 +125,7 @@ CGO_ENABLED=1 CGO_LDFLAGS="-L... -lexplorer_ffi" go build -tags rustffi -o explo
 
 ## Chains
 
-### EVM (C-Chain + Subnet Chains)
+### EVM (C-Chain + L2 EVM Chains)
 
 Full EVM explorer feature parity:
 
