@@ -240,12 +240,25 @@ func formatInternalTx(t map[string]any) map[string]any {
 }
 
 // formatLog formats a log row.
+//
+// Column-spelling variants:
+//   - luxfi/indexer evm_logs:  topic0/topic1/topic2/topic3, log_index, tx_hash
+//   - Blockscout-legacy logs:  first_topic/.../fourth_topic, index, transaction_hash
+// Fall through both sets so the response shape works against either.
 func formatLog(l map[string]any) map[string]any {
 	topics := []string{}
-	for _, key := range []string{"first_topic", "second_topic", "third_topic", "fourth_topic"} {
+	for _, key := range []string{
+		"first_topic", "second_topic", "third_topic", "fourth_topic",
+		"topic0", "topic1", "topic2", "topic3",
+	} {
 		if v := l[key]; v != nil {
 			if s := bytesToHex(v); s != "" {
 				topics = append(topics, s)
+				// stop after we collect 4 — the two naming schemes shouldn't
+				// both populate the same physical row, but cap defensively.
+				if len(topics) >= 4 {
+					break
+				}
 			}
 		}
 	}
@@ -253,9 +266,9 @@ func formatLog(l map[string]any) map[string]any {
 		"address":          map[string]any{"hash": bytesToHex(col(l, "address", "address_hash"))},
 		"data":             bytesToHex(l["data"]),
 		"topics":           topics,
-		"index":            l["index"],
+		"index":            col(l, "log_index", "index"),
 		"block_number":     l["block_number"],
-		"transaction_hash": bytesToHex(l["transaction_hash"]),
+		"transaction_hash": bytesToHex(col(l, "tx_hash", "transaction_hash")),
 		"decoded":          nil,
 	}
 }
