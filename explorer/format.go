@@ -382,7 +382,7 @@ func formatAddress(a map[string]any) map[string]any {
 		"coin_balance":                        balance,
 		// SPA reads `balance` directly in `Number(i.balance)/1e18`; alias to
 		// `coin_balance` so the Blockscout-derived `coin_balance` and the
-		// -SPA's `balance` both work without a SPA rebuild.
+		// downstream-tenant SPA's `balance` both work without a SPA rebuild.
 		"balance":                             balance,
 		"block_number_balance_was_fetched_at": firstNonNil(a, "fetched_coin_balance_block_number"),
 		"transactions_count":                  txCount,
