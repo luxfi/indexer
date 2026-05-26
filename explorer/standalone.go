@@ -753,7 +753,7 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 	maps, _ := scanMaps(rows)
 	if len(maps) == 0 {
 		// No verified-contract row: return 200 with an "unverified" shape
-		// rather than 404. Blockscout-derived SPAs (incl. the 
+		// rather than 404. Blockscout-derived SPAs (incl. downstream-tenant
 		// explorer) fetch this endpoint unconditionally on every address
 		// page and the 404 shows up as noise in devtools even for EOAs.
 		// The SPA's contract-tab gate is `i.is_contract && c` — so returning
