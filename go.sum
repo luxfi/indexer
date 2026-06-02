@@ -172,8 +172,6 @@ github.com/luxfi/constants v1.4.3 h1:bcqUO8twMOhHWCgN/RbjfWulVPbvUQcxDkssaRrCx4g
 github.com/luxfi/constants v1.4.3/go.mod h1:ENkJ121cmDEkwQPDiKK4QhnTnW9u37PGpepbrdVcAmc=
 github.com/luxfi/container v0.0.4 h1:BXhF82WyfqVP5mjlNcr7tP0Fcnvl0Ap1rkiu+rq5XuM=
 github.com/luxfi/container v0.0.4/go.mod h1:Z3SpmMF5d4t77MM0nHYXURpn+EMVaeu1fhbd/3BGaek=
-github.com/luxfi/crypto v1.17.45 h1:uGK0y4+aLipE/M0YIQ5hcsWv0ZG0E4cPv03a94K/eLE=
-github.com/luxfi/crypto v1.17.45/go.mod h1:GnAkhQ7HNs3X0Tzx5nOONS3kl0yRmWHbDcRO5ffILsg=
 github.com/luxfi/crypto v1.19.0 h1:VtH6kvZrCEjCnkHPkhExDU+GJ0ZulYX4rnA+lXJdJHw=
 github.com/luxfi/crypto v1.19.0/go.mod h1:ee525i8Recbpb0jVTDZYZBr1MmvJ27OITJHZ/nlNMBw=
 github.com/luxfi/database v1.17.44 h1:hfiTls7sqbweW+o4iaZqB8P997paC+vpgWmhN6v5MJ0=
