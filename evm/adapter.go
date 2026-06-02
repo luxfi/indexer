@@ -514,12 +514,12 @@ func (a *Adapter) GetTransactionReceipt(ctx context.Context, txHash string) (*Tr
 	// summary. Combine both responses into the single Transaction shape.
 	if byHash, err := a.call(ctx, "eth_getTransactionByHash", []interface{}{txHash}); err == nil {
 		var t2 struct {
-			Input    string `json:"input"`
-			Value    string `json:"value"`
-			GasPrice string `json:"gasPrice"`
-			Gas      string `json:"gas"`
-			Nonce    string `json:"nonce"`
-			Type     string `json:"type"`
+			Input                string `json:"input"`
+			Value                string `json:"value"`
+			GasPrice             string `json:"gasPrice"`
+			Gas                  string `json:"gas"`
+			Nonce                string `json:"nonce"`
+			Type                 string `json:"type"`
 			MaxFeePerGas         string `json:"maxFeePerGas"`
 			MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas"`
 		}
