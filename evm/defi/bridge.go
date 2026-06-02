@@ -78,9 +78,9 @@ func DefaultBridgeChainSeed() []Chain {
 
 // staticBridgeChainRegistry is an immutable ChainRegistry implementation.
 type staticBridgeChainRegistry struct {
-	chains   []Chain
-	byID     map[ChainID]Chain
-	byEVMID  map[uint64]Chain
+	chains  []Chain
+	byID    map[ChainID]Chain
+	byEVMID map[uint64]Chain
 }
 
 // NewStaticBridgeChainRegistry returns a ChainRegistry over an immutable list.

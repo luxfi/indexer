@@ -244,6 +244,7 @@ func formatInternalTx(t map[string]any) map[string]any {
 // Column-spelling variants:
 //   - luxfi/indexer evm_logs:  topic0/topic1/topic2/topic3, log_index, tx_hash
 //   - Blockscout-legacy logs:  first_topic/.../fourth_topic, index, transaction_hash
+//
 // Fall through both sets so the response shape works against either.
 func formatLog(l map[string]any) map[string]any {
 	topics := []string{}
@@ -351,10 +352,11 @@ func formatContract(c map[string]any) map[string]any {
 // `transactions_count.toLocaleString()` without a guard and crashes on null.
 //
 // is_contract resolution order, most authoritative first:
-//   1. boolean column `is_contract` (the indexer's address upsert
-//      populates this via the per-block eth_getCode resolve loop in
-//      luxfi/indexer#10).
-//   2. non-empty contract_code / code column (legacy Postgres shape).
+//  1. boolean column `is_contract` (the indexer's address upsert
+//     populates this via the per-block eth_getCode resolve loop in
+//     luxfi/indexer#10).
+//  2. non-empty contract_code / code column (legacy Postgres shape).
+//
 // EOAs end up as false in both — no false positives.
 func formatAddress(a map[string]any) map[string]any {
 	txCount := firstNonNil(a, "transactions_count", "tx_count")
@@ -378,8 +380,8 @@ func formatAddress(a map[string]any) map[string]any {
 	}
 	balance := fmtNum(firstNonNil(a, "fetched_coin_balance", "balance"))
 	return map[string]any{
-		"hash":                                bytesToHex(a["hash"]),
-		"coin_balance":                        balance,
+		"hash":         bytesToHex(a["hash"]),
+		"coin_balance": balance,
 		// SPA reads `balance` directly in `Number(i.balance)/1e18`; alias to
 		// `coin_balance` so the Blockscout-derived `coin_balance` and the
 		// downstream-tenant SPA's `balance` both work without a SPA rebuild.
@@ -388,12 +390,12 @@ func formatAddress(a map[string]any) map[string]any {
 		"transactions_count":                  txCount,
 		// SPA reads `tx_count` directly (the field on block rows). Alias so the
 		// SPA's `i.tx_count.toLocaleString()` on the address-detail page works.
-		"tx_count":                            txCount,
-		"token_transfers_count":               ttCount,
-		"is_contract":                         isContract,
-		"is_verified":                         firstNonNil(a, "verified"),
-		"has_token_balances":                  false,
-		"exchange_rate":                       nil,
+		"tx_count":              txCount,
+		"token_transfers_count": ttCount,
+		"is_contract":           isContract,
+		"is_verified":           firstNonNil(a, "verified"),
+		"has_token_balances":    false,
+		"exchange_rate":         nil,
 	}
 }
 

@@ -761,7 +761,7 @@ func (s *StandaloneServer) getContract(r *http.Request) (any, int) {
 		// case (no contract panel is rendered) but keeps the network log
 		// clean.
 		return map[string]any{
-			"is_verified":   false,
+			"is_verified":        false,
 			"is_self_destructed": false,
 		}, 200
 	}
@@ -1019,7 +1019,9 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 				slowGas = fees[0]
 				fastGas = fees[len(fees)-1]
 				var sum float64
-				for _, f := range fees { sum += f }
+				for _, f := range fees {
+					sum += f
+				}
 				avgGas = sum / float64(len(fees))
 			}
 		}
@@ -1098,10 +1100,10 @@ func (s *StandaloneServer) mainPageTxs(r *http.Request) (any, int) {
 
 func (s *StandaloneServer) indexingStatus(r *http.Request) (any, int) {
 	return map[string]any{
-		"finished_indexing":                    true,
-		"finished_indexing_blocks":             true,
-		"indexed_blocks_ratio":                 "1.00",
-		"indexed_internal_transactions_ratio":  "1.00",
+		"finished_indexing":                   true,
+		"finished_indexing_blocks":            true,
+		"indexed_blocks_ratio":                "1.00",
+		"indexed_internal_transactions_ratio": "1.00",
 	}, 200
 }
 

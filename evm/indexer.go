@@ -566,8 +566,8 @@ func (idx *Indexer) backfillAddresses(ctx context.Context) (int, error) {
 }
 
 // upsertAddrSQL returns an INSERT … ON CONFLICT … DO UPDATE that:
-//   • on first sight: writes hash, is_contract, tx_count delta, timestamps.
-//   • on subsequent sight: increments tx_count by the delta and OR-merges
+//   - on first sight: writes hash, is_contract, tx_count delta, timestamps.
+//   - on subsequent sight: increments tx_count by the delta and OR-merges
 //     is_contract (once true, stays true).
 //
 // The legacy form was INSERT OR IGNORE / ON CONFLICT DO NOTHING, which
@@ -1016,7 +1016,8 @@ func (s *Subscriber) BroadcastBlock(block *EVMBlock) {
 
 // upsertLogSQL returns the correct upsert SQL for evm_logs.
 // Param order: (id, tx_hash, log_index, block_number, address,
-//                topic0, topic1, topic2, topic3, data, timestamp, created_at)
+//
+//	topic0, topic1, topic2, topic3, data, timestamp, created_at)
 func (idx *Indexer) upsertLogSQL() string {
 	switch idx.store.Backend() {
 	case storage.BackendPostgres:
@@ -1033,7 +1034,8 @@ func (idx *Indexer) upsertLogSQL() string {
 
 // upsertTokenTransferSQL returns the correct upsert SQL for evm_token_transfers.
 // Param order: (id, tx_hash, log_index, block_number, token_address, token_type,
-//                from_addr, to_addr, value, token_id, timestamp, created_at)
+//
+//	from_addr, to_addr, value, token_id, timestamp, created_at)
 func (idx *Indexer) upsertTokenTransferSQL() string {
 	switch idx.store.Backend() {
 	case storage.BackendPostgres:
@@ -1050,8 +1052,9 @@ func (idx *Indexer) upsertTokenTransferSQL() string {
 
 // upsertTokenSQL returns the correct upsert SQL for evm_tokens.
 // Param order: (address, name, symbol, decimals, total_supply, token_type,
-//                created_at, updated_at). tx_count + holder_count are
-//                maintained separately and default to 0 on first insert.
+//
+//	created_at, updated_at). tx_count + holder_count are
+//	maintained separately and default to 0 on first insert.
 func (idx *Indexer) upsertTokenSQL() string {
 	switch idx.store.Backend() {
 	case storage.BackendPostgres:
