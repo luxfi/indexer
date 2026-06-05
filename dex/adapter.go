@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Lux Partners Limited
 // SPDX-License-Identifier: MIT
 
-// Package dex provides the DEX L2 subnet adapter for the indexer.
+// Package dex provides the DEX L2 chain adapter for the indexer.
 // Handles orderbook, trades, liquidity pools, and swap operations.
-// The DEX is a standalone L2 subnet (see ~/work/lux/dex), not a native chain.
+// The DEX is a standalone L2 chain (see ~/work/lux/dex), not a native chain.
 package dex
 
 import (

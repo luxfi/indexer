@@ -9,7 +9,7 @@
 //   - Lux C-Chain (mainnet: 96369, testnet: 96368)
 //   - Zoo EVM (mainnet: 200200, testnet: 200201)
 //   - Hanzo AI Chain (36963)
-//   - Any EVM-compatible subnet
+//   - Any EVM-compatible chain
 package evm
 
 import (
@@ -332,7 +332,10 @@ func (a *Adapter) ParseBlock(data json.RawMessage) (*chain.Block, error) {
 	return block, nil
 }
 
-// GetRecentBlocks fetches recent blocks from C-Chain RPC
+// GetRecentBlocks fetches recent blocks from C-Chain RPC. Block fetches
+// run in parallel (bounded fan-out) because eth_getBlockByNumber over
+// HTTP is dominated by RTT — N serial calls at p50=50ms = N*50ms wall;
+// the same N calls in parallel finish in ~50ms+queueing overhead.
 func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMessage, error) {
 	// Get latest block number
 	latestResult, err := a.call(ctx, "eth_blockNumber", []interface{}{})
@@ -346,17 +349,50 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 	}
 	latest := hexToUint64(latestHex)
 
-	// Fetch recent blocks
-	var blocks []json.RawMessage
-	for i := 0; i < limit && latest-uint64(i) > 0; i++ {
-		blockNum := fmt.Sprintf("0x%x", latest-uint64(i))
-		result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
-		if err != nil {
-			continue
-		}
-		blocks = append(blocks, result)
+	// How many blocks we can actually fetch (clamped to genesis).
+	want := limit
+	if uint64(want) > latest+1 {
+		want = int(latest + 1)
+	}
+	if want <= 0 {
+		return nil, nil
 	}
 
+	// Fixed-position results so block order matches the legacy
+	// serial loop (newest first). nil entries are dropped at the end
+	// so a single bad block doesn't poison the batch.
+	results := make([]json.RawMessage, want)
+
+	// Bound the fan-out so a single GetRecentBlocks call with limit=200
+	// doesn't open 200 simultaneous HTTP connections to the upstream
+	// RPC. 16 is enough to saturate p50-50ms latency * 25 RPS upstreams.
+	const maxInFlight = 16
+	sem := make(chan struct{}, maxInFlight)
+	var wg sync.WaitGroup
+
+	for i := 0; i < want; i++ {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			blockNum := fmt.Sprintf("0x%x", latest-uint64(i))
+			res, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+			if err != nil {
+				return // leave nil; caller-side filtering drops it
+			}
+			results[i] = res
+		}(i)
+	}
+	wg.Wait()
+
+	// Compact: drop nil holes (failed fetches) while preserving order.
+	blocks := results[:0]
+	for _, r := range results {
+		if r != nil {
+			blocks = append(blocks, r)
+		}
+	}
 	return blocks, nil
 }
 
