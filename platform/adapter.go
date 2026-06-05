@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package pchain provides the P-Chain (Platform) adapter for the LINEAR chain indexer.
-// Handles validators, delegators, subnets, and staking operations.
+// Handles validators, delegators, chains, and staking operations.
 package platform
 
 import (
@@ -108,7 +108,7 @@ type PChainTx struct {
 	StartTime int64  `json:"startTime,omitempty"`
 	EndTime   int64  `json:"endTime,omitempty"`
 	Weight    uint64 `json:"weight,omitempty"`
-	NetID     string `json:"netID,omitempty"` // For subnet operations
+	NetID     string `json:"netID,omitempty"` // For chain operations
 }
 
 // ParseBlock implements chain.Adapter
@@ -255,7 +255,7 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 		CREATE INDEX IF NOT EXISTS idx_pchain_delegators_node ON pchain_delegators(node_id);
 		CREATE INDEX IF NOT EXISTS idx_pchain_delegators_end ON pchain_delegators(end_time);
 
-		-- Subnets (Networks) table
+		-- Networks table (one row per L1 / chain registered on the P-chain)
 		CREATE TABLE IF NOT EXISTS pchain_nets (
 			net_id TEXT PRIMARY KEY,
 			owner_addresses TEXT DEFAULT '[]',
@@ -379,7 +379,7 @@ func (a *Adapter) GetStats(ctx context.Context, store storage.Store) (map[string
 		"total_delegated": totalDelegated,
 	}
 
-	// Get subnet/network stats
+	// Get network/chain stats
 	netRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_nets")
 	chainRows, _ := store.Query(ctx, "SELECT COUNT(*) as cnt FROM pchain_chains")
 
