@@ -11,7 +11,7 @@ function formatValue(wei: string): string {
 
 export function InternalTxs() {
   const { data, isLoading } = useInternalTxs()
-  const coin = import.meta.env.VITE_COIN || ''
+  const coin = import.meta.env.VITE_COIN || 'LUX'
 
   return (
     <div>

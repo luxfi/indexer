@@ -11,7 +11,7 @@ function formatValue(wei: string): string {
 }
 
 export function TxRow({ tx }: { tx: Tx }) {
-  const coin = import.meta.env.VITE_COIN || ''
+  const coin = import.meta.env.VITE_COIN || 'LUX'
   const statusColor = tx.status === 'ok' ? colors.success : colors.error
 
   return (
