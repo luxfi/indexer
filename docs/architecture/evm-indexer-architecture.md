@@ -265,7 +265,7 @@ Build tag `rustffi` activates Rust. Without it, pure Go implementations in `evm/
 | 15 (all Lux native) | 1 GB | 4 cores | Full Lux ecosystem |
 | 30 (Lux + major external) | 3 GB | 8 cores | Bridge support |
 | 100+ (full multi-chain) | 10 GB | 16 cores | Exchange/aggregator |
-| 200+ (Liquidity infra) | 20 GB | 32 cores | White-label platform |
+| 200+ (large white-label deployment) | 20 GB | 32 cores | White-label platform |
 
 ### Horizontal Scaling
 

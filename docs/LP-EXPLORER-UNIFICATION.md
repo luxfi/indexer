@@ -2,7 +2,7 @@
 
 Target: one binary, one Docker image, one deploy — serving the indexer +
 graph + frontend for any number of chains (Lux, Zoo, Hanzo, SPC, Pars,
-Liquidity, local 1337s), white-labeled by hostname at the ingress.
+local 1337s, and white-label tenants), white-labeled by hostname at the ingress.
 
 Owner: `lux/cli` drives config; `luxfi/explorer` is the runtime.
 
