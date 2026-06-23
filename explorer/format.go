@@ -85,16 +85,94 @@ func fmtNum(v any) string {
 	if v == nil {
 		return "0"
 	}
-	if s, ok := v.(string); ok && strings.HasPrefix(s, "0x") {
-		trimmed := strings.TrimPrefix(s, "0x")
-		if trimmed == "" {
+	if s, ok := v.(string); ok {
+		if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+			trimmed := s[2:]
+			if trimmed == "" {
+				return "0"
+			}
+			if n, ok := new(big.Int).SetString(trimmed, 16); ok {
+				return n.String()
+			}
 			return "0"
 		}
-		if n, ok := new(big.Int).SetString(trimmed, 16); ok {
-			return n.String()
+		if s == "" {
+			// un-ingested value/gas_price are stored as "" — emit "0" so the
+			// SPA's BigNumber()/Number() never produces NaN.
+			return "0"
 		}
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+// bigFromAny parses a numeric DB value (hex "0x…", decimal string, or a
+// scanned integer) into a big.Int.
+func bigFromAny(v any) (*big.Int, bool) {
+	switch x := v.(type) {
+	case nil:
+		return nil, false
+	case int64:
+		return big.NewInt(x), true
+	case int:
+		return big.NewInt(int64(x)), true
+	case uint64:
+		return new(big.Int).SetUint64(x), true
+	case float64:
+		bi, _ := big.NewFloat(x).Int(nil)
+		return bi, true
+	case []byte:
+		return bigFromStr(string(x))
+	case string:
+		return bigFromStr(x)
+	}
+	return nil, false
+}
+
+func bigFromStr(s string) (*big.Int, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, false
+	}
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return new(big.Int).SetString(s[2:], 16)
+	}
+	return new(big.Int).SetString(s, 10)
+}
+
+// mulBig returns a*b as a decimal string, or "0" when either operand is
+// missing/unparseable. Used for block burnt_fees (gas_used × base_fee) and
+// tx fee (gas_used × effective_gas_price).
+func mulBig(a, b any) string {
+	x, ok1 := bigFromAny(a)
+	y, ok2 := bigFromAny(b)
+	if !ok1 || !ok2 {
+		return "0"
+	}
+	return new(big.Int).Mul(x, y).String()
+}
+
+// txFeeObj builds the Blockscout {type, value} transaction-fee object.
+// value = gas_used × effective_gas_price (falling back to gas_price; for
+// legacy/type-0 txs they are equal). Always returns an object with a decimal
+// value ("0" when gas data is absent) so the SPA never reads .value off null.
+func txFeeObj(t map[string]any) map[string]any {
+	gasUsed, _ := bigFromAny(t["gas_used"])
+	var price *big.Int
+	// Price precedence: effective_gas_price (exact) → gas_price (submission
+	// price) → block base_fee (the burnt rate, joined into the tx row via
+	// txSelect). First positive wins, so historical rows with an empty
+	// gas_price still get a real fee from the block's base_fee.
+	for _, k := range []string{"effective_gas_price", "gas_price", "block_base_fee"} {
+		if p, ok := bigFromAny(t[k]); ok && p.Sign() > 0 {
+			price = p
+			break
+		}
+	}
+	val := "0"
+	if gasUsed != nil && gasUsed.Sign() > 0 && price != nil {
+		val = new(big.Int).Mul(gasUsed, price).String()
+	}
+	return map[string]any{"type": "actual", "value": val}
 }
 
 // fmtTimestamp formats a timestamp for the explorer API v2 response as ISO 8601.
@@ -150,6 +228,8 @@ func formatBlock(b map[string]any) map[string]any {
 		"gas_limit":        fmtNum(b["gas_limit"]),
 		"gas_used":         fmtNum(b["gas_used"]),
 		"base_fee_per_gas": fmtNum(b["base_fee"]),
+		"burnt_fees":       mulBig(b["gas_used"], b["base_fee"]),
+		"rewards":          []any{},
 		"timestamp":        fmtTimestamp(b["timestamp"]),
 		"tx_count":         col(b, "tx_count", "transaction_count"),
 		"state_root":       nil,
@@ -180,6 +260,7 @@ func formatTx(t map[string]any) map[string]any {
 		"input":                    bytesToHex(t["input"]),
 		"result":                   txResultStr(t),
 	}
+	resp["fee"] = txFeeObj(t)
 
 	if to := col(t, "to_addr", "to_address_hash", "to_address"); to != nil {
 		if s := bytesToHex(to); s != "" {
