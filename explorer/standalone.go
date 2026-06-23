@@ -486,9 +486,9 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 	var rows *sql.Rows
 	var err error
 	if strings.HasPrefix(id, "0x") {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_hash = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, s.txSelectAll("WHERE block_hash = ? ORDER BY tx_index LIMIT ?"), id, l)
 	} else {
-		rows, err = s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE block_number = ? ORDER BY tx_index LIMIT ?", s.t.txs), id, l)
+		rows, err = s.q(r, s.txSelectAll("WHERE block_number = ? ORDER BY tx_index LIMIT ?"), id, l)
 	}
 	if err != nil {
 		return ep(), 200
@@ -499,9 +499,17 @@ func (s *StandaloneServer) blockTxs(r *http.Request) (any, int) {
 
 // ---- Transactions ----
 
+// txSelectAll builds a "SELECT *" over the txs table that also pulls each
+// row's block base_fee (aliased block_base_fee) via a correlated subquery.
+// txFeeObj uses it to compute a real fee (gas_used × base_fee) for rows whose
+// gas_price was never ingested — no re-index required.
+func (s *StandaloneServer) txSelectAll(suffix string) string {
+	return fmt.Sprintf("SELECT *, (SELECT base_fee FROM %s WHERE number = block_number) AS block_base_fee FROM %s %s", s.t.blocks, s.t.txs, suffix)
+}
+
 func (s *StandaloneServer) listTxs(r *http.Request) (any, int) {
 	l := lim(r)
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC, tx_index DESC LIMIT ?", s.t.txs), l+1)
+	rows, err := s.q(r, s.txSelectAll("ORDER BY block_number DESC, tx_index DESC LIMIT ?"), l+1)
 	if err != nil {
 		return ep(), 200
 	}
@@ -514,7 +522,7 @@ func (s *StandaloneServer) getTx(r *http.Request) (any, int) {
 	if !isValidHexHash(hash) {
 		return map[string]string{"error": "invalid tx hash"}, 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE hash = ? LIMIT 1", s.t.txs), hash)
+	rows, err := s.q(r, s.txSelectAll("WHERE hash = ? LIMIT 1"), hash)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -635,7 +643,7 @@ func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return ep(), 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?", s.t.txs), addr, addr, l)
+	rows, err := s.q(r, s.txSelectAll("WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT ?"), addr, addr, l)
 	if err != nil {
 		return ep(), 200
 	}
@@ -1085,7 +1093,7 @@ func (s *StandaloneServer) mainPageTxs(r *http.Request) (any, int) {
 	if s.t.txs == "" {
 		return []any{}, 200
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY block_number DESC LIMIT 6", s.t.txs))
+	rows, err := s.q(r, s.txSelectAll("ORDER BY block_number DESC LIMIT 6"))
 	if err != nil {
 		return []any{}, 200
 	}
@@ -1646,7 +1654,7 @@ func (s *StandaloneServer) addrTimeline(r *http.Request) (any, int) {
 
 	go func() {
 		defer wg.Done()
-		rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50", s.t.txs), addr, addr)
+		rows, err := s.q(r, s.txSelectAll("WHERE from_addr = ? OR to_addr = ? ORDER BY block_number DESC LIMIT 50"), addr, addr)
 		if err != nil {
 			return
 		}
