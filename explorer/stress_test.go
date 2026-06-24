@@ -1195,7 +1195,7 @@ func setupFuzzServer(f *testing.F) *httptest.Server {
 	dir := f.TempDir()
 	dbPath := dir + "/fuzz.db"
 
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", dbPath))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", dbPath))
 	if err != nil {
 		f.Fatalf("open fuzz db: %v", err)
 	}

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/hanzoai/sqlite"
 )
 
 func init() {
@@ -65,7 +65,7 @@ func NewSQLite(cfg Config) (*SQLite, error) {
 		ckpt = "&_auto_checkpoint=0"
 	}
 	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&cache=shared%s", path, ckpt)
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite: %w", err)
 	}

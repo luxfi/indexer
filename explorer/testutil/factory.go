@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/hanzoai/sqlite"
 )
 
 // DB wraps a test SQLite database with the indexer schema.
@@ -33,7 +33,7 @@ func NewTestDB(t *testing.T) *DB {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "indexer.db")
 
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", path))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", path))
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}

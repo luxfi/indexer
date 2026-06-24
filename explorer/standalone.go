@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/hanzoai/sqlite"
 )
 
 // osLookupEnv is the real os.LookupEnv, assigned at init to allow test overrides.
@@ -97,7 +97,7 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	// occasional verify writes coexist without lockup; readers continue
 	// concurrently via separate connections in the same pool.
 	dsn := fmt.Sprintf("file:%s?mode=rw&_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}

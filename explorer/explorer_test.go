@@ -815,7 +815,7 @@ func TestIntegrationPipeline(t *testing.T) {
 	}
 
 	// Phase 2: Open a second read-only connection (simulates Base)
-	roDb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&cache=shared", tdb.Path))
+	roDb, err := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&cache=shared", tdb.Path))
 	if err != nil {
 		t.Fatalf("open read-only: %v", err)
 	}
@@ -927,7 +927,7 @@ func TestWithRealIndexerDB(t *testing.T) {
 		t.Skip("no indexer database found at", dbPath)
 	}
 
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&cache=shared", dbPath))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&cache=shared", dbPath))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
