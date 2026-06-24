@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/hanzoai/sqlite"
 )
 
 // Config configures the explorer service.
@@ -118,7 +118,7 @@ func (s *Service) Close() {
 // openIndexerDB opens a read-only connection to the indexer's SQLite database.
 func (s *Service) openIndexerDB() error {
 	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", s.config.IndexerDBPath)
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("explorer: failed to open indexer db: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s *Service) openIndexerDB() error {
 	if len(s.config.ChainDBPaths) > 0 {
 		s.chainDBs = make(map[string]*sql.DB, len(s.config.ChainDBPaths))
 		for chain, dbPath := range s.config.ChainDBPaths {
-			cdb, err := sql.Open("sqlite3",
+			cdb, err := sql.Open("sqlite",
 				fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", dbPath))
 			if err != nil {
 				s.logger.Warn("explorer: failed to open cross-chain db",

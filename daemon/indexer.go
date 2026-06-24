@@ -226,7 +226,7 @@ func mountChainAPI(ctx context.Context, mux *http.ServeMux, chain ChainConfig, p
 		// The standalone server caches table names on construction, so we wait
 		// for the schema to settle before instantiating it.
 		if chain.Type == "evm" {
-			db, openErr := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro", path))
+			db, openErr := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=ro", path))
 			if openErr == nil {
 				var c int
 				err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='evm_blocks'").Scan(&c)
