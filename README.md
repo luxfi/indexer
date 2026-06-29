@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="indexer" width="880"></p>
+
 # Explorer
 
 Single-binary block explorer for EVM and multi-chain networks. Indexes, serves API, embeds frontend. Zero external dependencies.
