@@ -224,7 +224,7 @@ func TestTopicAddress(t *testing.T) {
 	}
 }
 
-func TestEmptyLogs(t *testing.T) {
+func TestGovernanceEmptyLogs(t *testing.T) {
 	proposals, votes, delegates, dvotes := ParseGovernanceEvents(nil)
 	if proposals != nil || votes != nil || delegates != nil || dvotes != nil {
 		t.Error("expected nil results for nil input")

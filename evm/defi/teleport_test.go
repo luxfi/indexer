@@ -347,7 +347,7 @@ func TestParseStrategyRemoved(t *testing.T) {
 	}
 }
 
-func TestEmptyLogs(t *testing.T) {
+func TestTeleportEmptyLogs(t *testing.T) {
 	events := ParseTeleportEvents(nil)
 	if events != nil {
 		t.Error("expected nil for nil input")
