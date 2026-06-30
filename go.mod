@@ -9,13 +9,13 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/hanzoai/replicate v0.6.0
 	github.com/lib/pq v1.12.1
-	github.com/luxfi/age v1.5.0
+	github.com/luxfi/age v1.6.0
 	github.com/luxfi/database v1.19.3
-	github.com/luxfi/zap v0.2.1
+	github.com/luxfi/zap v1.1.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	golang.org/x/crypto v0.50.0
+	golang.org/x/crypto v0.52.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -45,6 +45,8 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.4.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -68,16 +70,19 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/lmittmann/tint v1.1.3 // indirect
+	github.com/luxfi/accel v1.2.4 // indirect
 	github.com/luxfi/cache v1.2.1 // indirect
+	github.com/luxfi/codec v1.1.4 // indirect
 	github.com/luxfi/compress v0.0.5 // indirect
 	github.com/luxfi/concurrent v0.0.3 // indirect
-	github.com/luxfi/crypto v1.19.0 // indirect
-	github.com/luxfi/ids v1.2.9 // indirect
+	github.com/luxfi/container v0.0.4 // indirect
+	github.com/luxfi/crypto v1.20.0 // indirect
+	github.com/luxfi/ids v1.3.0 // indirect
 	github.com/luxfi/log v1.4.3 // indirect
-	github.com/luxfi/math v1.4.0 // indirect
+	github.com/luxfi/math v1.4.1 // indirect
 	github.com/luxfi/math/big v0.1.0 // indirect
-	github.com/luxfi/mdns v0.1.0 // indirect
-	github.com/luxfi/metric v1.5.1 // indirect
+	github.com/luxfi/mdns v0.1.1 // indirect
+	github.com/luxfi/metric v1.6.0 // indirect
 	github.com/luxfi/mock v0.1.1 // indirect
 	github.com/luxfi/zapdb v1.9.0 // indirect
 	github.com/magefile/mage v1.14.0 // indirect
@@ -112,14 +117,14 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
-	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
