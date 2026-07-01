@@ -134,7 +134,7 @@ func TestConfigDefaults(t *testing.T) {
 	cfg := Config{
 		ChainType:   ChainX,
 		ChainName:   "X-Chain",
-		RPCEndpoint: "http://localhost:9630/ext/bc/X",
+		RPCEndpoint: "http://localhost:9630/v1/bc/X",
 		DataDir:     "/tmp/test-indexer/xchain",
 		HTTPPort:    4200,
 	}

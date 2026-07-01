@@ -126,7 +126,7 @@ data:
         name: Lux C-Chain
         chain_id: 96369
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/C/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/C/rpc
         coin: LUX
         enabled: true
         default: true
@@ -134,40 +134,40 @@ data:
         name: Zoo
         chain_id: 200200
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Zoo/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/Zoo/rpc
         coin: ZOO
         enabled: true
       - slug: hanzo
         name: Hanzo AI
         chain_id: 36963
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Hanzo/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/Hanzo/rpc
         coin: HANZO
         enabled: true
       - slug: spc
         name: SPC
         chain_id: 36911
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/SPC/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/SPC/rpc
         coin: SPC
         enabled: true
       - slug: pars
         name: Pars
         chain_id: 494949
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/Pars/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/Pars/rpc
         coin: PARS
         enabled: true
       # DAG chains
       - slug: xchain
         name: X-Chain
         type: dag
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/X
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/X
         coin: LUX
         enabled: true
       - slug: pchain
         name: P-Chain
         type: linear
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/ext/bc/P
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/bc/P
         coin: LUX
         enabled: true

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultGChainEndpoint = "http://localhost:9650/ext/bc/G/graphql"
+	defaultGChainEndpoint = "http://localhost:9650/v1/bc/G/graphql"
 	graphqlProxyTimeout   = 30 * time.Second
 )
 

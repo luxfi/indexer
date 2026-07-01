@@ -59,7 +59,7 @@ func TestConstants(t *testing.T) {
 		value interface{}
 		want  interface{}
 	}{
-		{"DefaultRPCEndpoint", DefaultRPCEndpoint, "http://localhost:9650/ext/bc/T/rpc"},
+		{"DefaultRPCEndpoint", DefaultRPCEndpoint, "http://localhost:9650/v1/bc/T/rpc"},
 		{"DefaultHTTPPort", DefaultHTTPPort, 4700},
 	}
 

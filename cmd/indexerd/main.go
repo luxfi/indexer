@@ -5,7 +5,7 @@
 // frontend.
 //
 //	indexerd --config=chains.yaml
-//	indexerd --rpc=http://localhost:9650/ext/bc/C/rpc  (single chain mode)
+//	indexerd --rpc=http://localhost:9650/v1/bc/C/rpc  (single chain mode)
 package main
 
 import (
@@ -134,7 +134,7 @@ func resolveConfig(configFile, rpcFlag, chainName, coinSymbol string, chainID in
 	}
 
 	fmt.Println("Usage:")
-	fmt.Println("  indexerd --rpc=http://localhost:9650/ext/bc/C/rpc   (single chain)")
+	fmt.Println("  indexerd --rpc=http://localhost:9650/v1/bc/C/rpc   (single chain)")
 	fmt.Println("  indexerd --config=chains.yaml                        (multi-chain)")
 	os.Exit(1)
 	return daemon.Config{}

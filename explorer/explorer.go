@@ -46,7 +46,7 @@ type Config struct {
 	CoinDecimals int
 
 	// GChainEndpoint is the G-Chain GraphQL endpoint on the node.
-	// Default: http://localhost:9650/ext/bc/G/graphql
+	// Default: http://localhost:9650/v1/bc/G/graphql
 	// Set via GCHAIN_ENDPOINT env var.
 	GChainEndpoint string
 

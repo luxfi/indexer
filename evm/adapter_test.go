@@ -18,7 +18,7 @@ import (
 
 // TestNew tests the adapter constructor
 func TestNew(t *testing.T) {
-	endpoint := "http://localhost:9650/ext/bc/C/rpc"
+	endpoint := "http://localhost:9650/v1/bc/C/rpc"
 	adapter := New(endpoint)
 
 	if adapter == nil {

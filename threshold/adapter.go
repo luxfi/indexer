@@ -19,7 +19,7 @@ import (
 
 const (
 	// DefaultRPCEndpoint for T-Chain on port 4700
-	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/T/rpc"
+	DefaultRPCEndpoint = "http://localhost:9650/v1/bc/T/rpc"
 	// DefaultHTTPPort for T-Chain indexer API
 	DefaultHTTPPort = 4700
 )
