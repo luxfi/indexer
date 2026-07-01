@@ -46,7 +46,7 @@ services:
     container_name: lux-pchain-indexer
     command: ["-chain", "pchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/P
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/P
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_pchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -63,7 +63,7 @@ services:
     container_name: lux-xchain-indexer
     command: ["-chain", "xchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/X
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/X
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_xchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -80,7 +80,7 @@ services:
     container_name: lux-achain-indexer
     command: ["-chain", "achain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/A
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/A
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_achain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -97,7 +97,7 @@ services:
     container_name: lux-bchain-indexer
     command: ["-chain", "bchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/B
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/B
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_bchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -114,7 +114,7 @@ services:
     container_name: lux-qchain-indexer
     command: ["-chain", "qchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Q
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/Q
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_qchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -131,7 +131,7 @@ services:
     container_name: lux-tchain-indexer
     command: ["-chain", "tchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/T
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/T
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_tchain?sslmode=disable
       HTTP_PORT: 4000
     ports:
@@ -148,7 +148,7 @@ services:
     container_name: lux-zchain-indexer
     command: ["-chain", "zchain", "-port", "4000"]
     environment:
-      RPC_ENDPOINT: http://host.docker.internal:9630/ext/bc/Z
+      RPC_ENDPOINT: http://host.docker.internal:9630/v1/bc/Z
       DATABASE_URL: postgresql://explorer:explorer@postgres:5432/explorer_zchain?sslmode=disable
       HTTP_PORT: 4000
     ports:

@@ -27,7 +27,7 @@ vet:
 	go vet ./...
 
 dev:
-	go run ./cmd/indexerd --rpc=http://localhost:9630/ext/bc/C/rpc --chain-name="C-Chain" --coin=LUX --chain-id=96369
+	go run ./cmd/indexerd --rpc=http://localhost:9630/v1/bc/C/rpc --chain-name="C-Chain" --coin=LUX --chain-id=96369
 
 dev-config:
 	go run ./cmd/indexerd --config=chains.example.yaml

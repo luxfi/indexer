@@ -26,11 +26,11 @@ CREATE TABLE chains (
 );
 
 INSERT INTO chains (chain_id, name, symbol, rpc_url) VALUES
-    (96369, 'Lux C-Chain', 'LUX', 'http://localhost:9630/ext/bc/C/rpc'),
-    (96368, 'Lux Testnet', 'LUX', 'http://localhost:9640/ext/bc/C/rpc'),
-    (200200, 'Zoo Mainnet', 'ZOO', 'http://localhost:9630/ext/bc/Zoo/rpc'),
-    (200201, 'Zoo Testnet', 'ZOO', 'http://localhost:9640/ext/bc/Zoo/rpc'),
-    (36963, 'Hanzo AI', 'HANZO', 'http://localhost:9630/ext/bc/Hanzo/rpc');
+    (96369, 'Lux C-Chain', 'LUX', 'http://localhost:9630/v1/bc/C/rpc'),
+    (96368, 'Lux Testnet', 'LUX', 'http://localhost:9640/v1/bc/C/rpc'),
+    (200200, 'Zoo Mainnet', 'ZOO', 'http://localhost:9630/v1/bc/Zoo/rpc'),
+    (200201, 'Zoo Testnet', 'ZOO', 'http://localhost:9640/v1/bc/Zoo/rpc'),
+    (36963, 'Hanzo AI', 'HANZO', 'http://localhost:9630/v1/bc/Hanzo/rpc');
 
 --------------------------------------------------------------------------------
 -- Blocks (Partitioned by chain_id)

@@ -20,7 +20,7 @@ import (
 
 const (
 	// DefaultRPCEndpoint for Z-Chain
-	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/Z/rpc"
+	DefaultRPCEndpoint = "http://localhost:9650/v1/bc/Z/rpc"
 	// DefaultHTTPPort for Z-Chain indexer API
 	DefaultHTTPPort = 4400
 	// DefaultDatabase for Z-Chain explorer

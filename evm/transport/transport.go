@@ -28,7 +28,7 @@ type RPCCall struct {
 }
 
 // New creates a Transport for the given endpoint, auto-detecting ZAP vs HTTP.
-// ZAP is used when the endpoint contains "/ext/" (luxd node path pattern)
+// ZAP is used when the endpoint contains "/v1/" (luxd node path pattern)
 // and a ZAP port is reachable. Falls back to HTTP otherwise.
 func New(endpoint string) Transport {
 	if isLuxdEndpoint(endpoint) {
@@ -44,12 +44,12 @@ func New(endpoint string) Transport {
 
 // isLuxdEndpoint returns true if the endpoint looks like a luxd node.
 func isLuxdEndpoint(endpoint string) bool {
-	return strings.Contains(endpoint, "/ext/")
+	return strings.Contains(endpoint, "/v1/")
 }
 
 // luxdZAPAddr derives the ZAP TCP address from a luxd HTTP endpoint.
 // luxd listens for ZAP on HTTP port + 10 by convention.
-// e.g. http://luxd-0.luxd:9630/ext/bc/C/rpc -> luxd-0.luxd:9640
+// e.g. http://luxd-0.luxd:9630/v1/bc/C/rpc -> luxd-0.luxd:9640
 func luxdZAPAddr(endpoint string) string {
 	// Strip scheme
 	addr := endpoint

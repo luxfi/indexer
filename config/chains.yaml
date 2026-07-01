@@ -12,8 +12,8 @@ lux:
     name: "Lux C-Chain"
     symbol: "LUX"
     type: evm
-    rpc: "https://api.lux.network/ext/bc/C/rpc"
-    ws: "wss://api.lux.network/ext/bc/C/ws"
+    rpc: "https://api.lux.network/v1/bc/C/rpc"
+    ws: "wss://api.lux.network/v1/bc/C/ws"
     explorer: "https://explore.lux.network"
     enabled: true
     protocols:
@@ -29,8 +29,8 @@ lux:
     name: "Lux Testnet"
     symbol: "LUX"
     type: evm
-    rpc: "https://api.testnet.lux.network/ext/bc/C/rpc"
-    ws: "wss://api.testnet.lux.network/ext/bc/C/ws"
+    rpc: "https://api.testnet.lux.network/v1/bc/C/rpc"
+    ws: "wss://api.testnet.lux.network/v1/bc/C/ws"
     explorer: "https://explore.testnet.lux.network"
     enabled: true
 
@@ -40,8 +40,8 @@ lux:
     name: "Zoo Mainnet"
     symbol: "ZOO"
     type: evm
-    rpc: "https://api.zoo.network/ext/bc/C/rpc"
-    ws: "wss://api.zoo.network/ext/bc/C/ws"
+    rpc: "https://api.zoo.network/v1/bc/C/rpc"
+    ws: "wss://api.zoo.network/v1/bc/C/ws"
     explorer: "https://explore.zoo.network"
     enabled: true
 
@@ -50,7 +50,7 @@ lux:
     name: "Zoo Testnet"
     symbol: "ZOO"
     type: evm
-    rpc: "https://api.testnet.zoo.network/ext/bc/C/rpc"
+    rpc: "https://api.testnet.zoo.network/v1/bc/C/rpc"
     explorer: "https://explore.testnet.zoo.network"
     enabled: true
 
@@ -60,8 +60,8 @@ lux:
     name: "Hanzo AI"
     symbol: "HANZO"
     type: evm
-    rpc: "https://api.hanzo.ai/ext/bc/C/rpc"
-    ws: "wss://api.hanzo.ai/ext/bc/C/ws"
+    rpc: "https://api.hanzo.ai/v1/bc/C/rpc"
+    ws: "wss://api.hanzo.ai/v1/bc/C/ws"
     explorer: "https://explore.hanzo.ai"
     enabled: true
 
@@ -70,7 +70,7 @@ lux:
     name: "Hanzo AI Testnet"
     symbol: "HANZO"
     type: evm
-    rpc: "https://api.testnet.hanzo.ai/ext/bc/C/rpc"
+    rpc: "https://api.testnet.hanzo.ai/v1/bc/C/rpc"
     explorer: "https://explore.testnet.hanzo.ai"
     enabled: true
 
@@ -80,8 +80,8 @@ lux:
     name: "SPC Mainnet"
     symbol: "SPC"
     type: evm
-    rpc: "https://api.sparklepony.club/ext/bc/C/rpc"
-    ws: "wss://api.sparklepony.club/ext/bc/C/ws"
+    rpc: "https://api.sparklepony.club/v1/bc/C/rpc"
+    ws: "wss://api.sparklepony.club/v1/bc/C/ws"
     explorer: "https://explore.sparklepony.club"
     enabled: true
 
@@ -90,7 +90,7 @@ lux:
     name: "SPC Testnet"
     symbol: "SPC"
     type: evm
-    rpc: "https://api.testnet.sparklepony.club/ext/bc/C/rpc"
+    rpc: "https://api.testnet.sparklepony.club/v1/bc/C/rpc"
     explorer: "https://explore.testnet.sparklepony.club"
     enabled: true
 
@@ -100,8 +100,8 @@ lux:
     name: "PARS Mainnet"
     symbol: "PARS"
     type: evm
-    rpc: "https://api.pars.network/ext/bc/C/rpc"
-    ws: "wss://api.pars.network/ext/bc/C/ws"
+    rpc: "https://api.pars.network/v1/bc/C/rpc"
+    ws: "wss://api.pars.network/v1/bc/C/ws"
     explorer: "https://explore.pars.network"
     enabled: true
 
@@ -110,7 +110,7 @@ lux:
     name: "PARS Testnet"
     symbol: "PARS"
     type: evm
-    rpc: "https://api.testnet.pars.network/ext/bc/C/rpc"
+    rpc: "https://api.testnet.pars.network/v1/bc/C/rpc"
     explorer: "https://explore.testnet.pars.network"
     enabled: true
 
@@ -124,8 +124,8 @@ lux:
     name: "Lux A-Chain (AI)"
     symbol: "LUX"
     type: lux_ai
-    rpc: "https://api.lux.network/ext/bc/A/rpc"
-    ws: "wss://api.lux.network/ext/bc/A/ws"
+    rpc: "https://api.lux.network/v1/bc/A/rpc"
+    ws: "wss://api.lux.network/v1/bc/A/ws"
     explorer: "https://explore.lux.network/a-chain"
     enabled: true
 
@@ -135,8 +135,8 @@ lux:
     name: "Lux B-Chain (Bridge)"
     symbol: "LUX"
     type: lux_bridge
-    rpc: "https://api.lux.network/ext/bc/B/rpc"
-    ws: "wss://api.lux.network/ext/bc/B/ws"
+    rpc: "https://api.lux.network/v1/bc/B/rpc"
+    ws: "wss://api.lux.network/v1/bc/B/ws"
     explorer: "https://explore.lux.network/b-chain"
     enabled: true
 
@@ -146,8 +146,8 @@ lux:
     name: "Lux T-Chain (Threshold)"
     symbol: "LUX"
     type: lux_threshold
-    rpc: "https://api.lux.network/ext/bc/T/rpc"
-    ws: "wss://api.lux.network/ext/bc/T/ws"
+    rpc: "https://api.lux.network/v1/bc/T/rpc"
+    ws: "wss://api.lux.network/v1/bc/T/ws"
     explorer: "https://explore.lux.network/t-chain"
     enabled: true
 
@@ -157,8 +157,8 @@ lux:
     name: "Lux Z-Chain (ZK)"
     symbol: "LUX"
     type: lux_zk
-    rpc: "https://api.lux.network/ext/bc/Z/rpc"
-    ws: "wss://api.lux.network/ext/bc/Z/ws"
+    rpc: "https://api.lux.network/v1/bc/Z/rpc"
+    ws: "wss://api.lux.network/v1/bc/Z/ws"
     explorer: "https://explore.lux.network/z-chain"
     enabled: true
 
@@ -168,8 +168,8 @@ lux:
     name: "Lux G-Chain (Graph)"
     symbol: "LUX"
     type: lux_graph
-    rpc: "https://api.lux.network/ext/bc/G/rpc"
-    ws: "wss://api.lux.network/ext/bc/G/ws"
+    rpc: "https://api.lux.network/v1/bc/G/rpc"
+    ws: "wss://api.lux.network/v1/bc/G/ws"
     explorer: "https://explore.lux.network/g-chain"
     enabled: true
 
@@ -179,8 +179,8 @@ lux:
     name: "Lux I-Chain (Identity)"
     symbol: "LUX"
     type: lux_identity
-    rpc: "https://api.lux.network/ext/bc/I/rpc"
-    ws: "wss://api.lux.network/ext/bc/I/ws"
+    rpc: "https://api.lux.network/v1/bc/I/rpc"
+    ws: "wss://api.lux.network/v1/bc/I/ws"
     explorer: "https://explore.lux.network/i-chain"
     enabled: true
 
@@ -190,8 +190,8 @@ lux:
     name: "Lux K-Chain (Key)"
     symbol: "LUX"
     type: lux_key
-    rpc: "https://api.lux.network/ext/bc/K/rpc"
-    ws: "wss://api.lux.network/ext/bc/K/ws"
+    rpc: "https://api.lux.network/v1/bc/K/rpc"
+    ws: "wss://api.lux.network/v1/bc/K/ws"
     explorer: "https://explore.lux.network/k-chain"
     enabled: true
 
@@ -201,8 +201,8 @@ lux:
     name: "Lux D-Chain (DEX)"
     symbol: "LUX"
     type: lux_dex
-    rpc: "https://api.lux.network/ext/bc/D/rpc"
-    ws: "wss://api.lux.network/ext/bc/D/ws"
+    rpc: "https://api.lux.network/v1/bc/D/rpc"
+    ws: "wss://api.lux.network/v1/bc/D/ws"
     explorer: "https://explore.lux.network/d-chain"
     enabled: true
 
@@ -589,7 +589,7 @@ ethereum:
     name: "Avalanche C-Chain"
     symbol: "AVAX"
     type: evm
-    rpc: "${AVAX_RPC_URL:-https://api.avax.network/ext/bc/C/rpc}"
+    rpc: "${AVAX_RPC_URL:-https://api.avax.network/v1/bc/C/rpc}"
     explorer: "https://snowtrace.io"
     enabled: true
     protocols:

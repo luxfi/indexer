@@ -189,9 +189,9 @@ func TestIsLuxdEndpoint(t *testing.T) {
 		endpoint string
 		want     bool
 	}{
-		{"http://luxd-0.luxd:9630/ext/bc/C/rpc", true},
-		{"http://localhost:9650/ext/bc/C/rpc", true},
-		{"https://api.lux.network/mainnet/ext/bc/C/rpc", true},
+		{"http://luxd-0.luxd:9630/v1/bc/C/rpc", true},
+		{"http://localhost:9650/v1/bc/C/rpc", true},
+		{"https://api.lux.network/mainnet/v1/bc/C/rpc", true},
 		{"http://localhost:8545", false},
 		{"https://mainnet.infura.io/v3/key", false},
 	}
@@ -211,10 +211,10 @@ func TestLuxdZAPAddr(t *testing.T) {
 		endpoint string
 		want     string
 	}{
-		{"http://luxd-0.luxd:9630/ext/bc/C/rpc", "luxd-0.luxd:9640"},
-		{"http://localhost:9650/ext/bc/C/rpc", "localhost:9660"},
-		{"https://api.lux.network/mainnet/ext/bc/C/rpc", "api.lux.network:9640"},
-		{"http://10.0.0.1:19630/ext/bc/C/rpc", "10.0.0.1:19640"},
+		{"http://luxd-0.luxd:9630/v1/bc/C/rpc", "luxd-0.luxd:9640"},
+		{"http://localhost:9650/v1/bc/C/rpc", "localhost:9660"},
+		{"https://api.lux.network/mainnet/v1/bc/C/rpc", "api.lux.network:9640"},
+		{"http://10.0.0.1:19630/v1/bc/C/rpc", "10.0.0.1:19640"},
 	}
 
 	for _, tt := range tests {
@@ -235,7 +235,7 @@ func TestNewFallsBackToHTTP(t *testing.T) {
 	}
 
 	// luxd endpoint with unreachable ZAP port should fall back to HTTP
-	tr = New("http://localhost:1/ext/bc/C/rpc")
+	tr = New("http://localhost:1/v1/bc/C/rpc")
 	if _, ok := tr.(*HTTP); !ok {
 		t.Errorf("expected *HTTP fallback for unreachable ZAP, got %T", tr)
 	}
@@ -378,7 +378,7 @@ func TestZAPCall(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestZAPCallWithParams(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestZAPBatchCall(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestZAPCallRPCError(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}
@@ -490,7 +490,7 @@ func TestZAPClose(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestZAPClose(t *testing.T) {
 }
 
 func TestZAPConnectFail(t *testing.T) {
-	_, err := NewZAP("127.0.0.1:1", "http://localhost/ext/bc/C/rpc")
+	_, err := NewZAP("127.0.0.1:1", "http://localhost/v1/bc/C/rpc")
 	if err == nil {
 		t.Fatal("expected error connecting to closed port")
 	}
@@ -521,7 +521,7 @@ func TestZAPCallContextTimeout(t *testing.T) {
 	})
 	defer cleanup()
 
-	z, err := NewZAP(addr, "http://localhost/ext/bc/C/rpc")
+	z, err := NewZAP(addr, "http://localhost/v1/bc/C/rpc")
 	if err != nil {
 		t.Fatalf("NewZAP: %v", err)
 	}

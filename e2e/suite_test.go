@@ -195,8 +195,8 @@ func findLuxd() string {
 // waitForNode waits for the node to be ready
 func waitForNode(port int, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
-	// Info API is at /ext/info
-	client := NewRPCClient(fmt.Sprintf("http://127.0.0.1:%d/ext/info", port))
+	// Info API is at /v1/info
+	client := NewRPCClient(fmt.Sprintf("http://127.0.0.1:%d/v1/info", port))
 
 	for time.Now().Before(deadline) {
 		// Check bootstrap status via info API
@@ -216,18 +216,18 @@ func GetRPCEndpoint(chain string) string {
 	// Check for external node via LUX_RPC_URL
 	if baseURL := os.Getenv("LUX_RPC_URL"); baseURL != "" {
 		// Extract host:port from base URL
-		// e.g., http://127.0.0.1:9650/ext/bc/C/rpc -> http://127.0.0.1:9650
-		parts := strings.Split(baseURL, "/ext/")
+		// e.g., http://127.0.0.1:9650/v1/bc/C/rpc -> http://127.0.0.1:9650
+		parts := strings.Split(baseURL, "/v1/")
 		host := parts[0]
 		switch strings.ToUpper(chain) {
 		case "C":
-			return host + "/ext/bc/C/rpc"
+			return host + "/v1/bc/C/rpc"
 		case "P":
-			return host + "/ext/bc/P"
+			return host + "/v1/bc/P"
 		case "X":
-			return host + "/ext/bc/X"
+			return host + "/v1/bc/X"
 		default:
-			return host + "/ext/bc/" + chain + "/rpc"
+			return host + "/v1/bc/" + chain + "/rpc"
 		}
 	}
 
@@ -238,38 +238,38 @@ func GetRPCEndpoint(chain string) string {
 
 	switch strings.ToUpper(chain) {
 	case "C":
-		return fmt.Sprintf("http://127.0.0.1:%d/ext/bc/C/rpc", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/bc/C/rpc", port)
 	case "P":
-		return fmt.Sprintf("http://127.0.0.1:%d/ext/bc/P", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/bc/P", port)
 	case "X":
-		return fmt.Sprintf("http://127.0.0.1:%d/ext/bc/X", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/bc/X", port)
 	default:
-		return fmt.Sprintf("http://127.0.0.1:%d/ext/bc/%s/rpc", port, chain)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/bc/%s/rpc", port, chain)
 	}
 }
 
 // GetInfoEndpoint returns the info API endpoint
 func GetInfoEndpoint() string {
 	if baseURL := os.Getenv("LUX_RPC_URL"); baseURL != "" {
-		parts := strings.Split(baseURL, "/ext/")
-		return parts[0] + "/ext/info"
+		parts := strings.Split(baseURL, "/v1/")
+		return parts[0] + "/v1/info"
 	}
 	port := 9650
 	if nodeConfig != nil {
 		port = nodeConfig.HTTPPort
 	}
-	return fmt.Sprintf("http://127.0.0.1:%d/ext/info", port)
+	return fmt.Sprintf("http://127.0.0.1:%d/v1/info", port)
 }
 
 // GetAdminEndpoint returns the admin API endpoint
 func GetAdminEndpoint() string {
 	if baseURL := os.Getenv("LUX_RPC_URL"); baseURL != "" {
-		parts := strings.Split(baseURL, "/ext/")
-		return parts[0] + "/ext/admin"
+		parts := strings.Split(baseURL, "/v1/")
+		return parts[0] + "/v1/admin"
 	}
 	port := 9650
 	if nodeConfig != nil {
 		port = nodeConfig.HTTPPort
 	}
-	return fmt.Sprintf("http://127.0.0.1:%d/ext/admin", port)
+	return fmt.Sprintf("http://127.0.0.1:%d/v1/admin", port)
 }

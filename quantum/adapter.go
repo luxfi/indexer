@@ -19,7 +19,7 @@ import (
 
 const (
 	// DefaultRPCEndpoint is the default Q-Chain RPC endpoint
-	DefaultRPCEndpoint = "http://localhost:9650/ext/bc/Q/rpc"
+	DefaultRPCEndpoint = "http://localhost:9650/v1/bc/Q/rpc"
 	// DefaultHTTPPort is the default API port for Q-Chain indexer
 	DefaultHTTPPort = 4300
 )

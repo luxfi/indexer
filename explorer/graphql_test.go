@@ -320,7 +320,7 @@ func TestGraphqlErrorResponse(t *testing.T) {
 
 func TestNewGraphQLProxy(t *testing.T) {
 	t.Run("valid endpoint", func(t *testing.T) {
-		proxy, err := newGraphQLProxy("http://localhost:9650/ext/bc/G/graphql")
+		proxy, err := newGraphQLProxy("http://localhost:9650/v1/bc/G/graphql")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
