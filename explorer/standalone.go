@@ -32,6 +32,11 @@ var (
 	blockIDPattern = regexp.MustCompile(`^([0-9]+|0x[0-9a-fA-F]{64})$`) // block number or hash
 	pairPattern    = regexp.MustCompile(`^[A-Za-z0-9_/-]{1,40}$`)       // DEX pair symbols
 	poolIDPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)        // pool IDs
+	// platformIDPattern matches a P-Chain block reference: a decimal height or
+	// a CB58 (base58, no 0/O/I/l) block ID (typically ~49 chars, bounded at 64).
+	// Queries are parameterized, so this is a sanity bound, not the injection
+	// defense.
+	platformIDPattern = regexp.MustCompile(`^([0-9]+|[1-9A-HJ-NP-Za-km-z]{1,64})$`)
 )
 
 // isValidHexAddr checks if s is a valid 0x-prefixed 40-char hex address.
@@ -82,6 +87,14 @@ type tableNames struct {
 	// table uses "contract_address". detectTables() sets this based on
 	// which schema is live.
 	tokenAddrCol string
+
+	// platform (P-Chain / linear) variant. When platform is true the /blocks
+	// and /main-page/blocks routes serve the P-Chain block handlers and the
+	// /validators route is enabled. Set by detectTables when pchain_blocks
+	// exists (created by the generic chain indexer's Init). The pchain_*
+	// table names are the ones platform.InitSchema + the chain indexer create.
+	platform                        bool
+	pblocks, validators, delegators string
 }
 
 func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
@@ -114,7 +127,11 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	s.notifWorker = NewNotificationWorker(db, s.t.txs, nil)
 	s.notifWorker.Start()
 	s.routes()
-	log.Printf("[explorer] API ready — %s reading %s (%s tables)", cfg.ChainName, cfg.IndexerDBPath, s.t.blocks)
+	primaryTable := s.t.blocks
+	if s.t.platform {
+		primaryTable = s.t.pblocks
+	}
+	log.Printf("[explorer] API ready — %s reading %s (%s tables)", cfg.ChainName, cfg.IndexerDBPath, primaryTable)
 	return s, nil
 }
 
@@ -229,6 +246,19 @@ func (s *StandaloneServer) detectTables() {
 	s.t.dexMarkets = s.detectTable("dex_market_stats", "evm_dex_market_stats")
 	s.t.dexPools = s.detectTable("dex_pools", "evm_dex_pools")
 	s.t.dexSwaps = s.detectTable("dex_swaps", "evm_dex_swaps")
+
+	// Platform (P-Chain / linear): a pchain_blocks table (from the generic
+	// chain indexer) plus pchain_validators/pchain_delegators (from
+	// platform.InitSchema). Set last so the wholesale s.t assignment above
+	// doesn't clobber these. When platform is true, routes() serves the
+	// P-Chain block/validator handlers; the EVM table fields stay set but
+	// their tables are absent, so EVM-only routes simply return empty.
+	if s.detectTable("pchain_blocks") != "" {
+		s.t.platform = true
+		s.t.pblocks = "pchain_blocks"
+		s.t.validators = "pchain_validators"
+		s.t.delegators = "pchain_delegators"
+	}
 }
 
 // ensureContractsTable creates evm_smart_contracts if it doesn't yet exist.
@@ -299,9 +329,17 @@ func (s *StandaloneServer) routes() {
 	// EVM endpoints — blocks, transactions, addresses, tokens, contracts
 	// Used by: C-Chain, Zoo, Hanzo, SPC, Pars, and any EVM chain
 	// ================================================================
-	m.HandleFunc("GET "+p+"/blocks", s.j(s.listBlocks))
-	m.HandleFunc("GET "+p+"/blocks/{id}", s.j(s.getBlock))
-	m.HandleFunc("GET "+p+"/blocks/{id}/transactions", s.j(s.blockTxs))
+	if s.t.platform {
+		// P-Chain block explorer: linear blocks keyed by height/CB58 id, plus
+		// the validator set synced from platform.getCurrentValidators.
+		m.HandleFunc("GET "+p+"/blocks", s.j(s.platformBlocks))
+		m.HandleFunc("GET "+p+"/blocks/{id}", s.j(s.platformBlock))
+		m.HandleFunc("GET "+p+"/validators", s.j(s.platformValidators))
+	} else {
+		m.HandleFunc("GET "+p+"/blocks", s.j(s.listBlocks))
+		m.HandleFunc("GET "+p+"/blocks/{id}", s.j(s.getBlock))
+		m.HandleFunc("GET "+p+"/blocks/{id}/transactions", s.j(s.blockTxs))
+	}
 	m.HandleFunc("GET "+p+"/transactions", s.j(s.listTxs))
 	m.HandleFunc("GET "+p+"/transactions/{hash}", s.j(s.getTx))
 	m.HandleFunc("GET "+p+"/transactions/{hash}/token-transfers", s.j(s.txTransfers))
@@ -357,7 +395,11 @@ func (s *StandaloneServer) routes() {
 	// ================================================================
 	// Homepage widgets
 	// ================================================================
-	m.HandleFunc("GET "+p+"/main-page/blocks", s.j(s.mainPageBlocks))
+	if s.t.platform {
+		m.HandleFunc("GET "+p+"/main-page/blocks", s.j(s.platformMainPageBlocks))
+	} else {
+		m.HandleFunc("GET "+p+"/main-page/blocks", s.j(s.mainPageBlocks))
+	}
 	m.HandleFunc("GET "+p+"/main-page/transactions", s.j(s.mainPageTxs))
 	m.HandleFunc("GET "+p+"/main-page/indexing-status", s.j(s.indexingStatus))
 	m.HandleFunc("GET "+p+"/config/backend-version", s.j(s.backendVersion))
@@ -2099,4 +2141,199 @@ func (s *StandaloneServer) poolSwaps(r *http.Request) (any, int) {
 		maps = maps[:l]
 	}
 	return paginatedResponse{Items: maps, NextPageParams: np}, 200
+}
+
+// ================================================================
+// Platform (P-Chain / linear) — blocks + validators
+//
+// Reads the pchain_blocks table (written by the generic chain indexer) and
+// the pchain_validators/pchain_delegators tables (written by
+// platform.SyncValidators). Registered only when detectTables sets
+// s.t.platform; the EVM routes are untouched.
+// ================================================================
+
+const platformBlockCols = "id, parent_id, height, timestamp, status, tx_count, tx_ids"
+
+// platformBlocks serves GET {prefix}/blocks — linear blocks newest-first.
+func (s *StandaloneServer) platformBlocks(r *http.Request) (any, int) {
+	l := lim(r)
+	rows, err := s.q(r, fmt.Sprintf("SELECT %s FROM %s ORDER BY height DESC LIMIT ?", platformBlockCols, s.t.pblocks), l+1)
+	if err != nil {
+		return ep(), 200
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	var np any
+	if len(maps) > l {
+		np = map[string]any{"height": maps[l-1]["height"], "items_count": l}
+		maps = maps[:l]
+	}
+	items := make([]map[string]any, len(maps))
+	for i, b := range maps {
+		items[i] = formatPlatformBlock(b)
+	}
+	return paginatedResponse{Items: items, NextPageParams: np}, 200
+}
+
+// platformBlock serves GET {prefix}/blocks/{id} where id is a height or CB58 id.
+func (s *StandaloneServer) platformBlock(r *http.Request) (any, int) {
+	id := r.PathValue("id")
+	if !platformIDPattern.MatchString(id) {
+		return map[string]string{"error": "invalid block id"}, 400
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if _, e := strconv.ParseInt(id, 10, 64); e == nil {
+		rows, err = s.q(r, fmt.Sprintf("SELECT %s FROM %s WHERE height = ? LIMIT 1", platformBlockCols, s.t.pblocks), id)
+	} else {
+		rows, err = s.q(r, fmt.Sprintf("SELECT %s FROM %s WHERE id = ? LIMIT 1", platformBlockCols, s.t.pblocks), id)
+	}
+	if err != nil {
+		return map[string]string{"error": "not found"}, 404
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	if len(maps) == 0 {
+		return map[string]string{"error": "not found"}, 404
+	}
+	return formatPlatformBlock(maps[0]), 200
+}
+
+// platformMainPageBlocks serves GET {prefix}/main-page/blocks — top 6 as a raw
+// array (matching the EVM widget contract).
+func (s *StandaloneServer) platformMainPageBlocks(r *http.Request) (any, int) {
+	rows, err := s.q(r, fmt.Sprintf("SELECT %s FROM %s ORDER BY height DESC LIMIT 6", platformBlockCols, s.t.pblocks))
+	if err != nil {
+		return []any{}, 200
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	items := make([]map[string]any, len(maps))
+	for i, b := range maps {
+		items[i] = formatPlatformBlock(b)
+	}
+	return items, 200
+}
+
+// platformValidators serves GET {prefix}/validators — the current validator set
+// ordered by stake, with a per-validator delegator count derived from
+// pchain_delegators.
+func (s *StandaloneServer) platformValidators(r *http.Request) (any, int) {
+	l := lim(r)
+	q := fmt.Sprintf(`SELECT v.node_id, v.start_time, v.end_time, v.stake_amount,
+		v.potential_reward, v.delegation_fee, v.uptime, v.connected, v.net_id, v.tx_id,
+		v.bls_public_key, v.bls_proof_of_possession,
+		(SELECT COUNT(*) FROM %s d WHERE d.node_id = v.node_id) AS delegator_count
+	FROM %s v
+	ORDER BY CAST(v.stake_amount AS REAL) DESC
+	LIMIT ?`, s.t.delegators, s.t.validators)
+	rows, err := s.q(r, q, l)
+	if err != nil {
+		return ep(), 200
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	items := make([]map[string]any, len(maps))
+	for i, v := range maps {
+		items[i] = formatValidator(v)
+	}
+	return paginatedResponse{Items: items}, 200
+}
+
+// formatPlatformBlock shapes a pchain_blocks row for the API.
+func formatPlatformBlock(b map[string]any) map[string]any {
+	id := platformStr(b["id"])
+	parent := platformStr(b["parent_id"])
+	return map[string]any{
+		"height":      toInt64(b["height"]),
+		"id":          id,
+		"hash":        id, // SPA block widgets key on "hash"
+		"parent_id":   parent,
+		"parent_hash": parent, // SPA compatibility
+		"timestamp":   fmtTimestamp(b["timestamp"]),
+		"status":      platformStr(b["status"]),
+		"tx_count":    toInt64(b["tx_count"]),
+		"tx_ids":      parsePlatformTxIDs(b["tx_ids"]),
+	}
+}
+
+// formatValidator shapes a pchain_validators row (with delegator_count) for the
+// API. Stake/reward stay strings to preserve full uint64 precision; uptime and
+// delegation_fee are small reals passed through as numbers. BLS fields are null
+// until the adapter captures a signer for that validator.
+func formatValidator(v map[string]any) map[string]any {
+	stake := fmtNum(v["stake_amount"])
+	return map[string]any{
+		"node_id":                 platformStr(v["node_id"]),
+		"weight":                  stake,
+		"stake":                   stake,
+		"stake_amount":            stake,
+		"start_time":              fmtTimestamp(v["start_time"]),
+		"end_time":                fmtTimestamp(v["end_time"]),
+		"uptime":                  v["uptime"],
+		"potential_reward":        fmtNum(v["potential_reward"]),
+		"delegation_fee":          v["delegation_fee"],
+		"connected":               asBool(v["connected"]),
+		"net_id":                  platformStr(v["net_id"]),
+		"tx_id":                   platformStr(v["tx_id"]),
+		"bls_public_key":          nullableStr(v["bls_public_key"]),
+		"bls_proof_of_possession": nullableStr(v["bls_proof_of_possession"]),
+		"delegator_count":         toInt64(v["delegator_count"]),
+	}
+}
+
+// platformStr coerces a scanned column (string, []byte, or nil) to a string.
+// Unlike bytesToHex it does not hex-encode — P-Chain ids are CB58 text.
+func platformStr(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case []byte:
+		return string(t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+// nullableStr returns nil for empty/absent values so the JSON emits null rather
+// than "" — used for the optional BLS signer fields.
+func nullableStr(v any) any {
+	if s := platformStr(v); s != "" {
+		return s
+	}
+	return nil
+}
+
+// asBool coerces SQLite's 0/1 (int64), a real bool, or "1"/"true" to a bool.
+func asBool(v any) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case int64:
+		return t != 0
+	case float64:
+		return t != 0
+	case string:
+		return t == "1" || strings.EqualFold(t, "true")
+	default:
+		return false
+	}
+}
+
+// parsePlatformTxIDs decodes the JSON-text tx_ids column into a string slice,
+// always returning a non-nil slice so the JSON is [] not null.
+func parsePlatformTxIDs(v any) []string {
+	raw := platformStr(v)
+	if raw == "" {
+		return []string{}
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return []string{}
+	}
+	return ids
 }
