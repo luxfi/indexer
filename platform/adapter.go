@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/luxfi/indexer/chain"
@@ -234,6 +235,8 @@ func (a *Adapter) InitSchema(ctx context.Context, store storage.Store) error {
 			connected BOOLEAN DEFAULT false,
 			net_id TEXT DEFAULT 'primary',
 			tx_id TEXT,
+			bls_public_key TEXT DEFAULT '',
+			bls_proof_of_possession TEXT DEFAULT '',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
@@ -459,7 +462,15 @@ type Validator struct {
 	DelegationFee   string      `json:"delegationFee"`
 	Uptime          string      `json:"uptime"`
 	Connected       bool        `json:"connected"`
+	Signer          *Signer     `json:"signer,omitempty"`
 	Delegators      []Delegator `json:"delegators,omitempty"`
+}
+
+// Signer is the BLS proof-of-possession a permissionless validator registers
+// on the P-Chain (platform.getCurrentValidators "signer" object).
+type Signer struct {
+	PublicKey         string `json:"publicKey"`
+	ProofOfPossession string `json:"proofOfPossession"`
 }
 
 // Delegator represents a P-Chain delegator
@@ -522,7 +533,13 @@ type Blockchain struct {
 	VMID  string `json:"vmID"`
 }
 
-// SyncValidators syncs validator data from RPC to database
+// SyncValidators syncs validator data from RPC to database.
+//
+// Timestamps are bound as time.Time values (not Postgres-only to_timestamp())
+// so the same statement runs on both the SQLite and Postgres query backends —
+// each driver accepts a time.Time bind for a TIMESTAMP column. Weight falls
+// back into stake_amount when the RPC omits the deprecated stakeAmount field,
+// and the validator's BLS signer (publicKey + proofOfPossession) is captured.
 func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error {
 	validators, err := a.GetCurrentValidators(ctx, "")
 	if err != nil {
@@ -530,17 +547,29 @@ func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error
 	}
 
 	for _, v := range validators {
+		stake := v.StakeAmount
+		if stake == "" {
+			stake = v.Weight
+		}
+		var blsPubKey, blsPoP string
+		if v.Signer != nil {
+			blsPubKey = v.Signer.PublicKey
+			blsPoP = v.Signer.ProofOfPossession
+		}
 		err := store.Exec(ctx, `
-			INSERT INTO pchain_validators (node_id, start_time, end_time, stake_amount, potential_reward, delegation_fee, uptime, connected, tx_id, updated_at)
-			VALUES (?, to_timestamp(?), to_timestamp(?), ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			INSERT INTO pchain_validators (node_id, start_time, end_time, stake_amount, potential_reward, delegation_fee, uptime, connected, tx_id, bls_public_key, bls_proof_of_possession, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT (node_id) DO UPDATE SET
 				end_time = EXCLUDED.end_time,
 				stake_amount = EXCLUDED.stake_amount,
 				potential_reward = EXCLUDED.potential_reward,
+				delegation_fee = EXCLUDED.delegation_fee,
 				uptime = EXCLUDED.uptime,
 				connected = EXCLUDED.connected,
+				bls_public_key = EXCLUDED.bls_public_key,
+				bls_proof_of_possession = EXCLUDED.bls_proof_of_possession,
 				updated_at = CURRENT_TIMESTAMP
-		`, v.NodeID, v.StartTime, v.EndTime, v.StakeAmount, v.PotentialReward, v.DelegationFee, v.Uptime, v.Connected, v.TxID)
+		`, v.NodeID, parseUnixTime(v.StartTime), parseUnixTime(v.EndTime), stake, v.PotentialReward, v.DelegationFee, v.Uptime, v.Connected, v.TxID, blsPubKey, blsPoP)
 		if err != nil {
 			return fmt.Errorf("upsert validator %s: %w", v.NodeID, err)
 		}
@@ -549,11 +578,11 @@ func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error
 		for _, d := range v.Delegators {
 			err := store.Exec(ctx, `
 				INSERT INTO pchain_delegators (tx_id, node_id, start_time, end_time, stake_amount, potential_reward, reward_owner)
-				VALUES (?, ?, to_timestamp(?), to_timestamp(?), ?, ?, ?)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (tx_id) DO UPDATE SET
 					end_time = EXCLUDED.end_time,
 					potential_reward = EXCLUDED.potential_reward
-			`, d.TxID, d.NodeID, d.StartTime, d.EndTime, d.StakeAmount, d.PotentialReward, d.RewardOwner)
+			`, d.TxID, d.NodeID, parseUnixTime(d.StartTime), parseUnixTime(d.EndTime), d.StakeAmount, d.PotentialReward, d.RewardOwner)
 			if err != nil {
 				return fmt.Errorf("upsert delegator %s: %w", d.TxID, err)
 			}
@@ -561,6 +590,20 @@ func (a *Adapter) SyncValidators(ctx context.Context, store storage.Store) error
 	}
 
 	return nil
+}
+
+// parseUnixTime converts a P-Chain RPC timestamp (Unix seconds encoded as a
+// decimal string) into a UTC time.Time. Empty or unparseable input yields the
+// zero time so a malformed field never aborts a whole sync.
+func parseUnixTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	sec, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(sec, 0).UTC()
 }
 
 // NewConfig creates a default P-Chain indexer configuration
