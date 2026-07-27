@@ -88,6 +88,19 @@ type tableNames struct {
 	// which schema is live.
 	tokenAddrCol string
 
+	// addrTxCol is the per-address transaction count column: luxfi/indexer
+	// evm_addresses spells it "tx_count", Blockscout-legacy addresses
+	// "transactions_count".
+	addrTxCol string
+
+	// balTokenCol / transferTokenCol are the "which token" columns on the
+	// balances and transfers tables. luxfi/indexer spells both
+	// "token_address"; Blockscout-legacy spells them
+	// "token_contract_address_hash". Empty means the table is absent or
+	// its shape is unknown — the caller must then report unavailable
+	// rather than count zero rows and call that an answer.
+	balTokenCol, transferTokenCol string
+
 	// platform (P-Chain / linear) variant. When platform is true the /blocks
 	// and /main-page/blocks routes serve the P-Chain block handlers and the
 	// /validators route is enabled. Set by detectTables when pchain_blocks
@@ -259,6 +272,52 @@ func (s *StandaloneServer) detectTables() {
 		s.t.validators = "pchain_validators"
 		s.t.delegators = "pchain_delegators"
 	}
+
+	// The branches above name tables and columns by convention. Convention
+	// is a guess; ask the database which of them are actually there, so a
+	// wrong guess surfaces as "unavailable" instead of as a silent zero.
+	s.t.addrTxCol = s.detectColumn(s.t.addrs, "tx_count", "transactions_count")
+	if s.t.addrTxCol == "" {
+		s.t.addrTxCol = "rowid"
+	}
+	s.t.balances = s.detectTable(s.t.balances)
+	s.t.balTokenCol = s.detectColumn(s.t.balances, "token_address", "token_contract_address_hash")
+	s.t.transferTokenCol = s.detectColumn(s.t.transfers, "token_address", "token_contract_address_hash")
+	if c := s.detectColumn(s.t.tokens, "address", "contract_address", "contract_address_hash", "address_hash"); c != "" {
+		s.t.tokenAddrCol = c
+	}
+}
+
+// detectColumn returns the first of names that exists on table, or "".
+// Guessing wrong is not a compile error and not a runtime error either —
+// SQLite raises "no such column", the caller swallows it, and the endpoint
+// answers an empty page forever. Ask instead.
+func (s *StandaloneServer) detectColumn(table string, names ...string) string {
+	if table == "" {
+		return ""
+	}
+	have := map[string]struct{}{}
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return ""
+		}
+		have[name] = struct{}{}
+	}
+	for _, n := range names {
+		if _, ok := have[n]; ok {
+			return n
+		}
+	}
+	return ""
 }
 
 // ensureContractsTable creates evm_smart_contracts if it doesn't yet exist.
@@ -644,12 +703,13 @@ func (s *StandaloneServer) txLogs(r *http.Request) (any, int) {
 // ---- Addresses ----
 
 func (s *StandaloneServer) listAddrs(r *http.Request) (any, int) {
-	// Schema-portable sort: the EVM adapter exposes `transactions_count`
-	// (Blockscout-compatible), and so does the plain `addresses` fixture
-	// used by standalone_api_test. The earlier `tx_count` name matched
-	// neither schema, causing silent empty-result returns (err swallowed
-	// below). See TestListAddrs_SortedByBalance.
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY transactions_count DESC LIMIT ?", s.t.addrs), lim(r))
+	// Sort by whichever tx-count column this schema actually has:
+	// luxfi/indexer evm_addresses spells it `tx_count`, Blockscout-legacy
+	// `addresses` spells it `transactions_count`. Naming one of the two
+	// unconditionally made the ORDER BY reference a column that does not
+	// exist, and the error was swallowed into an empty page below — so
+	// /addresses answered {"items":[]} while /stats reported 72 addresses.
+	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY %s DESC LIMIT ?", s.t.addrs, s.t.addrTxCol), lim(r))
 	if err != nil {
 		return ep(), 200
 	}
@@ -659,6 +719,7 @@ func (s *StandaloneServer) listAddrs(r *http.Request) (any, int) {
 	for i, a := range maps {
 		items[i] = formatAddress(a)
 	}
+	s.withNativeBalance(r.Context(), items)
 	return paginatedResponse{Items: items}, 200
 }
 
@@ -676,7 +737,9 @@ func (s *StandaloneServer) getAddr(r *http.Request) (any, int) {
 	if len(maps) == 0 {
 		return map[string]string{"error": "not found"}, 404
 	}
-	return formatAddress(maps[0]), 200
+	item := formatAddress(maps[0])
+	s.withNativeBalance(r.Context(), []map[string]any{item})
+	return item, 200
 }
 
 func (s *StandaloneServer) addrTxs(r *http.Request) (any, int) {
@@ -732,8 +795,33 @@ func (s *StandaloneServer) addrCounters(r *http.Request) (any, int) {
 
 // ---- Tokens ----
 
+// tokenSelect selects every token column plus `holder_count_live`, the
+// holder count counted from the balance rows themselves. The stored
+// `holder_count` column is never written by the indexer, so both the token
+// list's ordering and its "Holders" figure were derived from a column of
+// zeros. Counting in the same statement keeps it one query, not N+1.
+func (s *StandaloneServer) tokenSelect(suffix string) string {
+	if s.t.balTokenCol == "" {
+		return fmt.Sprintf("SELECT t.* FROM %s t %s", s.t.tokens, suffix)
+	}
+	return fmt.Sprintf(
+		`SELECT t.*, (SELECT COUNT(*) FROM %s b
+			WHERE LOWER(b.%s) = LOWER(t.%s) AND b.value != '0' AND b.value != '')
+			AS holder_count_live
+		 FROM %s t %s`, s.t.balances, s.t.balTokenCol, s.t.tokenAddrCol, s.t.tokens, suffix)
+}
+
+// holderOrder is the column tokens are ranked by: the counted holders when
+// we can count them, otherwise the stored column.
+func (s *StandaloneServer) holderOrder() string {
+	if s.t.balTokenCol == "" {
+		return "holder_count"
+	}
+	return "holder_count_live"
+}
+
 func (s *StandaloneServer) listTokens(r *http.Request) (any, int) {
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s ORDER BY holder_count DESC LIMIT ?", s.t.tokens), lim(r))
+	rows, err := s.q(r, s.tokenSelect(fmt.Sprintf("ORDER BY %s DESC LIMIT ?", s.holderOrder())), lim(r))
 	if err != nil {
 		return ep(), 200
 	}
@@ -751,7 +839,7 @@ func (s *StandaloneServer) getToken(r *http.Request) (any, int) {
 	if !isValidHexAddr(addr) {
 		return map[string]string{"error": "invalid token address"}, 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", s.t.tokens, s.t.tokenAddrCol), addr)
+	rows, err := s.q(r, s.tokenSelect(fmt.Sprintf("WHERE t.%s = ? LIMIT 1", s.t.tokenAddrCol)), addr)
 	if err != nil {
 		return map[string]string{"error": "not found"}, 404
 	}
@@ -769,11 +857,15 @@ func (s *StandaloneServer) tokenHolders(r *http.Request) (any, int) {
 		return ep(), 400
 	}
 	addr = strings.ToLower(addr)
+	if s.t.balTokenCol == "" {
+		return ep(), 200
+	}
 	// Filter out zero-balance rows + sort by value DESC. CAST to REAL
 	// for ordering since `value` is a TEXT column holding decimal strings.
-	q := fmt.Sprintf(`SELECT address, value FROM %s
-		WHERE LOWER(token_address) = ? AND value != '0' AND value != ''
-		ORDER BY CAST(value AS REAL) DESC LIMIT 50`, s.t.balances)
+	q := fmt.Sprintf(`SELECT %s AS address, value FROM %s
+		WHERE LOWER(%s) = ? AND value != '0' AND value != ''
+		ORDER BY CAST(value AS REAL) DESC LIMIT 50`,
+		s.detectColumn(s.t.balances, "address", "address_hash"), s.t.balances, s.t.balTokenCol)
 	rows, err := s.q(r, q, addr)
 	if err != nil {
 		return ep(), 200
@@ -1034,15 +1126,33 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.txs)).Scan(&tc)
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", s.t.addrs)).Scan(&ac)
 	s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COALESCE(SUM(gas_used), 0) FROM %s", s.t.blocks)).Scan(&totalGas)
-	// Average block time from last 50 blocks
+	// Average block time over the last 50 blocks. `timestamp` is a TEXT
+	// datetime column, so subtracting two of them yields 0 in SQLite — the
+	// figure was structurally zero, and the SPA printed "0s" as if blocks
+	// arrived instantaneously. strftime('%s') converts to epoch seconds
+	// first. The 60s ceiling drops the gaps across an indexer restart.
 	s.db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COALESCE(AVG(dt), 0) FROM (
-			SELECT timestamp - LAG(timestamp) OVER (ORDER BY number) AS dt
+			SELECT CAST(strftime('%%s', timestamp) AS INTEGER)
+			     - LAG(CAST(strftime('%%s', timestamp) AS INTEGER)) OVER (ORDER BY number) AS dt
 			FROM %s ORDER BY number DESC LIMIT 50
 		) WHERE dt > 0 AND dt < 60`, s.t.blocks)).Scan(&avgBlockTime)
-	// Gas used in last 24h
+	// Gas used in the last 24h. Same trap: a lexical comparison between the
+	// stored timestamp format and datetime('now') matched nothing, so this
+	// reported 0 gas on a chain that had been producing blocks all day.
 	s.db.QueryRowContext(ctx, fmt.Sprintf(
-		"SELECT COALESCE(SUM(gas_used), 0) FROM %s WHERE timestamp > datetime('now', '-1 day')", s.t.blocks)).Scan(&gasUsedToday)
+		`SELECT COALESCE(SUM(gas_used), 0) FROM %s
+		 WHERE CAST(strftime('%%s', timestamp) AS INTEGER) > CAST(strftime('%%s', 'now', '-1 day') AS INTEGER)`,
+		s.t.blocks)).Scan(&gasUsedToday)
+	// Transactions in the same window, from the same clock.
+	var txsToday int64
+	haveTxsToday := false
+	if s.t.txs != "" {
+		haveTxsToday = s.db.QueryRowContext(ctx, fmt.Sprintf(
+			`SELECT COUNT(*) FROM %s
+			 WHERE CAST(strftime('%%s', timestamp) AS INTEGER) > CAST(strftime('%%s', 'now', '-1 day') AS INTEGER)`,
+			s.t.txs)).Scan(&txsToday) == nil
+	}
 	// Gas prices: try tx gas_price first, fall back to block base_fee
 	var slowGas, avgGas, fastGas float64
 	s.db.QueryRowContext(ctx, fmt.Sprintf(`
@@ -1100,7 +1210,7 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 		"coin_price":                     nil,
 		"coin_price_change_percentage":   nil,
 		"total_gas_used":                 fmt.Sprintf("%.0f", totalGas),
-		"transactions_today":             nil,
+		"transactions_today":             countOrNull(txsToday, haveTxsToday),
 		"gas_used_today":                 fmt.Sprintf("%d", gasUsedToday),
 		"gas_prices":                     gasPrices,
 		"gas_price_updated_at":           time.Now().UTC().Format(time.RFC3339),
@@ -1378,24 +1488,31 @@ func (s *StandaloneServer) tokenTransfers(r *http.Request) (any, int) {
 	return paginatedResponse{Items: items}, 200
 }
 
+// tokenCounters counts the token's holders and transfers from the rows that
+// hold them. The evm_tokens.holder_count column exists but nothing ever
+// writes it, so reading it reported "Holders 0" directly above a populated
+// holder list; transfers_count was a literal "0" next to a populated
+// transfer list. A count nobody maintains is not a count.
 func (s *StandaloneServer) tokenCounters(r *http.Request) (any, int) {
 	addr := r.PathValue("addr")
 	if !isValidHexAddr(addr) {
-		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 400
+		return map[string]any{"token_holders_count": nil, "transfers_count": nil}, 400
 	}
-	rows, err := s.q(r, fmt.Sprintf("SELECT * FROM %s WHERE %s = ? LIMIT 1", s.t.tokens, s.t.tokenAddrCol), addr)
-	if err != nil {
-		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 200
-	}
-	defer rows.Close()
-	maps, _ := scanMaps(rows)
-	if len(maps) == 0 {
-		return map[string]any{"token_holders_count": "0", "transfers_count": "0"}, 200
-	}
+	ctx := r.Context()
 	return map[string]any{
-		"token_holders_count": fmtNum(maps[0]["holder_count"]),
-		"transfers_count":     "0",
+		"token_holders_count": countOrNull(s.tokenHolderCount(ctx, addr)),
+		"transfers_count":     countOrNull(s.tokenTransferCount(ctx, addr)),
 	}, 200
+}
+
+// countOrNull renders a count that could be taken, or null for one that
+// could not. Never zero — a zero here would read as "this token has no
+// holders" when it means "we failed to look".
+func countOrNull(n int64, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return strconv.FormatInt(n, 10)
 }
 
 // ---- Smart Contract List & Counters ----
