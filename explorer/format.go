@@ -81,6 +81,17 @@ func hexToBytes(s string) []byte {
 //
 // Plain decimal strings (token total_supply, scanned int columns) pass
 // through unchanged via fmt.Sprintf.
+// nullableNum is fmtNum for figures where "we have no value" is a real and
+// different answer from "the value is zero". fmtNum collapses both to "0",
+// which is how an explorer ends up telling an investor that a contract
+// holding 159 million LUX has a balance of zero.
+func nullableNum(v any) any {
+	if v == nil {
+		return nil
+	}
+	return fmtNum(v)
+}
+
 func fmtNum(v any) string {
 	if v == nil {
 		return "0"
@@ -228,7 +239,14 @@ func formatBlock(b map[string]any) map[string]any {
 		"gas_limit":        fmtNum(b["gas_limit"]),
 		"gas_used":         fmtNum(b["gas_used"]),
 		"base_fee_per_gas": fmtNum(b["base_fee"]),
-		"burnt_fees":       mulBig(b["gas_used"], b["base_fee"]),
+		// gas_used × base_fee is the Ethereum EIP-1559 burn. Lux does not
+		// burn it: creditTxFee credits the whole fee to the block coinbase
+		// (0x0100…0000, which has no code and no key) unless the fee split
+		// is active, and the fee split has never fired on mainnet. Calling
+		// the base fee "burnt" made every block report Burnt fees == Txn
+		// fees, which the SPA renders as a 100% utilisation bar — a burn
+		// that never happened, on a supply that is not deflationary.
+		"burnt_fees": "0",
 		"rewards":          []any{},
 		"timestamp":        fmtTimestamp(b["timestamp"]),
 		"tx_count":         col(b, "tx_count", "transaction_count"),
@@ -388,7 +406,12 @@ func formatToken(t map[string]any) map[string]any {
 		"total_supply":           fmtNum(t["total_supply"]),
 		"decimals":               fmtNum(t["decimals"]),
 		"type":                   col(t, "token_type", "type"),
-		"holders":                fmtNum(t["holder_count"]),
+		// Counted from the balance rows by tokenSelect, falling back to the
+		// stored column on schemas that maintain it. luxfi/indexer never
+		// writes evm_tokens.holder_count, so reading it alone printed
+		// "Holders 0" over a populated holder list. Absent => null, so the
+		// page can say "unknown" instead of asserting nobody holds it.
+		"holders": nullableNum(firstNonNil(t, "holder_count_live", "holder_count")),
 		"exchange_rate":          t["fiat_value"],
 		"circulating_market_cap": fmtNum(t["circulating_market_cap"]),
 		"icon_url":               t["icon_url"],
@@ -459,7 +482,14 @@ func formatAddress(a map[string]any) map[string]any {
 			isContract = len(v) > 0
 		}
 	}
-	balance := fmtNum(firstNonNil(a, "fetched_coin_balance", "balance"))
+	// Only `fetched_coin_balance` is a measurement — it travels with a
+	// fetched-at block number, so it has provenance. `evm_addresses.balance`
+	// is a placeholder: the indexer writes the literal '0' on first sight
+	// and never updates it, so reading it reported a balance of zero for
+	// every address on the chain, WLUX's 159,126,795.518 LUX included.
+	// A placeholder is not evidence; unknown is null.
+	// StandaloneServer.withNativeBalance overlays the node's live answer.
+	balance := nullableNum(firstNonNil(a, "fetched_coin_balance"))
 	return map[string]any{
 		"hash":         bytesToHex(a["hash"]),
 		"coin_balance": balance,

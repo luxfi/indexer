@@ -57,6 +57,12 @@ type Config struct {
 
 	// APIPrefix is the URL prefix for all API routes (default: "/v1/explorer").
 	APIPrefix string
+
+	// RPCEndpoint is the node this chain is indexed from. Current state —
+	// native-coin balances — is read from it live rather than from a stale
+	// copy in the index; see chainstate.go. Unset means balances are
+	// reported as unavailable (null), never as zero.
+	RPCEndpoint string
 }
 
 // Service owns the state for explorer HTTP handlers.
