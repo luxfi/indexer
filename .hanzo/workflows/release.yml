@@ -1,0 +1,77 @@
+name: Release
+
+# Builds ghcr.io/luxfi/indexer on the native runners (git.hanzo.ai → git-runner).
+#
+# This replaces .github/workflows/docker.yml. Three things about it could not
+# work here:
+#
+#   * `runs-on: [self-hosted, linux, amd64]` is the bare triple. The pool on
+#     this forge is named `lux-build-linux-amd64`; nothing answers to the
+#     triple, and a job naming a label no runner carries does not fail, it
+#     waits.
+#
+#   * ghcr auth used the instance GITHUB_TOKEN, which on this forge is a Hanzo
+#     Git token with no rights at ghcr.io. GHCR_USER / GHCR_TOKEN are org
+#     Actions secrets sourced from KMS — the same pair luxfi/node and luxfi/kms
+#     authenticate with.
+#
+#   * `cache-from: type=gha` is the GitHub-hosted Actions cache service. The
+#     registry cache is backend-independent.
+#
+# arm64 is dropped with it. It was built by QEMU emulation on an amd64 runner,
+# which is hours rather than minutes; it returns as a native matrix entry when
+# we own an arm64 runner. Until then this image is amd64-only.
+#
+# Semver-only: only a v* tag produces a {{version}} manifest, plus an immutable
+# sha tag on every run. No :latest, no floating tags.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A release is not made irrelevant by a newer one — let it finish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docker:
+    runs-on: [lux-build-linux-amd64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/luxfi/indexer
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=ghcr.io/luxfi/indexer:buildcache
+          cache-to: type=registry,ref=ghcr.io/luxfi/indexer:buildcache,mode=max
+          provenance: false
+          push: true

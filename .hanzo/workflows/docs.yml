@@ -1,0 +1,56 @@
+name: Docs
+
+# Builds the docs site on the native runners (git.hanzo.ai → git-runner).
+#
+# This replaces .github/workflows/docs.yml, which built the site and then
+# published it with actions/configure-pages + actions/upload-pages-artifact +
+# actions/deploy-pages. Those three speak to the GitHub Pages API, which this
+# forge does not have and is not going to grow — so the publish half cannot
+# work here at all.
+#
+# The build half is worth keeping on its own: it fails on the commit that
+# breaks the docs, path-filtered so it only runs when docs change. Publishing
+# is gone until the site is served from the PaaS.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.hanzo/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [lux-build-linux-amd64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: docs/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: docs
+        run: pnpm install --frozen-lockfile
+
+      - name: Build docs
+        working-directory: docs
+        run: pnpm build
