@@ -24,7 +24,7 @@ explorer
 go build -o explorer ./cmd/explorer/
 
 # Run — indexes chain, serves API + frontend on :8090
-./explorer --rpc=http://localhost:9650/ext/bc/C/rpc
+./explorer --rpc=http://localhost:9650/v1/bc/C/rpc
 
 # That's it. Open http://localhost:8090
 ```
@@ -34,7 +34,7 @@ go build -o explorer ./cmd/explorer/
 ```bash
 docker build -f Dockerfile.explorer -t explorer .
 docker run -p 8090:8090 -v explorer-data:/data \
-  -e RPC_ENDPOINT=http://node:9650/ext/bc/C/rpc \
+  -e RPC_ENDPOINT=http://node:9650/v1/bc/C/rpc \
   explorer
 ```
 
@@ -194,7 +194,7 @@ explorer --chain-name="My Chain" --coin=MYC --chain-id=12345
 
 ```bash
 # Required
-RPC_ENDPOINT=http://localhost:9650/ext/bc/C/rpc
+RPC_ENDPOINT=http://localhost:9650/v1/bc/C/rpc
 
 # Optional
 DATA_DIR=~/.explorer/data
