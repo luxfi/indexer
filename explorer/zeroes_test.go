@@ -166,8 +166,8 @@ func TestTokenList_HoldersNotZero(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("want 1 token, got %d", len(got))
 	}
-	if got[0]["holders"] != "2" {
-		t.Errorf("want holders=2, got %v", got[0]["holders"])
+	if got[0]["holders_count"] != "2" {
+		t.Errorf("want holders_count=2, got %v", got[0]["holders_count"])
 	}
 }
 
@@ -283,4 +283,3 @@ func TestDetectColumn(t *testing.T) {
 		t.Errorf("balTokenCol = %q, want token_address", srv.t.balTokenCol)
 	}
 }
-

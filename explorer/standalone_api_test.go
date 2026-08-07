@@ -1100,7 +1100,7 @@ func TestListTokens_ResponseFields(t *testing.T) {
 	body := getJSON(t, ts, "/v1/explorer/tokens", 200)
 	got := itemMaps(t, body)
 	tk := got[0]
-	for _, field := range []string{"address", "name", "symbol", "total_supply", "decimals", "type", "holders"} {
+	for _, field := range []string{"address_hash", "name", "symbol", "total_supply", "decimals", "type", "holders_count"} {
 		if _, ok := tk[field]; !ok {
 			t.Errorf("missing field %q", field)
 		}
@@ -1916,7 +1916,7 @@ func TestTokenFieldValues(t *testing.T) {
 		{"decimals", "18"},
 		{"total_supply", "1000000000000000000000000"},
 		{"type", "ERC-20"},
-		{"holders", "500"},
+		{"holders_count", "500"},
 	}
 
 	for _, tt := range tests {
@@ -2099,8 +2099,8 @@ func TestTokenTransferFields(t *testing.T) {
 	if !ok {
 		t.Fatalf("token should be object, got %T", tf["token"])
 	}
-	if token["address"] == nil {
-		t.Error("token.address is nil")
+	if token["address_hash"] == nil {
+		t.Error("token.address_hash is nil")
 	}
 	// total should be object with value.
 	total, ok := tf["total"].(map[string]any)
@@ -2253,6 +2253,34 @@ func TestAddressHashCase(t *testing.T) {
 	got2 := items(t, body2)
 	if len(got2) != 0 {
 		t.Error("uppercase 0X prefix should not match address search")
+	}
+}
+
+// Every wallet emits EIP-55 checksummed addresses, and the indexer stores the
+// hash lowercase, so both spellings have to reach the same row. They did not:
+// the checksummed form passed hex validation and then matched nothing, so the
+// route answered 404 instead of erroring — rendering a contract that holds
+// 149M LUX as an empty EOA. Garbage still 400s, so the route discriminates
+// between "malformed" and "not found" rather than swallowing both.
+func TestAddressLookupIsCaseInsensitive(t *testing.T) {
+	const (
+		lower       = "0x4888e4a2ee0f03051c72d2bd3acf755ed3498b3e"
+		checksummed = "0x4888E4a2Ee0F03051c72D2BD3ACf755eD3498B3E"
+	)
+	ts := newEVMServer(t, "")
+
+	want := getObj(t, ts, "/v1/explorer/addresses/"+lower)["hash"]
+	if got := getObj(t, ts, "/v1/explorer/addresses/"+checksummed)["hash"]; got != want {
+		t.Errorf("checksummed lookup hash = %v, want %v", got, want)
+	}
+
+	resp, err := http.Get(ts.URL + "/v1/explorer/addresses/0xnotanaddress")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("malformed address status = %d, want 400", resp.StatusCode)
 	}
 }
 

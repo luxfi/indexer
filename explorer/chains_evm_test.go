@@ -604,7 +604,7 @@ func testChain(t *testing.T, cd chainDef) {
 			t.Errorf("first token should be %s, got %v", sd.erc20Token.Name, got[0]["name"])
 		}
 		// Fields.
-		for _, field := range []string{"address", "name", "symbol", "total_supply", "decimals", "type", "holders"} {
+		for _, field := range []string{"address_hash", "name", "symbol", "total_supply", "decimals", "type", "holders_count"} {
 			if _, ok := got[0][field]; !ok {
 				t.Errorf("missing field %q", field)
 			}

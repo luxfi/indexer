@@ -477,12 +477,30 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("/v1/base/realtime", s.realtimeHandler)
 }
 
+// foldHexParams lowercases the {hash} and {addr} wildcards. Both name hex
+// identifiers, and every table stores them lowercase, so an EIP-55 checksummed
+// address — which is what every wallet emits — matched no row and 404'd while
+// the same address in lowercase returned 200. Case-folding belongs at the
+// lookup boundary and nowhere else: handlers keep doing lookups, and callers
+// keep sending whatever casing they like. Only {hash} and {addr} are folded;
+// {id}, {pair}, {prefix} and {item} are not hex and are case-significant.
+func foldHexParams(r *http.Request) {
+	for _, name := range [...]string{"hash", "addr"} {
+		if v := r.PathValue(name); v != "" {
+			if lower := strings.ToLower(v); lower != v {
+				r.SetPathValue(name, lower)
+			}
+		}
+	}
+}
+
 type jfn func(*http.Request) (any, int)
 
 func (s *StandaloneServer) j(fn jfn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// CORS handled by Handler() middleware — no per-handler wildcard.
+		foldHexParams(r)
 		data, code := fn(r)
 		w.WriteHeader(code)
 		json.NewEncoder(w).Encode(data)
@@ -495,6 +513,7 @@ func (s *StandaloneServer) csvHandler(fn csvfn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		// CORS handled by Handler() middleware — no per-handler wildcard.
+		foldHexParams(r)
 		fn(w, r)
 	}
 }

@@ -247,11 +247,11 @@ func formatBlock(b map[string]any) map[string]any {
 		// fees, which the SPA renders as a 100% utilisation bar — a burn
 		// that never happened, on a supply that is not deflationary.
 		"burnt_fees": "0",
-		"rewards":          []any{},
-		"timestamp":        fmtTimestamp(b["timestamp"]),
-		"tx_count":         col(b, "tx_count", "transaction_count"),
-		"state_root":       nil,
-		"type":             "block",
+		"rewards":    []any{},
+		"timestamp":  fmtTimestamp(b["timestamp"]),
+		"tx_count":   col(b, "tx_count", "transaction_count"),
+		"state_root": nil,
+		"type":       "block",
 	}
 }
 
@@ -379,9 +379,11 @@ func formatTokenTransfer(t map[string]any) map[string]any {
 	// ("tx_hash", "value") and Blockscout-legacy ("transaction_hash",
 	// "amount"). Fall through both so the response works against either.
 	return map[string]any{
-		"from":             map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
-		"to":               map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
-		"token":            map[string]any{"address": bytesToHex(t["token_address"]), "type": t["token_type"]},
+		"from": map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
+		"to":   map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
+		// Same TokenInfo contract as formatToken, narrowed to what a transfer
+		// row carries — so the key is address_hash here too.
+		"token":            map[string]any{"address_hash": bytesToHex(t["token_address"]), "type": t["token_type"]},
 		"total":            map[string]any{"value": fmtNum(col(t, "value", "amount")), "decimals": nil},
 		"log_index":        t["log_index"],
 		"block_number":     t["block_number"],
@@ -391,8 +393,13 @@ func formatTokenTransfer(t map[string]any) map[string]any {
 }
 
 // formatToken formats a token row.
+//
+// Emitted key names are the TokenInfo contract in luxfi/explore
+// (types/api/token.ts), the only consumer of this surface. It reads
+// address_hash/holders_count; the earlier address/holders spelling keyed every
+// row of the tokens table on undefined and crashed the page.
 func formatToken(t map[string]any) map[string]any {
-	// Schema variants:
+	// Input schema variants:
 	//   - luxfi/indexer evm_tokens:        column "address",   "token_type"
 	//   - Blockscout legacy tokens:        "contract_address", "type"
 	//   - blockscout-derivative variants:  "contract_addr", "created_contract_address_hash",
@@ -400,22 +407,27 @@ func formatToken(t map[string]any) map[string]any {
 	// Fall through every known spelling so the response shape works against
 	// any schema this binary is bolted onto.
 	return map[string]any{
-		"address":                bytesToHex(col(t, "address", "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
-		"name":                   t["name"],
-		"symbol":                 t["symbol"],
-		"total_supply":           fmtNum(t["total_supply"]),
-		"decimals":               fmtNum(t["decimals"]),
-		"type":                   col(t, "token_type", "type"),
+		"address_hash": bytesToHex(col(t, "address", "contract_addr", "created_contract_address_hash", "address_hash", "contract_address")),
+		"name":         t["name"],
+		"symbol":       t["symbol"],
+		"total_supply": fmtNum(t["total_supply"]),
+		"decimals":     fmtNum(t["decimals"]),
+		"type":         col(t, "token_type", "type"),
 		// Counted from the balance rows by tokenSelect, falling back to the
 		// stored column on schemas that maintain it. luxfi/indexer never
 		// writes evm_tokens.holder_count, so reading it alone printed
 		// "Holders 0" over a populated holder list. Absent => null, so the
 		// page can say "unknown" instead of asserting nobody holds it.
-		"holders": nullableNum(firstNonNil(t, "holder_count_live", "holder_count")),
+		"holders_count":          nullableNum(firstNonNil(t, "holder_count_live", "holder_count")),
 		"exchange_rate":          t["fiat_value"],
 		"circulating_market_cap": fmtNum(t["circulating_market_cap"]),
 		"icon_url":               t["icon_url"],
-		"trust_score":            computeTokenScore(t),
+		// TokenReputation is 'ok' | 'scam' — a fraud flag, not a quality
+		// score. We run no scam oracle, so the honest value is null
+		// ("unknown"); the page renders no badge for it. Deriving it from
+		// the old numeric completeness score would have labelled any token
+		// lacking an icon a scam.
+		"reputation": nil,
 	}
 }
 
