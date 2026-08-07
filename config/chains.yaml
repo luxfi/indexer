@@ -589,7 +589,7 @@ ethereum:
     name: "Avalanche C-Chain"
     symbol: "AVAX"
     type: evm
-    rpc: "${AVAX_RPC_URL:-https://api.avax.network/v1/bc/C/rpc}"
+    rpc: "${AVAX_RPC_URL:-https://api.avax.network/ext/bc/C/rpc}"
     explorer: "https://snowtrace.io"
     enabled: true
     protocols:

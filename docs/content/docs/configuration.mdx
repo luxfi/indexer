@@ -13,9 +13,9 @@ The Lux Indexer can be configured through environment variables, configuration f
 
 ```bash
 # RPC endpoints for each chain
-LUX_C_RPC=http://127.0.0.1:9630/ext/bc/C/rpc
-LUX_P_RPC=http://127.0.0.1:9630/ext/bc/P
-LUX_X_RPC=http://127.0.0.1:9630/ext/bc/X
+LUX_C_RPC=http://127.0.0.1:9630/v1/bc/C/rpc
+LUX_P_RPC=http://127.0.0.1:9630/v1/bc/P
+LUX_X_RPC=http://127.0.0.1:9630/v1/bc/X
 
 # Database configuration
 LUX_DB_BACKEND=sqlite     # sqlite, postgres, or memory
@@ -45,9 +45,9 @@ Create a `config.yaml` file:
 
 ```yaml
 rpc:
-  c_chain: http://127.0.0.1:9630/ext/bc/C/rpc
-  p_chain: http://127.0.0.1:9630/ext/bc/P
-  x_chain: http://127.0.0.1:9630/ext/bc/X
+  c_chain: http://127.0.0.1:9630/v1/bc/C/rpc
+  p_chain: http://127.0.0.1:9630/v1/bc/P
+  x_chain: http://127.0.0.1:9630/v1/bc/X
 
 storage:
   backend: sqlite
@@ -131,7 +131,7 @@ LUX_NETWORK=testnet
 
 ```bash
 LUX_NETWORK=local
-LUX_C_RPC=http://127.0.0.1:9650/ext/bc/C/rpc
+LUX_C_RPC=http://127.0.0.1:9650/v1/bc/C/rpc
 ```
 
 ## Performance Tuning
