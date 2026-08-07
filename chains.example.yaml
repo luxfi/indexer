@@ -202,7 +202,7 @@ chains:
     name: Avalanche
     chain_id: 43114
     type: evm
-    rpc: ${AVAX_RPC:-https://api.avax.network/v1/bc/C/rpc}
+    rpc: ${AVAX_RPC:-https://api.avax.network/ext/bc/C/rpc}
     coin: AVAX
     enabled: true
 
