@@ -331,7 +331,7 @@ func TestTokenEndpoints(t *testing.T) {
 
 		// Verify explorer v2 format
 		resp := formatToken(maps[0])
-		for _, field := range []string{"address", "name", "symbol", "total_supply", "decimals", "type", "holders"} {
+		for _, field := range []string{"address_hash", "name", "symbol", "total_supply", "decimals", "type", "holders_count"} {
 			if _, ok := resp[field]; !ok {
 				t.Errorf("missing field: %s", field)
 			}
@@ -402,8 +402,8 @@ func TestTokenTransfers(t *testing.T) {
 		if !ok {
 			t.Fatal("token should be an object")
 		}
-		if tokenObj["address"] == "" {
-			t.Error("token.address should be set")
+		if tokenObj["address_hash"] == "" {
+			t.Error("token.address_hash should be set")
 		}
 	})
 }
