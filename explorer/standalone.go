@@ -2390,8 +2390,10 @@ func formatPlatformBlock(b map[string]any) map[string]any {
 		"parent_hash": parent, // SPA compatibility
 		"timestamp":   fmtTimestamp(b["timestamp"]),
 		"status":      platformStr(b["status"]),
-		"tx_count":    toInt64(b["tx_count"]),
-		"tx_ids":      parsePlatformTxIDs(b["tx_ids"]),
+		// Same name the EVM block carries — these rows go through the SPA's
+		// block widgets, which read `transactions_count`. See formatBlock.
+		"transactions_count": toInt64(b["tx_count"]),
+		"tx_ids":             parsePlatformTxIDs(b["tx_ids"]),
 	}
 }
 
