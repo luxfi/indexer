@@ -463,7 +463,7 @@ func TestListBlocks_ResponseFields(t *testing.T) {
 	body := getJSON(t, ts, "/v1/explorer/blocks", 200)
 	got := itemMaps(t, body)
 	b := got[0]
-	for _, field := range []string{"height", "hash", "parent_hash", "miner", "gas_limit", "gas_used", "timestamp", "tx_count", "type"} {
+	for _, field := range []string{"height", "hash", "parent_hash", "miner", "gas_limit", "gas_used", "timestamp", "transactions_count", "type"} {
 		if _, ok := b[field]; !ok {
 			t.Errorf("missing field %q", field)
 		}
@@ -1778,7 +1778,7 @@ func TestBlockFieldValues(t *testing.T) {
 		{"gas_used", "1234567"},
 		{"base_fee_per_gas", "25000000000"},
 		{"size", float64(2048)},
-		{"tx_count", float64(3)},
+		{"transactions_count", float64(3)},
 		{"type", "block"},
 	}
 
