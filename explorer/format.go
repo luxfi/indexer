@@ -249,9 +249,16 @@ func formatBlock(b map[string]any) map[string]any {
 		"burnt_fees": "0",
 		"rewards":    []any{},
 		"timestamp":  fmtTimestamp(b["timestamp"]),
-		"tx_count":   col(b, "tx_count", "transaction_count"),
-		"state_root": nil,
-		"type":       "block",
+		// The SPA reads `transactions_count` on a block — its Block type
+		// declares that name and all nine render sites use it (block rows, the
+		// home page's latest-blocks list, block details). This emitted the
+		// column's own name, `tx_count`, so every REST-loaded row rendered the
+		// Txn label with nothing after it, while rows pushed over the realtime
+		// channel showed a number, because that path already renamed the field.
+		// One name, and it is the reader's.
+		"transactions_count": col(b, "tx_count", "transaction_count"),
+		"state_root":         nil,
+		"type":               "block",
 	}
 }
 

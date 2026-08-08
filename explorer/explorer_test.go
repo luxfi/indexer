@@ -127,7 +127,7 @@ func TestHandleListBlocks(t *testing.T) {
 		resp := formatBlock(maps[0])
 
 		// Verify required fields exist
-		for _, field := range []string{"height", "hash", "parent_hash", "miner", "size", "gas_limit", "gas_used", "timestamp", "tx_count", "type"} {
+		for _, field := range []string{"height", "hash", "parent_hash", "miner", "size", "gas_limit", "gas_used", "timestamp", "transactions_count", "type"} {
 			if _, ok := resp[field]; !ok {
 				t.Errorf("missing field: %s", field)
 			}

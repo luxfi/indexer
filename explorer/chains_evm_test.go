@@ -434,7 +434,7 @@ func testChain(t *testing.T, cd chainDef) {
 			t.Errorf("hash: want %s, got %v", wantHash, body["hash"])
 		}
 		// Response fields.
-		for _, field := range []string{"height", "hash", "parent_hash", "miner", "gas_limit", "gas_used", "timestamp", "tx_count", "type"} {
+		for _, field := range []string{"height", "hash", "parent_hash", "miner", "gas_limit", "gas_used", "timestamp", "transactions_count", "type"} {
 			if _, ok := body[field]; !ok {
 				t.Errorf("missing field %q", field)
 			}
