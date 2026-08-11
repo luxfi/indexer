@@ -38,6 +38,20 @@ type Config struct {
 	StartBlock uint64
 }
 
+// reorgDepth is how far a head may legitimately fall back before a lower head
+// stops looking like a reorg and starts looking like a relaunched chain. Reorgs
+// are shallow; a chain rebuilt from genesis reports a head far under whatever we
+// already stored.
+const reorgDepth = 128
+
+// regenesisConfirmations is how many consecutive polls must see a head far under
+// our cursor before we spend an RPC asking whether the chain is actually a new
+// one. An idle node, or one backend of a load-balanced set lagging behind its
+// peers, dips under the cursor for a poll or two; a relaunched chain stays under
+// it for as long as it takes to rebuild. The streak only decides when to ask —
+// the answer comes from the genesis hash.
+const regenesisConfirmations = 3
+
 // Indexer is the main EVM chain indexer
 type Indexer struct {
 	config      Config
@@ -46,6 +60,16 @@ type Indexer struct {
 	subscriber  *Subscriber
 	mu          sync.RWMutex
 	lastLogTime time.Time
+
+	// lowHead counts consecutive polls whose head sits far under the cursor.
+	lowHead int
+	// genesis is the hash of block 0 the last time we looked, which is what
+	// tells one chain from another. Captured lazily: a chain we cannot reach
+	// yet is not a chain we may erase.
+	genesis string
+	// genesisAt fetches block 0's hash. A field so tests can answer without a
+	// network.
+	genesisAt func(context.Context) (string, error)
 }
 
 // EVMBlock represents a parsed EVM block
@@ -79,8 +103,25 @@ func NewIndexer(cfg Config, store storage.Store) (*Indexer, error) {
 		adapter:    adapter,
 		subscriber: NewSubscriber(),
 	}
+	idx.genesisAt = idx.fetchGenesis
 
 	return idx, nil
+}
+
+// fetchGenesis reads block 0's hash, which every node of a chain can answer
+// however far behind its head is. That is what makes it a usable identity: a
+// node lagging a million blocks still knows which chain it is on, so comparing
+// genesis hashes distinguishes "a new chain" from "a slow node" where comparing
+// heights cannot.
+func (idx *Indexer) fetchGenesis(ctx context.Context) (string, error) {
+	b, err := idx.adapter.GetBlockByNumber(ctx, 0)
+	if err != nil {
+		return "", err
+	}
+	if b == nil || b.Hash == "" {
+		return "", fmt.Errorf("no genesis block")
+	}
+	return b.Hash, nil
 }
 
 // Subscriber returns the indexer's internal WebSocket subscriber so an
@@ -301,6 +342,77 @@ func (idx *Indexer) startIndexing(ctx context.Context) {
 	}
 }
 
+// tables the EVM indexer owns. Everything it has ever learned about a chain is
+// in these seven, so forgetting a chain means emptying exactly this list.
+var evmTables = []string{
+	"evm_blocks",
+	"evm_transactions",
+	"evm_addresses",
+	"evm_tokens",
+	"evm_token_transfers",
+	"evm_logs",
+	"evm_token_balances",
+}
+
+// relaunched reports whether the chain under us has been rebuilt from genesis
+// rather than merely reorged or gone quiet.
+//
+// It asks two questions in order, and the order is the point. First a free one:
+// has the head stayed more than reorgDepth under our cursor for several polls
+// running? That costs nothing and is wrong often — a lagging backend looks the
+// same. So it only decides whether the second question is worth asking. That one
+// costs an RPC and is not wrong: has block 0's hash changed? A different genesis
+// is a different chain, whatever the heights say. An unchanged genesis proves the
+// chain is the one we have been indexing all along, so the streak was a lie and
+// we clear it.
+//
+// With no baseline yet — first poll, or the probe failed — there is nothing to
+// compare against, so the answer is no. Erasing a chain requires proof that it
+// is gone, and absence of evidence is not that.
+func (idx *Indexer) relaunched(ctx context.Context, head, cursor uint64) bool {
+	if cursor <= idx.config.StartBlock+reorgDepth || head+reorgDepth >= cursor {
+		idx.lowHead = 0
+		return false
+	}
+	idx.lowHead++
+	if idx.lowHead < regenesisConfirmations {
+		return false
+	}
+
+	now, err := idx.genesisAt(ctx)
+	if err != nil {
+		log.Printf("[evm] head %d far under cursor %d for %d polls, but genesis unreadable (%v) — keeping the index",
+			head, cursor, idx.lowHead, err)
+		return false
+	}
+	if idx.genesis == "" {
+		idx.genesis = now
+		log.Printf("[evm] head %d far under cursor %d with no genesis on record — noted %s, keeping the index", head, cursor, now)
+		return false
+	}
+	if idx.genesis == now {
+		idx.lowHead = 0
+		return false
+	}
+
+	log.Printf("[evm] chain relaunched: genesis %s became %s, head %d under cursor %d — reindexing from the new chain",
+		idx.genesis, now, head, cursor)
+	idx.genesis = now
+	idx.lowHead = 0
+	return true
+}
+
+// forget empties this chain's tables. Each chain is indexed into its own
+// database, so this reaches nothing but the chain that was replaced.
+func (idx *Indexer) forget(ctx context.Context) error {
+	for _, t := range evmTables {
+		if err := idx.store.Exec(ctx, "DELETE FROM "+t); err != nil {
+			return fmt.Errorf("clear %s: %w", t, err)
+		}
+	}
+	return nil
+}
+
 func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 	// Get current block number from RPC
 	block, err := idx.adapter.GetLatestBlock(ctx)
@@ -310,6 +422,15 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 			idx.lastLogTime = time.Now()
 		}
 		return
+	}
+
+	// Learn which chain this is while it is still the one we are indexing.
+	// Recorded on the first poll that can reach it, so that if it is ever
+	// replaced there is something to compare the new genesis against.
+	if idx.genesis == "" {
+		if h, err := idx.genesisAt(ctx); err == nil {
+			idx.genesis = h
+		}
 	}
 
 	// Get last indexed block from storage
@@ -328,6 +449,18 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 				lastIndexed = uint64(h)
 			}
 		}
+	}
+
+	// A chain rebuilt from genesis reports a head below everything we hold, so
+	// MAX+1 would sit past it and the loop below would never run again: the
+	// index would serve the replaced chain's history for good. Ask before
+	// resuming, and start over when the answer is yes.
+	if idx.relaunched(ctx, block.Number, lastIndexed) {
+		if err := idx.forget(ctx); err != nil {
+			log.Printf("[evm] could not clear the replaced chain: %v", err)
+			return
+		}
+		lastIndexed = 0
 	}
 
 	// Index new blocks. When there is existing state, resume from MAX+1.
