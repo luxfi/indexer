@@ -24,12 +24,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	// ONE sqlite in this binary. hanzoai/sqlite is the house driver and carries
-	// the C in hanzoai/csqlite, which registers both "sqlite" and "sqlite3".
-	// Upstream mattn compiles its own copy of the same amalgamation, so linking
-	// both defines every sqlite3_* symbol twice — a link failure on darwin, and
-	// on linux only survivable because that linker is laxer about duplicates.
-	_ "github.com/hanzoai/sqlite"
+	// ONE sqlite C library in this binary, under a name nothing else claims.
+	// csqlite is the house build of the amalgamation and registers "sqlite3",
+	// the name every sql.Open here already names. Upstream mattn compiles a
+	// second copy of the same C, so linking both defines every sqlite3_*
+	// symbol twice; hanzoai/sqlite wraps this same C but registers "sqlite",
+	// which modernc.org/sqlite also registers — and modernc arrives with
+	// hanzoai/replicate. Two packages, one name, and database/sql panics in
+	// init before main runs.
+	_ "github.com/hanzoai/csqlite"
 )
 
 // Config configures the explorer service.

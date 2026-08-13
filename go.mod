@@ -7,12 +7,12 @@ require (
 	github.com/google/uuid v1.6.1-0.20241114170450-2d3c2a9cc518
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/hanzoai/csqlite v0.1.2
 	github.com/hanzoai/replicate v0.6.0
 	github.com/lib/pq v1.12.1
 	github.com/luxfi/age v1.6.0
 	github.com/luxfi/database v1.21.1
 	github.com/luxfi/zap v1.2.6
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	golang.org/x/crypto v0.54.0
@@ -61,9 +61,6 @@ require (
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/hablullah/go-hijri v1.0.2 // indirect
 	github.com/hablullah/go-juliandays v1.0.0 // indirect
-	github.com/hanzoai/csqlite v0.1.2 // indirect
-	github.com/hanzoai/sqlcipher v0.1.1 // indirect
-	github.com/hanzoai/sqlite v0.5.4 // indirect
 	github.com/hanzoai/vfs v0.4.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jalaali/go-jalaali v0.0.0-20210801064154-80525e88d958 // indirect
@@ -88,6 +85,7 @@ require (
 	github.com/markusmobius/go-dateparser v1.2.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
