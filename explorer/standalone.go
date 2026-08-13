@@ -18,7 +18,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	_ "github.com/mattn/go-sqlite3"
+	// ONE sqlite in this binary. hanzoai/sqlite is the house driver and carries
+	// the C in hanzoai/csqlite, which registers both "sqlite" and "sqlite3".
+	// Upstream mattn compiles its own copy of the same amalgamation, so linking
+	// both defines every sqlite3_* symbol twice — a link failure on darwin, and
+	// on linux only survivable because that linker is laxer about duplicates.
+	_ "github.com/hanzoai/sqlite"
 )
 
 // osLookupEnv is the real os.LookupEnv, assigned at init to allow test overrides.
