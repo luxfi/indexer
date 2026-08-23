@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@hanzo/design':
+        specifier: ^0.5.21
+        version: 0.5.21
       '@hanzo/docs':
         specifier: file:../../../hanzo/docs/packages/core
         version: file:../../../hanzo/docs/packages/core(@types/react@19.2.7)(lucide-react@0.468.0(react@19.2.3))(next@16.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.2.1)
@@ -271,6 +274,10 @@ packages:
 
   '@formatjs/intl-localematcher@0.7.3':
     resolution: {integrity: sha512-NaeABectKdTCOnlH9VFGmMS3K0JuR7Soc2t5R2MCkBrM3H/hlKVYh0XSrcjjPkbjIdrF7L/Bzx9JtGuVaSfYlA==}
+
+  '@hanzo/design@0.5.21':
+    resolution: {integrity: sha512-E2g6DZCn2IUf2AQKqPMwlVV5fz2wvIpAagFRLx33gIsJfmpyubFnx0LINjFs7UoMI1ajnwSa73k7rPteVSemUw==}
+    hasBin: true
 
   '@hanzo/docs-mdx@file:../../../hanzo/docs/packages/mdx':
     resolution: {directory: ../../../hanzo/docs/packages/mdx, type: directory}
@@ -1658,6 +1665,8 @@ snapshots:
     dependencies:
       '@formatjs/fast-memoize': 3.0.1
       tslib: 2.8.1
+
+  '@hanzo/design@0.5.21': {}
 
   '@hanzo/docs-mdx@file:../../../hanzo/docs/packages/mdx(@hanzo/docs@file:../../../hanzo/docs/packages/core(@types/react@19.2.7)(lucide-react@0.468.0(react@19.2.3))(next@16.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.2.1))(next@16.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)':
     dependencies:
