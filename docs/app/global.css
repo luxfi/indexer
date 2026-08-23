@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "@hanzo/ui/base/style.css";
+/* Zen — the faces and the --font-sans / --font-mono role tokens. */
+@import "@hanzo/design/tokens/fonts.css";
 
 @theme inline {
   --color-background: hsl(0 0% 100%);
@@ -51,5 +53,5 @@
 body {
   color: var(--color-foreground);
   background: var(--color-background);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
 }

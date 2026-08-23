@@ -11,6 +11,7 @@
     "postinstall": "docs-mdx"
   },
   "dependencies": {
+    "@hanzo/design": "^0.5.21",
     "@hanzo/docs": "file:../../../hanzo/docs/packages/core",
     "@hanzo/docs-mdx": "file:../../../hanzo/docs/packages/mdx",
     "@hanzo/ui": "file:../../../hanzo/docs/packages/ui",
