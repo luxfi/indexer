@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lux Partners Limited
+// Copyright (c) 2025 Lux Industries Inc
 // SPDX-License-Identifier: MIT
 
 // Package chain provides shared linear chain indexing for LUX chains (P).

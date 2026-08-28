@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lux Partners Limited
+// Copyright (c) 2025 Lux Industries Inc
 // SPDX-License-Identifier: MIT
 
 // Package identity provides the I-Chain adapter for the DAG indexer.
