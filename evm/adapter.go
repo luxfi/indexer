@@ -1836,9 +1836,9 @@ func (a *Adapter) updateTokenBalances(ctx context.Context, db *sql.DB, transfer 
 		var err error
 
 		switch transfer.TokenType {
-		case "ERC20":
+		case TypeERC20:
 			balance, err = a.GetTokenBalance(ctx, transfer.TokenAddress, transfer.From, blockNumber)
-		case "ERC721":
+		case TypeERC721:
 			// For ERC721, balance is 0 or 1 based on ownership
 			owner, ownerErr := a.GetERC721Owner(ctx, transfer.TokenAddress, hexToBigInt(transfer.TokenID))
 			if ownerErr == nil && strings.EqualFold(owner, transfer.From) {
@@ -1847,7 +1847,7 @@ func (a *Adapter) updateTokenBalances(ctx context.Context, db *sql.DB, transfer 
 				balance = big.NewInt(0)
 			}
 			err = ownerErr
-		case "ERC1155":
+		case TypeERC1155:
 			balance, err = a.GetERC1155Balance(ctx, transfer.TokenAddress, transfer.From, hexToBigInt(transfer.TokenID))
 		}
 
@@ -1871,9 +1871,9 @@ func (a *Adapter) updateTokenBalances(ctx context.Context, db *sql.DB, transfer 
 		var err error
 
 		switch transfer.TokenType {
-		case "ERC20":
+		case TypeERC20:
 			balance, err = a.GetTokenBalance(ctx, transfer.TokenAddress, transfer.To, blockNumber)
-		case "ERC721":
+		case TypeERC721:
 			owner, ownerErr := a.GetERC721Owner(ctx, transfer.TokenAddress, hexToBigInt(transfer.TokenID))
 			if ownerErr == nil && strings.EqualFold(owner, transfer.To) {
 				balance = big.NewInt(1)
@@ -1881,7 +1881,7 @@ func (a *Adapter) updateTokenBalances(ctx context.Context, db *sql.DB, transfer 
 				balance = big.NewInt(0)
 			}
 			err = ownerErr
-		case "ERC1155":
+		case TypeERC1155:
 			balance, err = a.GetERC1155Balance(ctx, transfer.TokenAddress, transfer.To, hexToBigInt(transfer.TokenID))
 		}
 
@@ -1965,211 +1965,46 @@ func (a *Adapter) UpdateExtendedStats(ctx context.Context, db *sql.DB) error {
 	return err
 }
 
-// parseTokenTransfers extracts token transfers from a log
+// parseTokenTransfers extracts token movements from a log on the Adapter
+// path. Transfer events are read by decodeTransfers, the one decoder both
+// indexing paths share; the wrapper mint/burn events below are this path's
+// own and are not transfers in the ERC sense — a WETH deposit creates supply
+// rather than moving it.
 func parseTokenTransfers(log Log, timestamp time.Time) []TokenTransfer {
-	var transfers []TokenTransfer
-
-	if len(log.Topics) == 0 {
-		return transfers
+	if t := decodeTransfers(log, timestamp); len(t) > 0 {
+		return t
 	}
-
-	topic0 := log.Topics[0]
-
-	switch topic0 {
-	case TopicTransferERC20:
-		// ERC20/ERC721 Transfer(address,address,uint256)
-		if len(log.Topics) >= 3 {
-			from := topicToAddress(log.Topics[1])
-			to := topicToAddress(log.Topics[2])
-
-			var value, tokenID string
-			tokenType := "ERC20"
-
-			if len(log.Topics) == 4 {
-				// ERC721: indexed tokenId in topic[3]
-				tokenType = "ERC721"
-				tokenID = log.Topics[3]
-				value = "1"
-			} else {
-				// ERC20: value in data
-				value = hexToBigInt(log.Data).String()
-			}
-
-			transfers = append(transfers, TokenTransfer{
-				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-				TxHash:       log.TxHash,
-				LogIndex:     log.LogIndex,
-				BlockNumber:  log.BlockNumber,
-				TokenAddress: log.Address,
-				TokenType:    tokenType,
-				From:         from,
-				To:           to,
-				Value:        value,
-				TokenID:      tokenID,
-				Timestamp:    timestamp,
-			})
-		} else if len(log.Topics) == 1 {
-			// Non-standard ERC-721: all params in data (from, to, tokenId) = 3 x 32 bytes
-			data := strings.TrimPrefix(log.Data, "0x")
-			if len(data) == 192 {
-				from := topicToAddress("0x" + data[:64])
-				to := topicToAddress("0x" + data[64:128])
-				tokenID := hexToBigInt("0x" + data[128:192]).String()
-
-				transfers = append(transfers, TokenTransfer{
-					ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-					TxHash:       log.TxHash,
-					LogIndex:     log.LogIndex,
-					BlockNumber:  log.BlockNumber,
-					TokenAddress: log.Address,
-					TokenType:    "ERC721",
-					From:         from,
-					To:           to,
-					Value:        "1",
-					TokenID:      tokenID,
-					Timestamp:    timestamp,
-				})
-			}
-		}
-
-	case TopicTransferSingle:
-		// ERC1155 TransferSingle(address operator, address from, address to, uint256 id, uint256 value)
-		if len(log.Topics) >= 4 {
-			data := strings.TrimPrefix(log.Data, "0x")
-			if len(data) >= 128 {
-				from := topicToAddress(log.Topics[2])
-				to := topicToAddress(log.Topics[3])
-				tokenID := hexToBigInt("0x" + data[:64]).String()
-				value := hexToBigInt("0x" + data[64:128]).String()
-
-				transfers = append(transfers, TokenTransfer{
-					ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-					TxHash:       log.TxHash,
-					LogIndex:     log.LogIndex,
-					BlockNumber:  log.BlockNumber,
-					TokenAddress: log.Address,
-					TokenType:    "ERC1155",
-					From:         from,
-					To:           to,
-					Value:        value,
-					TokenID:      tokenID,
-					Timestamp:    timestamp,
-				})
-			}
-		}
-
-	case TopicTransferBatch:
-		// ERC1155 TransferBatch(address operator, address from, address to, uint256[] ids, uint256[] values)
-		if len(log.Topics) >= 4 {
-			from := topicToAddress(log.Topics[2])
-			to := topicToAddress(log.Topics[3])
-			ids, values := decodeBatchData(log.Data)
-			for i := range ids {
-				val := "0"
-				if i < len(values) {
-					val = values[i]
-				}
-				transfers = append(transfers, TokenTransfer{
-					ID:           fmt.Sprintf("%s-%d-%d", log.TxHash, log.LogIndex, i),
-					TxHash:       log.TxHash,
-					LogIndex:     log.LogIndex,
-					BlockNumber:  log.BlockNumber,
-					TokenAddress: log.Address,
-					TokenType:    "ERC1155",
-					From:         from,
-					To:           to,
-					Value:        val,
-					TokenID:      ids[i],
-					Timestamp:    timestamp,
-				})
-			}
-		}
-
-	case TopicERC404ERC20Transfer:
-		// ERC-404 ERC20Transfer(address,address,uint256)
-		if len(log.Topics) >= 3 {
-			from := topicToAddress(log.Topics[1])
-			to := topicToAddress(log.Topics[2])
-			value := hexToBigInt(log.Data).String()
-
-			transfers = append(transfers, TokenTransfer{
-				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-				TxHash:       log.TxHash,
-				LogIndex:     log.LogIndex,
-				BlockNumber:  log.BlockNumber,
-				TokenAddress: log.Address,
-				TokenType:    "ERC20",
-				From:         from,
-				To:           to,
-				Value:        value,
-				Timestamp:    timestamp,
-			})
-		}
-
-	case TopicERC404ERC721Transfer:
-		// ERC-404 ERC721Transfer — from/to indexed, tokenId in data
-		if len(log.Topics) >= 3 {
-			from := topicToAddress(log.Topics[1])
-			to := topicToAddress(log.Topics[2])
-			tokenID := hexToBigInt(log.Data).String()
-
-			transfers = append(transfers, TokenTransfer{
-				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-				TxHash:       log.TxHash,
-				LogIndex:     log.LogIndex,
-				BlockNumber:  log.BlockNumber,
-				TokenAddress: log.Address,
-				TokenType:    "ERC721",
-				From:         from,
-				To:           to,
-				Value:        "1",
-				TokenID:      tokenID,
-				Timestamp:    timestamp,
-			})
-		}
-
+	if len(log.Topics) == 0 {
+		return nil
+	}
+	zero := "0x0000000000000000000000000000000000000000"
+	wrap := func(from, to string) []TokenTransfer {
+		return []TokenTransfer{{
+			ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
+			TxHash:       log.TxHash,
+			LogIndex:     log.LogIndex,
+			BlockNumber:  log.BlockNumber,
+			TokenAddress: log.Address,
+			TokenType:    TypeERC20,
+			From:         from,
+			To:           to,
+			Value:        hexToBigInt(log.Data).String(),
+			Timestamp:    timestamp,
+		}}
+	}
+	switch log.Topics[0] {
 	case TopicWETHDeposit:
 		// Deposit(address indexed dst, uint256 wad)
 		if len(log.Topics) >= 2 {
-			to := topicToAddress(log.Topics[1])
-			value := hexToBigInt(log.Data).String()
-
-			transfers = append(transfers, TokenTransfer{
-				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-				TxHash:       log.TxHash,
-				LogIndex:     log.LogIndex,
-				BlockNumber:  log.BlockNumber,
-				TokenAddress: log.Address,
-				TokenType:    "ERC20",
-				From:         "0x0000000000000000000000000000000000000000",
-				To:           to,
-				Value:        value,
-				Timestamp:    timestamp,
-			})
+			return wrap(zero, topicToAddress(log.Topics[1]))
 		}
-
 	case TopicWETHWithdrawal:
 		// Withdrawal(address indexed src, uint256 wad)
 		if len(log.Topics) >= 2 {
-			from := topicToAddress(log.Topics[1])
-			value := hexToBigInt(log.Data).String()
-
-			transfers = append(transfers, TokenTransfer{
-				ID:           fmt.Sprintf("%s-%d", log.TxHash, log.LogIndex),
-				TxHash:       log.TxHash,
-				LogIndex:     log.LogIndex,
-				BlockNumber:  log.BlockNumber,
-				TokenAddress: log.Address,
-				TokenType:    "ERC20",
-				From:         from,
-				To:           "0x0000000000000000000000000000000000000000",
-				Value:        value,
-				Timestamp:    timestamp,
-			})
+			return wrap(topicToAddress(log.Topics[1]), zero)
 		}
 	}
-
-	return transfers
+	return nil
 }
 
 // decodeBatchData ABI-decodes (uint256[], uint256[]) from hex log data.
@@ -2275,7 +2110,7 @@ func (a *Adapter) GetCode(ctx context.Context, address string) (string, error) {
 func (a *Adapter) GetTokenInfo(ctx context.Context, tokenAddress string) (*Token, error) {
 	token := &Token{
 		Address:   strings.ToLower(tokenAddress),
-		TokenType: "ERC20",
+		TokenType: TypeERC20,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
