@@ -109,6 +109,16 @@ type tableNames struct {
 	// rather than count zero rows and call that an answer.
 	balTokenCol, transferTokenCol string
 
+	// transferToCol / transferTypeCol are the recipient and token-kind
+	// columns on the transfers table, spelled "to_addr"/"token_type" by
+	// luxfi/indexer and "to_address_hash"/"token_type" by Blockscout-legacy.
+	transferToCol, transferTypeCol string
+
+	// instances is the per-item table evm_token_instances, which holds the
+	// URI the contract gives an NFT. Empty means no such table: items still
+	// list, and their URI reads as unread rather than as absent.
+	instances string
+
 	// platform (P-Chain / linear) variant. When platform is true the /blocks
 	// and /main-page/blocks routes serve the P-Chain block handlers and the
 	// /validators route is enabled. Set by detectTables when pchain_blocks
@@ -291,6 +301,9 @@ func (s *StandaloneServer) detectTables() {
 	s.t.balances = s.detectTable(s.t.balances)
 	s.t.balTokenCol = s.detectColumn(s.t.balances, "token_address", "token_contract_address_hash")
 	s.t.transferTokenCol = s.detectColumn(s.t.transfers, "token_address", "token_contract_address_hash")
+	s.t.transferToCol = s.detectColumn(s.t.transfers, "to_addr", "to_address_hash", "to_address")
+	s.t.transferTypeCol = s.detectColumn(s.t.transfers, "token_type", "type")
+	s.t.instances = s.detectTable("evm_token_instances", "token_instances")
 	if c := s.detectColumn(s.t.tokens, "address", "contract_address", "contract_address_hash", "address_hash"); c != "" {
 		s.t.tokenAddrCol = c
 	}
@@ -428,7 +441,8 @@ func (s *StandaloneServer) routes() {
 	m.HandleFunc("GET "+p+"/tokens/{addr}", s.j(s.getToken))
 	m.HandleFunc("GET "+p+"/tokens/{addr}/holders", s.j(s.tokenHolders))
 	m.HandleFunc("GET "+p+"/tokens/{addr}/transfers", s.j(s.tokenTransfers))
-	m.HandleFunc("GET "+p+"/tokens/{addr}/instances", s.j(s.emptyList))
+	m.HandleFunc("GET "+p+"/tokens/{addr}/instances", s.j(s.tokenInstances))
+	m.HandleFunc("GET "+p+"/tokens/{addr}/instances/{id}", s.j(s.tokenInstance))
 	m.HandleFunc("GET "+p+"/tokens/{addr}/counters", s.j(s.tokenCounters))
 	m.HandleFunc("GET "+p+"/tokens/{addr}/distribution", s.j(s.tokenDistribution))
 	m.HandleFunc("GET "+p+"/smart-contracts", s.j(s.listContracts))
@@ -1485,7 +1499,7 @@ func (s *StandaloneServer) addrTokens(r *http.Request) (any, int) {
 				"decimals": fmtNum(b["decimals"]),
 			},
 			"value":    fmtNum(b["value"]),
-			"token_id": b["token_id"],
+			"token_id": tokenID(b["token_id"]),
 		}
 	}
 	return paginatedResponse{Items: items}, 200
@@ -1602,8 +1616,151 @@ func (s *StandaloneServer) allInternalTxs(r *http.Request) (any, int) {
 	return paginatedResponse{Items: items}, 200
 }
 
-func (s *StandaloneServer) emptyList(r *http.Request) (any, int) {
-	return ep(), 200
+// itemQuery selects the items of one collection: every distinct token id the
+// collection has ever moved, each carrying the destination of its own most
+// recent transfer.
+//
+// That destination is the current owner, which is what makes the transfer
+// table the right source rather than the balance table. Balances hold only
+// what someone holds now, so a burned item — sent to the zero address and
+// held by nobody — would vanish from a collection that still minted it. The
+// last transfer always exists.
+//
+// suffix narrows the set (one item, or a page of them) and is server-built,
+// never caller text.
+func (s *StandaloneServer) itemQuery(suffix string) string {
+	uri := "'' AS uri, '' AS uri_state"
+	join := ""
+	if s.t.instances != "" {
+		uri = "i.uri AS uri, i.uri_state AS uri_state"
+		join = fmt.Sprintf("LEFT JOIN %s i ON LOWER(i.token_address) = LOWER(t.%s) AND i.token_id = t.token_id",
+			s.t.instances, s.t.transferTokenCol)
+	}
+	return fmt.Sprintf(`SELECT token_id, owner, kind, uri, uri_state FROM (
+			SELECT t.token_id AS token_id, t.%s AS owner, t.%s AS kind, %s,
+			       ROW_NUMBER() OVER (PARTITION BY t.token_id
+			                          ORDER BY t.block_number DESC, t.log_index DESC) AS rn
+			FROM %s t %s
+			WHERE LOWER(t.%s) = ? AND t.token_id IS NOT NULL AND t.token_id != ''
+		) WHERE rn = 1 %s`,
+		s.t.transferToCol, s.t.transferTypeCol, uri, s.t.transfers, join, s.t.transferTokenCol, suffix)
+}
+
+// formatInstance renders one item in the TokenInstance shape luxfi/explore
+// reads.
+//
+// image_url, animation_url, metadata and thumbnails are null because we
+// store the URI, not the document behind it — see the indexer's readURI.
+// Naming the URI as an image would be inventing a picture we have never
+// seen. uri_state says which kind of nothing this is: "ok" with a URI we
+// read, "absent" when the contract names none, "unread" when we have not
+// asked.
+//
+// An ERC-1155 id is held by many addresses at once, so it has no single
+// owner; that field is null and /tokens/{addr}/holders answers instead.
+func formatInstance(m map[string]any, token map[string]any) map[string]any {
+	id := tokenID(m["token_id"])
+	kind, _ := m["kind"].(string)
+	unique := kind != "ERC-1155" && kind != "ERC1155"
+
+	uri, _ := col(m, "uri").(string)
+	state, _ := col(m, "uri_state").(string)
+	if state == "" {
+		state = "unread"
+	}
+
+	var owner any
+	var holder any
+	if unique {
+		if h := bytesToHex(m["owner"]); h != "" {
+			owner = map[string]any{"hash": h}
+			holder = h
+		}
+	}
+
+	var uriOut any
+	if uri != "" {
+		uriOut = uri
+	}
+	return map[string]any{
+		"id":                  id,
+		"is_unique":           unique,
+		"owner":               owner,
+		"holder_address_hash": holder,
+		"token":               token,
+		"uri":                 uriOut,
+		"uri_state":           state,
+		"metadata":            nil,
+		"image_url":           nil,
+		"animation_url":       nil,
+		"external_app_url":    nil,
+		"thumbnails":          nil,
+	}
+}
+
+// tokenInfo loads the collection row once, so every item in the response
+// carries the same TokenInfo instead of the page making N lookups.
+func (s *StandaloneServer) tokenInfo(r *http.Request, addr string) map[string]any {
+	rows, err := s.q(r, s.tokenSelect(fmt.Sprintf("WHERE LOWER(t.%s) = ?", s.t.tokenAddrCol)), addr)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	if len(maps) == 0 {
+		return nil
+	}
+	return formatToken(maps[0])
+}
+
+// tokenInstances lists the items of a collection.
+func (s *StandaloneServer) tokenInstances(r *http.Request) (any, int) {
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	addr = strings.ToLower(addr)
+	if s.t.transferToCol == "" || s.t.transferTypeCol == "" || s.t.transferTokenCol == "" {
+		return ep(), 200
+	}
+	rows, err := s.q(r, s.itemQuery(fmt.Sprintf("ORDER BY token_id LIMIT %d", lim(r))), addr)
+	if err != nil {
+		return ep(), 200
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	token := s.tokenInfo(r, addr)
+	items := make([]map[string]any, len(maps))
+	for i, m := range maps {
+		items[i] = formatInstance(m, token)
+	}
+	return paginatedResponse{Items: items}, 200
+}
+
+// tokenInstance serves one item by its decimal id.
+func (s *StandaloneServer) tokenInstance(r *http.Request) (any, int) {
+	addr := r.PathValue("addr")
+	if !isValidHexAddr(addr) {
+		return ep(), 400
+	}
+	key := tokenKey(r.PathValue("id"))
+	if key == "" {
+		return map[string]any{"message": "invalid token id"}, 400
+	}
+	addr = strings.ToLower(addr)
+	if s.t.transferToCol == "" || s.t.transferTypeCol == "" || s.t.transferTokenCol == "" {
+		return map[string]any{"message": "not found"}, 404
+	}
+	rows, err := s.q(r, s.itemQuery("AND token_id = ?"), addr, key)
+	if err != nil {
+		return map[string]any{"message": "not found"}, 404
+	}
+	defer rows.Close()
+	maps, _ := scanMaps(rows)
+	if len(maps) == 0 {
+		return map[string]any{"message": "not found"}, 404
+	}
+	return formatInstance(maps[0], s.tokenInfo(r, addr)), 200
 }
 
 // ---- CSV Exports ----

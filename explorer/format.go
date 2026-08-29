@@ -380,18 +380,79 @@ func formatLog(l map[string]any) map[string]any {
 	}
 }
 
+// tokenID renders a stored token id as the decimal number people use.
+//
+// The indexer stores an id as the chain encoded it — a 32-byte hex word off
+// topics[3] — because that is what keys ownership. Nobody says they own
+// "0x0000…0002", so the conversion happens here, once, at the edge. A decimal
+// already in the column is passed through, so a store written by either
+// indexing path reads the same. Empty means the row is not an NFT.
+func tokenID(v any) any {
+	s, _ := v.(string)
+	if b, ok := v.([]byte); ok {
+		s = string(b)
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	n, ok := new(big.Int).SetString(strings.TrimPrefix(s, "0x"), idBase(s))
+	if !ok {
+		return nil
+	}
+	return n.String()
+}
+
+// tokenKey is tokenID inverted: the decimal id a caller puts in a URL, back
+// into the 32-byte hex word the store is keyed on. Returns "" for anything
+// that is not a uint256.
+func tokenKey(s string) string {
+	n, ok := new(big.Int).SetString(strings.TrimPrefix(strings.TrimSpace(s), "0x"), idBase(s))
+	if !ok || n.Sign() < 0 || n.BitLen() > 256 {
+		return ""
+	}
+	return fmt.Sprintf("0x%064x", n)
+}
+
+func idBase(s string) int {
+	if strings.HasPrefix(strings.TrimSpace(s), "0x") {
+		return 16
+	}
+	return 10
+}
+
 // formatTokenTransfer formats a token transfer row.
+//
+// `total` carries the amount for a fungible token and the item id for an
+// NFT, which is why its shape follows the token type rather than being one
+// fixed set of keys — the same split luxfi/explore reads as Erc20TotalPayload
+// / Erc721TotalPayload / Erc1155TotalPayload. An ERC-721 row has no amount
+// worth printing (it is always one) and an id that is the whole point; an
+// ERC-20 row is the reverse. Flattening the two into an amount-shaped
+// payload is what turned every NFT movement into an identical row.
 func formatTokenTransfer(t map[string]any) map[string]any {
 	// Column-spelling variants between luxfi/indexer evm_token_transfers
 	// ("tx_hash", "value") and Blockscout-legacy ("transaction_hash",
 	// "amount"). Fall through both so the response works against either.
+	kind, _ := col(t, "token_type", "type").(string)
+	id := tokenID(col(t, "token_id"))
+
+	total := map[string]any{"value": fmtNum(col(t, "value", "amount")), "decimals": nil}
+	switch {
+	case kind == "ERC-721" || kind == "ERC721":
+		total = map[string]any{"token_id": id, "token_instance": nil}
+	case kind == "ERC-1155" || kind == "ERC1155":
+		total["token_id"] = id
+		total["token_instance"] = nil
+	}
+
 	return map[string]any{
 		"from": map[string]any{"hash": bytesToHex(col(t, "from_addr", "from_address_hash", "from_address"))},
 		"to":   map[string]any{"hash": bytesToHex(col(t, "to_addr", "to_address_hash", "to_address"))},
 		// Same TokenInfo contract as formatToken, narrowed to what a transfer
 		// row carries — so the key is address_hash here too.
-		"token":            map[string]any{"address_hash": bytesToHex(t["token_address"]), "type": t["token_type"]},
-		"total":            map[string]any{"value": fmtNum(col(t, "value", "amount")), "decimals": nil},
+		"token":            map[string]any{"address_hash": bytesToHex(col(t, "token_address", "token_contract_address_hash")), "type": col(t, "token_type", "type")},
+		"total":            total,
 		"log_index":        t["log_index"],
 		"block_number":     t["block_number"],
 		"transaction_hash": bytesToHex(col(t, "tx_hash", "transaction_hash")),

@@ -143,18 +143,33 @@ explorer --chain-name="My Chain" --coin=MYC --chain-id=12345
 
 ## EVM Feature Parity
 
-All EVM explorer features implemented in Go:
+What the Go indexer covers, and where it stops:
 
 - Block indexing (consensus, uncle, EIP-4844 blobs)
 - Transaction types 0-3 (legacy, access list, EIP-1559, EIP-4844)
 - Internal transaction tracing (3 tracers: callTracer, jsTracer, parityTracer)
-- Token tracking: ERC-20, ERC-721, ERC-1155 (batch), historical balances
+- Token tracking: ERC-20, ERC-721, ERC-1155 (single + batch), ERC-404. One
+  decoder reads them all — `evm/decodeTransfers` — so a movement has one
+  reading whichever indexing path saw the block. ERC-20 and ERC-721 share the
+  Transfer signature and are told apart by topic arity: the ERC-721 id is
+  indexed and rides in topics[3].
+- NFT items: `/tokens/{addr}/instances` and `/instances/{id}` — id, current
+  owner (the destination of the item's last transfer), and the URI the
+  contract gives it. The URI is an eth_call; the document behind it is not
+  fetched, so `uri_state` says whether the chain answered ("ok"), named
+  nothing ("absent"), or has not been asked ("unread"). `image_url` and
+  `metadata` stay null rather than assert media nobody read.
 - Contract verification: Solidity (all versions), Vyper, Standard JSON
 - Proxy detection: EIP-1967, EIP-1822, EIP-1167, Gnosis Safe, OpenZeppelin
 - Account Abstraction: ERC-4337 UserOps, bundlers, paymasters
 - MEV detection: sandwich, frontrun, backrun, liquidation
 - DeFi: AMM V2/V3, perps, lending, staking, bridges, CLOB orderbook
-- NFT marketplaces: Seaport, LooksRare, Blur, X2Y2, Rarible, Zora
+- `evm/defi` additionally carries event signatures for Seaport, LooksRare,
+  Blur, X2Y2, Rarible and Zora. Nothing imports the package and no Lux chain
+  has a marketplace contract deployed, so no marketplace is indexed today.
+  `migrations/004_nft_marketplace.sql` is that same unbuilt venue's schema and
+  is not applied — the live API reads the SQLite tables `evm/indexer.go`
+  creates.
 - Charts, statistics, gas oracle
 - User accounts, API keys, watchlists, address tags
 

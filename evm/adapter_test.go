@@ -594,7 +594,7 @@ func TestGetTokenInfo(t *testing.T) {
 	if token.Decimals != 18 {
 		t.Errorf("Decimals = %d, want 18", token.Decimals)
 	}
-	if token.TokenType != "ERC20" {
+	if token.TokenType != TypeERC20 {
 		t.Errorf("TokenType = %q, want ERC20", token.TokenType)
 	}
 }
@@ -681,7 +681,7 @@ func TestTokenTransferStruct(t *testing.T) {
 		LogIndex:     0,
 		BlockNumber:  100,
 		TokenAddress: "0xtoken",
-		TokenType:    "ERC20",
+		TokenType:    TypeERC20,
 		From:         "0xfrom",
 		To:           "0xto",
 		Value:        "1000",
@@ -715,7 +715,7 @@ func TestTokenStruct(t *testing.T) {
 		Symbol:      "TST",
 		Decimals:    18,
 		TotalSupply: "1000000000000000000000000",
-		TokenType:   "ERC20",
+		TokenType:   TypeERC20,
 		HolderCount: 1000,
 		TxCount:     5000,
 		CreatedAt:   time.Now(),
@@ -1041,7 +1041,7 @@ func TestParseTokenTransfersERC20(t *testing.T) {
 	}
 
 	transfer := transfers[0]
-	if transfer.TokenType != "ERC20" {
+	if transfer.TokenType != TypeERC20 {
 		t.Errorf("TokenType = %q, want ERC20", transfer.TokenType)
 	}
 	if transfer.From != "0xfrom1234567890abcdef1234567890abcdef1234" {
@@ -1076,7 +1076,7 @@ func TestParseTokenTransfersERC721(t *testing.T) {
 	}
 
 	transfer := transfers[0]
-	if transfer.TokenType != "ERC721" {
+	if transfer.TokenType != TypeERC721 {
 		t.Errorf("TokenType = %q, want ERC721", transfer.TokenType)
 	}
 	if transfer.Value != "1" {
@@ -2112,7 +2112,7 @@ func TestParseTokenTransfersERC1155Single(t *testing.T) {
 	}
 
 	transfer := transfers[0]
-	if transfer.TokenType != "ERC1155" {
+	if transfer.TokenType != TypeERC1155 {
 		t.Errorf("TokenType = %q, want ERC1155", transfer.TokenType)
 	}
 	if transfer.TokenAddress != "0xerc1155token" {
@@ -2174,10 +2174,10 @@ func TestParseTokenTransfersERC1155Batch(t *testing.T) {
 		t.Fatalf("expected 3 transfers, got %d", len(transfers))
 	}
 
-	wantIDs := []string{"1", "2", "3"}
+	wantIDs := []string{hexWord("1"), hexWord("2"), hexWord("3")}
 	wantValues := []string{"10", "20", "30"}
 	for i, tr := range transfers {
-		if tr.TokenType != "ERC1155" {
+		if tr.TokenType != TypeERC1155 {
 			t.Errorf("[%d] TokenType = %q, want ERC1155", i, tr.TokenType)
 		}
 		if tr.TokenID != wantIDs[i] {
@@ -2225,8 +2225,8 @@ func TestParseTokenTransfersERC1155SingleFixed(t *testing.T) {
 	if len(transfers) != 1 {
 		t.Fatalf("expected 1 transfer, got %d", len(transfers))
 	}
-	if transfers[0].TokenID != "5" {
-		t.Errorf("TokenID = %q, want 5", transfers[0].TokenID)
+	if transfers[0].TokenID != hexWord("5") {
+		t.Errorf("TokenID = %q, want %q", transfers[0].TokenID, hexWord("5"))
 	}
 	if transfers[0].Value != "100" {
 		t.Errorf("Value = %q, want 100", transfers[0].Value)
@@ -2263,14 +2263,14 @@ func TestParseTokenTransfersNonStandardERC721(t *testing.T) {
 		t.Fatalf("expected 1 transfer, got %d", len(transfers))
 	}
 	tr := transfers[0]
-	if tr.TokenType != "ERC721" {
+	if tr.TokenType != TypeERC721 {
 		t.Errorf("TokenType = %q, want ERC721", tr.TokenType)
 	}
 	if tr.Value != "1" {
 		t.Errorf("Value = %q, want 1", tr.Value)
 	}
-	if tr.TokenID != "7" {
-		t.Errorf("TokenID = %q, want 7", tr.TokenID)
+	if tr.TokenID != hexWord("7") {
+		t.Errorf("TokenID = %q, want %q", tr.TokenID, hexWord("7"))
 	}
 	if tr.From != "0x1111111111111111111111111111111111111111" {
 		t.Errorf("From = %q", tr.From)
@@ -2300,7 +2300,7 @@ func TestParseTokenTransfersERC404(t *testing.T) {
 		if len(transfers) != 1 {
 			t.Fatalf("expected 1 transfer, got %d", len(transfers))
 		}
-		if transfers[0].TokenType != "ERC20" {
+		if transfers[0].TokenType != TypeERC20 {
 			t.Errorf("TokenType = %q, want ERC20", transfers[0].TokenType)
 		}
 		if transfers[0].Value != "1000000000000000000" {
@@ -2321,14 +2321,14 @@ func TestParseTokenTransfersERC404(t *testing.T) {
 		if len(transfers) != 1 {
 			t.Fatalf("expected 1 transfer, got %d", len(transfers))
 		}
-		if transfers[0].TokenType != "ERC721" {
+		if transfers[0].TokenType != TypeERC721 {
 			t.Errorf("TokenType = %q, want ERC721", transfers[0].TokenType)
 		}
 		if transfers[0].Value != "1" {
 			t.Errorf("Value = %q, want 1", transfers[0].Value)
 		}
-		if transfers[0].TokenID != "66" {
-			t.Errorf("TokenID = %q, want 66", transfers[0].TokenID)
+		if transfers[0].TokenID != hexWord("66") {
+			t.Errorf("TokenID = %q, want %q", transfers[0].TokenID, hexWord("66"))
 		}
 	})
 }
@@ -2352,7 +2352,7 @@ func TestParseTokenTransfersWETH(t *testing.T) {
 			t.Fatalf("expected 1 transfer, got %d", len(transfers))
 		}
 		tr := transfers[0]
-		if tr.TokenType != "ERC20" {
+		if tr.TokenType != TypeERC20 {
 			t.Errorf("TokenType = %q, want ERC20", tr.TokenType)
 		}
 		if tr.From != "0x0000000000000000000000000000000000000000" {

@@ -1,7 +1,13 @@
 -- NFT Marketplace Tables Migration
--- Version: 1.0.0
--- Date: 2025-01-24
 -- Description: Adds NFT marketplace indexing for OpenSea Seaport, LooksRare, Blur, Rarible, X2Y2, Zora
+--
+-- NOT APPLIED. No marketplace contract is deployed on any Lux chain, so there
+-- are no sales to index and these tables would only ever be empty. The live
+-- API reads the SQLite tables evm/indexer.go creates, not this Postgres
+-- schema. Applying it is a decision to take once a venue exists.
+--
+-- NFT items themselves are indexed and served today; see evm_token_instances
+-- and /tokens/{addr}/instances.
 
 --------------------------------------------------------------------------------
 -- NFT Orders (Listings, Bids, Offers)

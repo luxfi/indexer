@@ -245,11 +245,10 @@ func (idx *Indexer) Init(ctx context.Context) error {
 				},
 			},
 			{
-				// Per-(token, holder) balance state. Maintained on every
-				// detected Transfer log via applyERC20BalanceDelta /
-				// applyERC721BalanceDelta. token_id is "" for ERC-20
-				// (one row per holder per token) or the hex tokenId for
-				// ERC-721 (one row per NFT, owner stored in `address`).
+				// Who holds what right now. Maintained by move() on every
+				// decoded transfer. token_id is "" for ERC-20 (one row per
+				// holder per token) and the token id as a 32-byte hex word
+				// for ERC-721 and ERC-1155 (owner in `address`).
 				Name: "evm_token_balances",
 				Columns: []storage.Column{
 					// Composite PK (token_address, address, token_id) is
@@ -262,6 +261,23 @@ func (idx *Indexer) Init(ctx context.Context) error {
 					{Name: "token_id", Type: storage.TypeText, Default: "''", Primary: true},
 					{Name: "value", Type: storage.TypeText, Default: "'0'"},
 					{Name: "token_type", Type: storage.TypeText, Default: "''"},
+					{Name: "updated_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
+				},
+			},
+			{
+				// One row per NFT — the item itself, as distinct from who
+				// holds it. Ownership moves and lives in
+				// evm_token_balances; the id and the URI the contract gives
+				// it belong to the item and outlive any holder, including
+				// after a burn leaves it with none.
+				Name: "evm_token_instances",
+				Columns: []storage.Column{
+					{Name: "token_address", Type: storage.TypeText, Nullable: false, Primary: true},
+					{Name: "token_id", Type: storage.TypeText, Nullable: false, Primary: true},
+					{Name: "uri", Type: storage.TypeText, Default: "''"},
+					// What the chain answered when asked: "ok" or "absent".
+					// No row means unread. See readURI.
+					{Name: "uri_state", Type: storage.TypeText, Default: "''"},
 					{Name: "updated_at", Type: storage.TypeTimestamp, Default: "CURRENT_TIMESTAMP"},
 				},
 			},
@@ -283,6 +299,8 @@ func (idx *Indexer) Init(ctx context.Context) error {
 			{Name: "idx_evm_logs_topic0", Table: "evm_logs", Columns: []string{"topic0"}},
 			{Name: "idx_evm_token_balances_token", Table: "evm_token_balances", Columns: []string{"token_address"}},
 			{Name: "idx_evm_token_balances_addr", Table: "evm_token_balances", Columns: []string{"address"}},
+			{Name: "idx_evm_token_instances_token", Table: "evm_token_instances", Columns: []string{"token_address"}},
+			{Name: "idx_evm_token_transfers_item", Table: "evm_token_transfers", Columns: []string{"token_address", "token_id"}},
 		},
 	}
 
@@ -516,6 +534,9 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 	// row in evm_tokens with the metadata best-effort resolved via eth_call
 	// (name/symbol/decimals).
 	tokensSeen := make(map[string]string) // address → token_type
+	// The (collection, id) pairs this block moved. Each one is an item whose
+	// tokenURI we go on to read — see readURI.
+	itemsSeen := make(map[item]struct{})
 	for i, txHash := range block.Transactions {
 		tx, logs, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
 		if err != nil || tx == nil {
@@ -559,34 +580,35 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 				l.Address, topic0, topic1, topic2, topic3, l.Data,
 				block.Timestamp, time.Now())
 
-			// Topic-0 of ERC-20 Transfer is identical to ERC-721 Transfer;
-			// distinguish on topic count (ERC-20 has 3 topics, ERC-721 has 4).
-			if topic0 == TopicTransferERC20 {
-				from := topicToAddr(topic1)
-				to := topicToAddr(topic2)
-				tokenLo := strings.ToLower(l.Address)
-				if len(l.Topics) == 3 {
-					// ERC-20: value is the data field (uint256 hex)
-					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
-						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
-						l.Address, "ERC-20", from, to, l.Data, "",
-						block.Timestamp, time.Now())
-					tokensSeen[tokenLo] = "ERC-20"
-					// Update per-holder balance state. l.Data is the
-					// 32-byte uint256 value. We move it from `from` to
-					// `to`, skipping the zero-address (mint source +
-					// burn sink — those aren't real holders).
-					idx.applyERC20BalanceDelta(ctx, tokenLo, from, to, l.Data)
-				} else if len(l.Topics) == 4 {
-					// ERC-721: token_id in topic3, value is "1"
-					_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
-						logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
-						l.Address, "ERC-721", from, to, "1", topic3,
-						block.Timestamp, time.Now())
-					tokensSeen[tokenLo] = "ERC-721"
-					// For ERC-721 the entire token_id moves: delete
-					// from the old owner, insert for the new owner.
-					idx.applyERC721BalanceDelta(ctx, tokenLo, from, to, topic3)
+			// Every token movement in this log, decoded once by
+			// decodeTransfers — ERC-20, ERC-721, ERC-1155 single and
+			// batch. A batch log yields one row per (id, amount) pair,
+			// so no id is folded away.
+			for _, t := range decodeTransfers(Log{
+				TxHash: l.TxHash, LogIndex: l.LogIndex, BlockNumber: l.BlockNumber,
+				Address: l.Address, Topics: l.Topics, Data: l.Data,
+			}, block.Timestamp) {
+				_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
+					t.ID, t.TxHash, int64(t.LogIndex), int64(t.BlockNumber),
+					t.TokenAddress, t.TokenType, t.From, t.To, t.Value, t.TokenID,
+					block.Timestamp, time.Now())
+
+				tokenLo := strings.ToLower(t.TokenAddress)
+				tokensSeen[tokenLo] = t.TokenType
+				// Per-holder state. ERC-20 moves an amount between two
+				// running totals; an ERC-721 id moves whole, so the row
+				// leaves the sender and arrives at the recipient; an
+				// ERC-1155 id has an amount per holder, so it moves like
+				// ERC-20 but keyed by id as well.
+				switch t.TokenType {
+				case TypeERC20:
+					idx.move(ctx, tokenLo, t.From, t.To, "", t.Value, TypeERC20)
+				case TypeERC721:
+					idx.move(ctx, tokenLo, t.From, t.To, t.TokenID, "1", TypeERC721)
+					itemsSeen[item{tokenLo, t.TokenID, TypeERC721}] = struct{}{}
+				case TypeERC1155:
+					idx.move(ctx, tokenLo, t.From, t.To, t.TokenID, t.Value, TypeERC1155)
+					itemsSeen[item{tokenLo, t.TokenID, TypeERC1155}] = struct{}{}
 				}
 			}
 		}
@@ -619,6 +641,12 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 		_ = idx.store.Exec(ctx, idx.upsertTokenSQL(),
 			tokenAddr, name, symbol, decimals, totalSupply, tType,
 			time.Now(), time.Now())
+	}
+
+	// Read tokenURI for every item this block moved. See readURI for why
+	// the document behind the URI is left to the client.
+	for it := range itemsSeen {
+		idx.readURI(ctx, it)
 	}
 
 	// Resolve is_contract for everything we haven't already pinned as
@@ -1231,18 +1259,6 @@ func (idx *Indexer) resolveTokenMeta(ctx context.Context, addr, tokenType string
 	return info.Name, info.Symbol, info.Decimals, totalSupply
 }
 
-// topicToAddr extracts the trailing 20-byte address from a 32-byte indexed
-// topic. ERC-20 Transfer indexes `from` + `to` as topics in their
-// uint256-padded form: a topic looks like 0x0000…<20-byte addr>. Returns
-// "" for empty / malformed input.
-func topicToAddr(topic string) string {
-	t := strings.TrimPrefix(topic, "0x")
-	if len(t) < 40 {
-		return ""
-	}
-	return "0x" + strings.ToLower(t[len(t)-40:])
-}
-
 // upsertBalanceSQL returns the correct upsert SQL for evm_token_balances.
 //
 // Schema: (token_address, address, token_id, value, token_type, updated_at)
@@ -1290,49 +1306,121 @@ func (idx *Indexer) readBalance(ctx context.Context, token, holder, tokenID stri
 	return n
 }
 
-// applyERC20BalanceDelta moves `valueHex` (32-byte uint256, hex with "0x"
-// prefix optional) from `fromAddr` to `toAddr` in evm_token_balances. The
-// zero address is excluded (it's the conventional mint source + burn sink,
-// not a real holder).
-func (idx *Indexer) applyERC20BalanceDelta(ctx context.Context, token, fromAddr, toAddr, valueHex string) {
-	v, ok := new(big.Int).SetString(strings.TrimPrefix(valueHex, "0x"), 16)
+// move applies one token movement to evm_token_balances, the table that
+// answers "who holds what right now".
+//
+// It is one function for all three token kinds because they differ only in
+// what the id column holds. An ERC-20 holding is (token, holder) with an
+// empty id and a running amount. An ERC-1155 holding is (token, holder, id)
+// with a running amount. An ERC-721 holding is the same with the amount
+// always 1, so the id simply arrives at the recipient and leaves the sender.
+//
+// A holding that reaches zero is deleted rather than kept as a "0" row: a row
+// that says nothing is held is not a holding, and every reader already has to
+// filter it out.
+//
+// The zero address is skipped on both sides. It is the conventional mint
+// source and burn sink, not a holder, and crediting it would put every token
+// ever minted in one enormous fictional account.
+func (idx *Indexer) move(ctx context.Context, token, from, to, id, amount, kind string) {
+	v, ok := new(big.Int).SetString(amount, 10)
 	if !ok || v.Sign() == 0 {
 		return
 	}
 	now := time.Now()
-	zero := "0x0000000000000000000000000000000000000000"
-	if fromAddr != "" && fromAddr != zero {
-		cur := idx.readBalance(ctx, token, fromAddr, "")
-		newV := new(big.Int).Sub(cur, v)
-		if newV.Sign() < 0 {
-			newV = big.NewInt(0)
+	const zero = "0x0000000000000000000000000000000000000000"
+
+	write := func(holder string, n *big.Int) {
+		if n.Sign() <= 0 {
+			_ = idx.store.Exec(ctx,
+				"DELETE FROM evm_token_balances WHERE token_address = ? AND address = ? AND token_id = ?",
+				token, holder, id)
+			return
 		}
-		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
-			token, fromAddr, "", newV.String(), "ERC-20", now)
+		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(), token, holder, id, n.String(), kind, now)
 	}
-	if toAddr != "" && toAddr != zero {
-		cur := idx.readBalance(ctx, token, toAddr, "")
-		newV := new(big.Int).Add(cur, v)
-		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
-			token, toAddr, "", newV.String(), "ERC-20", now)
+
+	if from != "" && from != zero {
+		write(from, new(big.Int).Sub(idx.readBalance(ctx, token, from, id), v))
+	}
+	if to != "" && to != zero {
+		write(to, new(big.Int).Add(idx.readBalance(ctx, token, to, id), v))
 	}
 }
 
-// applyERC721BalanceDelta moves a single NFT (tokenId from topic3) between
-// owners. Each ERC-721 row represents "this address owns tokenId X" with
-// value="1". On transfer we remove the source row and write a destination
-// row.
-func (idx *Indexer) applyERC721BalanceDelta(ctx context.Context, token, fromAddr, toAddr, tokenIDHex string) {
-	now := time.Now()
-	zero := "0x0000000000000000000000000000000000000000"
-	if fromAddr != "" && fromAddr != zero {
-		_ = idx.store.Exec(ctx,
-			"DELETE FROM evm_token_balances WHERE token_address = ? AND address = ? AND token_id = ?",
-			token, fromAddr, tokenIDHex,
-		)
+// item is one NFT: a collection address and a token id, which together are
+// the only thing that identifies a single collectible.
+type item struct {
+	token string
+	id    string
+	kind  string
+}
+
+// readURI records what the contract says the URI of an item is.
+//
+// The URI is an on-chain read — tokenURI(uint256) for ERC-721, uri(uint256)
+// for ERC-1155 — so it costs one eth_call against the node we are already
+// reading receipts from, and it cannot stall.
+//
+// The document at the far end is not fetched here, and that is deliberate.
+// It usually lives on IPFS or someone's CDN, where a slow or dead gateway
+// would hold the block cursor open behind it; an indexer that waits on
+// third-party HTTP stops indexing. It is also not our data and can change
+// under us. The client asking for it can time out on its own without the
+// chain falling behind, so the URI is what we store and the fetch is the
+// caller's.
+//
+// What is recorded is therefore what the chain answered:
+//
+//	ok      the contract returned a URI
+//	absent  the call reverted or returned nothing — this contract does not
+//	        name a URI for this id
+//
+// and no row at all means we have not asked, which the API reports as
+// unread. An item with no picture is never silently the same as one whose
+// contract has no URI to give.
+//
+// The read happens once, when the item is first seen. A contract that
+// reveals later by changing tokenURI is not picked up until the item next
+// moves; nothing on chain announces a reveal.
+func (idx *Indexer) readURI(ctx context.Context, it item) {
+	if it.token == "" || it.id == "" {
+		return
 	}
-	if toAddr != "" && toAddr != zero {
-		_ = idx.store.Exec(ctx, idx.upsertBalanceSQL(),
-			token, toAddr, tokenIDHex, "1", "ERC-721", now)
+	if rows, err := idx.store.Query(ctx,
+		"SELECT 1 FROM evm_token_instances WHERE token_address = ? AND token_id = ? LIMIT 1",
+		it.token, it.id,
+	); err == nil && len(rows) > 0 {
+		return
+	}
+
+	// tokenURI(uint256) for ERC-721, uri(uint256) for ERC-1155.
+	selector := "0xc87b56dd"
+	if it.kind == TypeERC1155 {
+		selector = "0x0e89341c"
+	}
+	uri, state := "", "absent"
+	if out, err := idx.adapter.callContract(ctx, it.token, selector+strings.TrimPrefix(it.id, "0x")); err == nil {
+		if u := decodeString(out); u != "" {
+			uri, state = u, "ok"
+		}
+	}
+	_ = idx.store.Exec(ctx, idx.upsertInstanceSQL(), it.token, it.id, uri, state, time.Now())
+}
+
+// upsertInstanceSQL returns the upsert for evm_token_instances, keyed on the
+// item — (token_address, token_id).
+func (idx *Indexer) upsertInstanceSQL() string {
+	switch idx.store.Backend() {
+	case storage.BackendPostgres:
+		return `INSERT INTO evm_token_instances (token_address, token_id, uri, uri_state, updated_at)
+			VALUES ($1,$2,$3,$4,$5)
+			ON CONFLICT (token_address, token_id) DO UPDATE SET
+				uri = EXCLUDED.uri, uri_state = EXCLUDED.uri_state, updated_at = EXCLUDED.updated_at`
+	default:
+		return `INSERT INTO evm_token_instances (token_address, token_id, uri, uri_state, updated_at)
+			VALUES (?,?,?,?,?)
+			ON CONFLICT (token_address, token_id) DO UPDATE SET
+				uri = excluded.uri, uri_state = excluded.uri_state, updated_at = excluded.updated_at`
 	}
 }
