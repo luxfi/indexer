@@ -24,35 +24,50 @@ const (
 	LooksRareCancelAllSig = "0x1e7178d84f0b0825c65795cd62e7972809ad3aac6917843aaec596161b2c0a97" // CancelAllOrders(address,uint256)
 
 	// LooksRare v2
-	LooksRareV2TakerBidSig = "0x3ee3de4684413690dee6fff1a0a4f92916a1b97d1c5a83cdf24671844306e2e1" // TakerBid((bytes32,uint256,address,address,bool,address,address,uint256,uint256,uint256,uint256[],(bytes32,bytes)[]))
-	LooksRareV2TakerAskSig = "0x9aaa45d6db2ef74ead0751ea9113263d1dec1b50cea05f0ca2002cb8063564a4" // TakerAsk((bytes32,uint256,address,address,bool,address,address,uint256,uint256,uint256,uint256[],(bytes32,bytes)[]))
+	LooksRareV2TakerBidSig = "0x7210a3464c2e4bd240e8c68c530b612facbad1018cafa196c32f5586cc507e6d" // TakerBid((bytes32,uint256,address,address,bool,address,address,uint256,uint256,uint256,uint256[],(bytes32,bytes)[]))
+	LooksRareV2TakerAskSig = "0x164ca3531068a3c88bf6636b77b918526f07cccef086d64a421b01ef981f1a12" // TakerAsk((bytes32,uint256,address,address,bool,address,address,uint256,uint256,uint256,uint256[],(bytes32,bytes)[]))
 
 	// Blur
-	BlurOrdersMatchedSig    = "0x61cbb2a3dee0b6064c2e681aadd61677fb4ef319f0b547508d495626f5a62f64" // OrdersMatched(address,address,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes))
-	BlurOrderCancelledSig   = "0x5152abf959f6564662358c2e52b702c3fd8a1dead7a7e0efe0f0e3a8c2146a34" // OrderCancelled(bytes32)
-	BlurNonceIncrementedSig = "0xa82a649bbd060c5c3e04c50b8f455d7a4ec1b99bd6f7e71ac1eb19a0a5c1c8f4" // NonceIncremented(address,uint256)
+	BlurOrdersMatchedSig    = "0x79d80fb5f83ee5a12bb600e1e37e3f29a1918f131e02a604f1c5b7bac2f90789" // OrdersMatched(address,address,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes))
+	BlurOrderCancelledSig   = "0x5152abf959f6564662358c2e52b702259b78bac5ee7842a0f01937e670efcc7d" // OrderCancelled(bytes32)
+	BlurNonceIncrementedSig = "0xa82a649bbd060c9099cd7b7326e2b0dc9e9af0836480e0f849dc9eaa79710b3b" // NonceIncremented(address,uint256)
 
 	// Rarible
-	RaribleMatchSig     = "0x268820db288a211986b26a8fda86b1e0046281b21206936bb0e61c67b5c79ef4" // Match(bytes32,bytes32,address,address,uint256,bytes32)
-	RaribleCancelSig    = "0x75ab8acd8c1dc0fcd5ae9aebb5c8a7ea3c2a0f7d0a7fbc4ca4ee9ca79b8ad37d" // Cancel(bytes32)
+	RaribleMatchSig  = "0xbca288b70254aacc77da91555993116eb291e093f60774fa231663630c2198d2" // Match(bytes32,bytes32,address,address,uint256,bytes32)
+	RaribleCancelSig = "0xe8d9861dbc9c663ed3accd261bbe2fe01e0d3d9e5f51fa38523b265c7757a93a" // Cancel(bytes32)
+	// UNVERIFIED. The comment names LibPart.Part[], a struct — an event topic hashes
+	// the CANONICAL signature, where a struct is written out as a tuple, so this
+	// value cannot be derived from the text beside it and nothing here has
+	// checked it against a chain. Expand LibPart.Part[] from the ABI, then let the
+	// test derive it like the others.
 	RaribleRoyaltiesSig = "0xff6a5e6f64e0de7cc82a417a0c1dc9d1b3a295c4f4de1c6e2a2c2db9f0e0e0e1" // RoyaltiesSet(address,uint256,LibPart.Part[])
 
 	// X2Y2
+	// UNVERIFIED. The comment names Item, a struct — an event topic hashes
+	// the CANONICAL signature, where a struct is written out as a tuple, so this
+	// value cannot be derived from the text beside it and nothing here has
+	// checked it against a chain. Expand Item from the ABI, then let the
+	// test derive it like the others.
 	X2Y2InventorySig = "0x3cbb63f144840e5b1b0a38a7c19211d2e89de4d7c5faf8b2d3c1776c302d1d33" // EvInventory(bytes32,address,address,uint256,uint256,uint256,uint256,address,bytes,Item,Item)
-	X2Y2CancelSig    = "0xa015ad2dc32f266993958a0fd9884c746b971b254206f3478bc43e2f125c7b9e" // EvCancel(bytes32)
+	X2Y2CancelSig    = "0x5b0b06d07e20243724d90e17a20034972f339eb28bd1c9437a71999bd15a1e7a" // EvCancel(bytes32)
 
 	// Foundation
-	FoundationBuySig     = "0xd28c0a7dd63bc853a4e36306f3016c64f70c6f7e2f5a7b7a7e5e7a7c7a7e5a7c" // ReserveAuctionBidPlaced(uint256,address,uint256,uint256)
-	FoundationSettledSig = "0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6" // ReserveAuctionFinalized(uint256,address,address,uint256,uint256,uint256)
+	FoundationBuySig     = "0x26ea3ebbda62eb1baef13e1c237dddd956c87f80b2801f2616d806d52557b121" // ReserveAuctionBidPlaced(uint256,address,uint256,uint256)
+	FoundationSettledSig = "0x2edb0e99c6ac35be6731dab554c1d1fa1b7beb675090dbb09fb14e615aca1c4a" // ReserveAuctionFinalized(uint256,address,address,uint256,uint256,uint256)
 
 	// SuperRare
-	SuperRareSoldSig  = "0x2a9d06eec42acd217a17785dbec90b8b4f01a93ecd8c127edd36bfccf239f8b6" // Sold(address,address,uint256,uint256)
-	SuperRareOfferSig = "0x7d0c0d9eb9e33a8b7e3c3a9c8b3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a" // OfferAccepted(address,address,uint256,uint256)
+	SuperRareSoldSig  = "0x16dd16959a056953a63cf14bf427881e762e54f03d86b864efea8238dd3b822f" // Sold(address,address,uint256,uint256)
+	SuperRareOfferSig = "0xa6da490df6e8f0e592e795b4d96c5810d8ddfda51c21577adbdd8e1a0fa47a67" // OfferAccepted(address,address,uint256,uint256)
 
 	// Zora
-	ZoraAskFilledSig    = "0x21a9d8e221211780696258a05c6225b1a24f428e2fd4d51708f1ab2be4224d39" // AskFilled(address,address,address,uint256,uint256,address,address,uint256)
+	ZoraAskFilledSig = "0x02c4ab12f311049a3dadebc225cafb3bb99acfeb062424d088b109822d656e94" // AskFilled(address,address,address,uint256,uint256,address,address,uint256)
+	// UNVERIFIED. The comment names Ask, a struct — an event topic hashes
+	// the CANONICAL signature, where a struct is written out as a tuple, so this
+	// value cannot be derived from the text beside it and nothing here has
+	// checked it against a chain. Expand Ask from the ABI, then let the
+	// test derive it like the others.
 	ZoraAskCreatedSig   = "0x5b8e2b9f74e3a1a4e2b9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7" // AskCreated(address,uint256,Ask)
-	ZoraAskCancelledSig = "0x6b8e2b9f74e3a1a4e2b9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7c3e9f5a7" // AskCancelled(address,uint256)
+	ZoraAskCancelledSig = "0x092298486c005c84902b27e156d6ef143f2b07583141f0e83607b4ddbbaea3f5" // AskCancelled(address,uint256)
 )
 
 // NFTMarketplaceProtocol identifies the marketplace protocol
