@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultRPCEndpoint = "http://localhost:9650/v1/bc/P"
+	DefaultRPCEndpoint = "http://localhost:9650/v1/chain/P"
 	DefaultHTTPPort    = 4100
 )
 

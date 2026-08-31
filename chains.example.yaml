@@ -19,7 +19,7 @@ chains:
     name: C-Chain
     chain_id: 96369
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/C/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/C/rpc
     coin: LUX
     enabled: true
     default: true
@@ -31,7 +31,7 @@ chains:
   - slug: pchain
     name: P-Chain
     type: linear
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/P
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/P
     coin: LUX
     enabled: true
 
@@ -39,7 +39,7 @@ chains:
   - slug: xchain
     name: X-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/X
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/X
     coin: LUX
     enabled: true
 
@@ -47,7 +47,7 @@ chains:
   - slug: achain
     name: A-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/A
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/A
     coin: LUX
     enabled: true
 
@@ -55,7 +55,7 @@ chains:
   - slug: bchain
     name: B-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/B
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/B
     coin: LUX
     enabled: true
 
@@ -63,7 +63,7 @@ chains:
   - slug: qchain
     name: Q-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/Q
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Q
     coin: LUX
     enabled: true
 
@@ -71,7 +71,7 @@ chains:
   - slug: tchain
     name: T-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/T
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/T
     coin: LUX
     enabled: true
 
@@ -79,7 +79,7 @@ chains:
   - slug: zchain
     name: Z-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/Z
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Z
     coin: LUX
     enabled: true
 
@@ -87,7 +87,7 @@ chains:
   - slug: kchain
     name: K-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/K
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/K
     coin: LUX
     enabled: true
 
@@ -99,7 +99,7 @@ chains:
     name: Zoo
     chain_id: 200200
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/Zoo/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Zoo/rpc
     coin: ZOO
     enabled: true
     graph:
@@ -110,7 +110,7 @@ chains:
     name: Hanzo AI
     chain_id: 36963
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/Hanzo/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Hanzo/rpc
     coin: HANZO
     enabled: true
 
@@ -118,7 +118,7 @@ chains:
     name: SPC
     chain_id: 36911
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/SPC/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/SPC/rpc
     coin: SPC
     enabled: true
 
@@ -126,7 +126,7 @@ chains:
     name: Pars
     chain_id: 494949
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/Pars/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Pars/rpc
     coin: PARS
     enabled: true
 
@@ -135,7 +135,7 @@ chains:
     name: DEX
     chain_id: 0
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/bc/D/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/D/rpc
     coin: LUX
     enabled: true
     graph:
