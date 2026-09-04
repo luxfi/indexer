@@ -58,6 +58,7 @@ type Config struct {
 	// Set via GCHAIN_ENDPOINT env var.
 	GChainEndpoint string
 
+
 	// ChainDBPaths maps chain names to their SQLite DB paths for cross-chain search.
 	// Example: {"C": "/data/cchain/indexer.db", "Zoo": "/data/zoo/indexer.db"}
 	// When empty, cross-chain search only queries the local IndexerDBPath.

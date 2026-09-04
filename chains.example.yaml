@@ -99,7 +99,7 @@ chains:
     name: Zoo
     chain_id: 200200
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Zoo/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/zoo
     coin: ZOO
     enabled: true
     graph:
@@ -110,7 +110,7 @@ chains:
     name: Hanzo AI
     chain_id: 36963
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Hanzo/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/hanzo
     coin: HANZO
     enabled: true
 
@@ -118,7 +118,7 @@ chains:
     name: SPC
     chain_id: 36911
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/SPC/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/spc
     coin: SPC
     enabled: true
 
@@ -126,7 +126,7 @@ chains:
     name: Pars
     chain_id: 494949
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/Pars/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/pars
     coin: PARS
     enabled: true
 
@@ -136,6 +136,7 @@ chains:
     chain_id: 0
     type: evm
     rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/D/rpc
+
     coin: LUX
     enabled: true
     graph:
@@ -202,7 +203,7 @@ chains:
     name: Avalanche
     chain_id: 43114
     type: evm
-    rpc: ${AVAX_RPC:-https://api.avax.network/ext/bc/C/rpc}
+    rpc: ${AVAX_RPC:-https://api.avax.network/v1/chain/c}
     coin: AVAX
     enabled: true
 
