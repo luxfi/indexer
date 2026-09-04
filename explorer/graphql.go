@@ -17,6 +17,7 @@ const (
 	graphqlProxyTimeout   = 30 * time.Second
 )
 
+
 // graphqlProxy is a reverse proxy to the G-Chain GraphQL endpoint on the node.
 type graphqlProxy struct {
 	target *url.URL
