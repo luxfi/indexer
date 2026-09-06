@@ -2567,3 +2567,111 @@ func BenchmarkSortInternalTransactionsByTraceAddress(b *testing.B) {
 }
 
 func intPtr(i int) *int { return &i }
+
+// TestNoHashIndex pins the ingest path against a node that serves blocks and
+// receipts but cannot resolve a transaction hash.
+//
+// A node restored from an RLP import is exactly that: the hash-to-block index
+// is built while transactions are accepted, not while blocks are replayed, so
+// eth_getTransactionByHash and eth_getTransactionReceipt answer null for
+// history the node plainly holds. Reading by block number gets it anyway.
+func TestNoHashIndex(t *testing.T) {
+	const (
+		txHash    = "0xaa"
+		blockHash = "0xbb"
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Method string `json:"method"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+
+		var result interface{}
+		switch req.Method {
+		case "eth_getBlockByNumber":
+			result = map[string]interface{}{
+				"hash": blockHash, "parentHash": "0xcc", "number": "0x2a",
+				"timestamp": "0x64", "gasUsed": "0x5208", "gasLimit": "0x1c9c380",
+				"transactions": []map[string]interface{}{{
+					"hash": txHash, "blockHash": blockHash, "blockNumber": "0x2a",
+					"from": "0xF00D", "to": "0xBEEF", "value": "0x1",
+					"gas": "0x5208", "gasPrice": "0x7", "nonce": "0x3",
+					"input": "0xabcd", "transactionIndex": "0x0", "type": "0x2",
+				}},
+			}
+		case "eth_getBlockReceipts":
+			result = []map[string]interface{}{{
+				"transactionHash": txHash, "blockHash": blockHash,
+				"blockNumber": "0x2a", "from": "0xF00D", "to": "0xBEEF",
+				"gasUsed": "0x5208", "status": "0x1", "contractAddress": "",
+				"transactionIndex": "0x0",
+				"logs": []map[string]interface{}{{
+					"address": "0xtoken", "topics": []string{TopicTransferERC20},
+					"data": "0xdata", "logIndex": "0x0", "removed": false,
+				}},
+			}}
+		default:
+			// The hash-keyed calls are the ones with no index behind them.
+			result = nil
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jsonrpc": "2.0", "id": 1, "result": result,
+		})
+	}))
+	defer server.Close()
+
+	adapter := New(server.URL)
+	ctx := context.Background()
+
+	block, err := adapter.GetBlockByNumber(ctx, 42)
+	if err != nil {
+		t.Fatalf("GetBlockByNumber: %v", err)
+	}
+	if len(block.Transactions) != 1 {
+		t.Fatalf("block carries %d transactions, want 1", len(block.Transactions))
+	}
+	tx := block.Transactions[0]
+	if tx.Hash != txHash {
+		t.Errorf("Hash = %q, want %q", tx.Hash, txHash)
+	}
+	// The submitted fields come from the block, not from a hash lookup.
+	if tx.From != "0xf00d" || tx.To != "0xbeef" {
+		t.Errorf("From/To = %q/%q, want 0xf00d/0xbeef", tx.From, tx.To)
+	}
+	if tx.Input != "0xabcd" || tx.Value != "0x1" || tx.Nonce != 3 || tx.Gas != 21000 {
+		t.Errorf("submitted fields lost: input=%q value=%q nonce=%d gas=%d",
+			tx.Input, tx.Value, tx.Nonce, tx.Gas)
+	}
+
+	receipts, err := adapter.BlockReceipts(ctx, 42)
+	if err != nil {
+		t.Fatalf("BlockReceipts: %v", err)
+	}
+	if len(receipts) != 1 {
+		t.Fatalf("got %d receipts, want 1", len(receipts))
+	}
+	r := receipts[0]
+	if r.TxHash != txHash || r.GasUsed != 21000 {
+		t.Errorf("receipt = %+v", r)
+	}
+	if r.Status == nil || *r.Status != 1 {
+		t.Errorf("Status = %v, want 1", r.Status)
+	}
+	if len(r.Logs) != 1 || r.Logs[0].TxHash != txHash {
+		t.Errorf("logs = %+v", r.Logs)
+	}
+
+	// A hash the node cannot resolve is a miss, not a blank transaction. An
+	// empty one would be written as a row keyed by the empty hash, and every
+	// later miss would merge into it.
+	miss, missLogs, err := adapter.GetTransactionReceipt(ctx, txHash)
+	if err != nil {
+		t.Fatalf("GetTransactionReceipt: %v", err)
+	}
+	if miss != nil {
+		t.Errorf("unresolvable hash returned %+v, want nil", miss)
+	}
+	if missLogs != nil {
+		t.Errorf("unresolvable hash returned logs %+v, want nil", missLogs)
+	}
+}

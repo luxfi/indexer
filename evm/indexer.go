@@ -74,19 +74,22 @@ type Indexer struct {
 
 // EVMBlock represents a parsed EVM block
 type EVMBlock struct {
-	Number       uint64    `json:"number"`
-	Hash         string    `json:"hash"`
-	ParentHash   string    `json:"parentHash"`
-	Nonce        string    `json:"nonce"`
-	Miner        string    `json:"miner"`
-	Difficulty   string    `json:"difficulty"`
-	GasLimit     uint64    `json:"gasLimit"`
-	GasUsed      uint64    `json:"gasUsed"`
-	Timestamp    time.Time `json:"timestamp"`
-	TxCount      int       `json:"txCount"`
-	BaseFee      string    `json:"baseFeePerGas,omitempty"`
-	Size         uint64    `json:"size"`
-	Transactions []string  `json:"transactions"`
+	Number     uint64    `json:"number"`
+	Hash       string    `json:"hash"`
+	ParentHash string    `json:"parentHash"`
+	Nonce      string    `json:"nonce"`
+	Miner      string    `json:"miner"`
+	Difficulty string    `json:"difficulty"`
+	GasLimit   uint64    `json:"gasLimit"`
+	GasUsed    uint64    `json:"gasUsed"`
+	Timestamp  time.Time `json:"timestamp"`
+	TxCount    int       `json:"txCount"`
+	BaseFee    string    `json:"baseFeePerGas,omitempty"`
+	Size       uint64    `json:"size"`
+	// Transactions as the block itself carries them: sender, recipient,
+	// value, calldata. The execution result — status, gas used, created
+	// contract, logs — arrives separately, from BlockReceipts.
+	Transactions []Transaction `json:"transactions"`
 }
 
 // NewIndexer creates a new EVM indexer with the unified storage
@@ -537,18 +540,36 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 	// The (collection, id) pairs this block moved. Each one is an item whose
 	// tokenURI we go on to read — see readURI.
 	itemsSeen := make(map[item]struct{})
-	for i, txHash := range block.Transactions {
-		tx, logs, err := idx.adapter.GetTransactionReceipt(ctx, txHash)
-		if err != nil || tx == nil {
+	// Execution results for the whole block in one read, indexed by hash.
+	// A block whose receipts cannot be read still yields its transactions;
+	// they carry every submitted field, and only the result is missing.
+	receipts := make(map[string]Receipt)
+	if rs, err := idx.adapter.BlockReceipts(ctx, blockNum); err == nil {
+		for _, r := range rs {
+			receipts[r.TxHash] = r
+		}
+	}
+
+	for i, tx := range block.Transactions {
+		// An empty hash is not a transaction. Writing one anyway lands a
+		// blank row that the hash primary key then merges every later
+		// failure into, so a whole chain's history collapses to one row.
+		if tx.Hash == "" {
 			continue
 		}
+		r := receipts[tx.Hash]
+		tx.GasUsed = r.GasUsed
+		tx.Status = r.Status
+		tx.ContractAddress = r.ContractAddress
+		logs := r.Logs
+
 		status := 0
 		if tx.Status != nil {
 			status = *tx.Status
 		}
 		txQ := idx.upsertTxSQL()
 		txArgs := []interface{}{
-			tx.Hash, tx.BlockHash, int64(block.Number), i,
+			tx.Hash, block.Hash, int64(block.Number), i,
 			tx.From, tx.To, tx.Value,
 			int64(tx.Gas), tx.GasPrice, int64(tx.GasUsed),
 			int64(tx.Nonce), tx.Input, status, tx.ContractAddress,

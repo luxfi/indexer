@@ -419,7 +419,7 @@ func (a *Adapter) GetLatestBlock(ctx context.Context) (*EVMBlock, error) {
 // GetBlockByNumber fetches a specific block by number and returns a parsed EVMBlock
 func (a *Adapter) GetBlockByNumber(ctx context.Context, number uint64) (*EVMBlock, error) {
 	blockNum := fmt.Sprintf("0x%x", number)
-	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, false})
+	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
 	if err != nil {
 		return nil, err
 	}
@@ -447,16 +447,20 @@ func (a *Adapter) parseEVMBlock(data json.RawMessage) (*EVMBlock, error) {
 		return nil, fmt.Errorf("unmarshal block: %w", err)
 	}
 
-	// Parse transactions (can be hashes or full objects)
-	var txHashes []string
-	if err := json.Unmarshal(raw.Transactions, &txHashes); err != nil {
-		// Try as array of objects
-		var txs []struct {
-			Hash string `json:"hash"`
+	// A block carries its transactions as full objects when the call asked
+	// for them and as bare hashes when it did not. Both shapes land in the
+	// same field; the hash-only shape leaves the remaining fields empty.
+	var txs []Transaction
+	var bodies []txBody
+	if err := json.Unmarshal(raw.Transactions, &bodies); err == nil {
+		for _, b := range bodies {
+			txs = append(txs, b.transaction())
 		}
-		if err := json.Unmarshal(raw.Transactions, &txs); err == nil {
-			for _, tx := range txs {
-				txHashes = append(txHashes, tx.Hash)
+	} else {
+		var hashes []string
+		if err := json.Unmarshal(raw.Transactions, &hashes); err == nil {
+			for _, h := range hashes {
+				txs = append(txs, Transaction{Hash: h})
 			}
 		}
 	}
@@ -471,105 +475,190 @@ func (a *Adapter) parseEVMBlock(data json.RawMessage) (*EVMBlock, error) {
 		GasLimit:     hexToUint64(raw.GasLimit),
 		GasUsed:      hexToUint64(raw.GasUsed),
 		Timestamp:    time.Unix(int64(hexToUint64(raw.Timestamp)), 0),
-		TxCount:      len(txHashes),
+		TxCount:      len(txs),
 		BaseFee:      raw.BaseFee,
 		Size:         hexToUint64(raw.Size),
-		Transactions: txHashes,
+		Transactions: txs,
 	}, nil
 }
 
-// GetTransactionReceipt fetches a transaction receipt
-func (a *Adapter) GetTransactionReceipt(ctx context.Context, txHash string) (*Transaction, []Log, error) {
-	result, err := a.call(ctx, "eth_getTransactionReceipt", []interface{}{txHash})
-	if err != nil {
-		return nil, nil, err
-	}
+// txBody is a transaction as a block carries it: everything the sender
+// submitted, and nothing about what happened when it ran.
+type txBody struct {
+	Hash             string `json:"hash"`
+	BlockHash        string `json:"blockHash"`
+	BlockNumber      string `json:"blockNumber"`
+	From             string `json:"from"`
+	To               string `json:"to"`
+	Value            string `json:"value"`
+	Gas              string `json:"gas"`
+	GasPrice         string `json:"gasPrice"`
+	Nonce            string `json:"nonce"`
+	Input            string `json:"input"`
+	TransactionIndex string `json:"transactionIndex"`
+	Type             string `json:"type"`
+}
 
-	var receipt struct {
-		TransactionHash  string `json:"transactionHash"`
-		BlockHash        string `json:"blockHash"`
-		BlockNumber      string `json:"blockNumber"`
-		From             string `json:"from"`
-		To               string `json:"to"`
-		GasUsed          string `json:"gasUsed"`
-		Status           string `json:"status"`
-		ContractAddress  string `json:"contractAddress"`
-		TransactionIndex string `json:"transactionIndex"`
-		Logs             []struct {
-			Address  string   `json:"address"`
-			Topics   []string `json:"topics"`
-			Data     string   `json:"data"`
-			LogIndex string   `json:"logIndex"`
-			Removed  bool     `json:"removed"`
-		} `json:"logs"`
+func (b txBody) transaction() Transaction {
+	return Transaction{
+		Hash:             b.Hash,
+		BlockHash:        b.BlockHash,
+		BlockNumber:      hexToUint64(b.BlockNumber),
+		From:             strings.ToLower(b.From),
+		To:               strings.ToLower(b.To),
+		Value:            b.Value,
+		Gas:              hexToUint64(b.Gas),
+		GasPrice:         b.GasPrice,
+		Nonce:            hexToUint64(b.Nonce),
+		Input:            b.Input,
+		TransactionIndex: hexToUint64(b.TransactionIndex),
+		Type:             uint8(hexToUint64(b.Type)),
 	}
+}
 
-	if err := json.Unmarshal(result, &receipt); err != nil {
-		return nil, nil, fmt.Errorf("parse receipt: %w", err)
-	}
+// Receipt is what running a transaction produced: the fields the block's
+// own copy cannot carry, plus the logs it emitted.
+type Receipt struct {
+	TxHash          string
+	TxIndex         uint64
+	BlockHash       string
+	BlockNumber     uint64
+	From            string
+	To              string
+	Status          *int
+	GasUsed         uint64
+	ContractAddress string
+	Logs            []Log
+}
 
-	tx := &Transaction{
-		Hash:             receipt.TransactionHash,
-		BlockHash:        receipt.BlockHash,
-		BlockNumber:      hexToUint64(receipt.BlockNumber),
-		From:             strings.ToLower(receipt.From),
-		To:               strings.ToLower(receipt.To),
-		GasUsed:          hexToUint64(receipt.GasUsed),
-		TransactionIndex: hexToUint64(receipt.TransactionIndex),
-		ContractAddress:  strings.ToLower(receipt.ContractAddress),
+// receiptJSON is the wire shape of a receipt, shared by the hash-keyed and
+// block-keyed reads so both understand a receipt the same way.
+type receiptJSON struct {
+	TransactionHash  string `json:"transactionHash"`
+	BlockHash        string `json:"blockHash"`
+	BlockNumber      string `json:"blockNumber"`
+	From             string `json:"from"`
+	To               string `json:"to"`
+	GasUsed          string `json:"gasUsed"`
+	Status           string `json:"status"`
+	ContractAddress  string `json:"contractAddress"`
+	TransactionIndex string `json:"transactionIndex"`
+	Logs             []struct {
+		Address  string   `json:"address"`
+		Topics   []string `json:"topics"`
+		Data     string   `json:"data"`
+		LogIndex string   `json:"logIndex"`
+		Removed  bool     `json:"removed"`
+	} `json:"logs"`
+}
+
+func (r receiptJSON) receipt() Receipt {
+	out := Receipt{
+		TxHash:          r.TransactionHash,
+		TxIndex:         hexToUint64(r.TransactionIndex),
+		BlockHash:       r.BlockHash,
+		BlockNumber:     hexToUint64(r.BlockNumber),
+		From:            strings.ToLower(r.From),
+		To:              strings.ToLower(r.To),
+		GasUsed:         hexToUint64(r.GasUsed),
+		ContractAddress: strings.ToLower(r.ContractAddress),
 	}
-	switch receipt.Status {
+	switch r.Status {
 	case "0x1":
 		v := 1
-		tx.Status = &v
+		out.Status = &v
 	case "0x0":
 		v := 0
-		tx.Status = &v
+		out.Status = &v
 	default:
 		// missing or empty = pending (nil)
 	}
-
-	var logs []Log
-	for _, l := range receipt.Logs {
-		logs = append(logs, Log{
-			TxHash:      receipt.TransactionHash,
+	for _, l := range r.Logs {
+		out.Logs = append(out.Logs, Log{
+			TxHash:      r.TransactionHash,
 			LogIndex:    hexToUint64(l.LogIndex),
-			BlockNumber: tx.BlockNumber,
+			BlockNumber: out.BlockNumber,
 			Address:     strings.ToLower(l.Address),
 			Topics:      l.Topics,
 			Data:        l.Data,
 			Removed:     l.Removed,
 		})
 	}
+	return out
+}
 
-	// Second hop: eth_getTransactionByHash. The receipt has the post-
-	// execution fields (status, gasUsed, logs) but NOT the calldata
-	// (input), nor the original-submission fields (value, gasPrice, gas
-	// limit, nonce, type). The explorer needs `input` for the SPA's
-	// method-decode panel + `value/gasPrice/gas/nonce` for the tx-detail
-	// summary. Combine both responses into the single Transaction shape.
+// BlockReceipts returns the execution result of every transaction in a
+// block, read by block number.
+//
+// eth_getTransactionReceipt and eth_getTransactionByHash both resolve a
+// transaction through the hash-to-block index. A node restored from an RLP
+// import serves blocks and receipts but builds no such index, so those two
+// answer null for history that is plainly present. Reading by block number
+// needs no index, and costs one round trip per block instead of two per
+// transaction.
+func (a *Adapter) BlockReceipts(ctx context.Context, number uint64) ([]Receipt, error) {
+	result, err := a.call(ctx, "eth_getBlockReceipts", []interface{}{fmt.Sprintf("0x%x", number)})
+	if err != nil {
+		return nil, err
+	}
+	var raw []receiptJSON
+	if err := json.Unmarshal(result, &raw); err != nil {
+		return nil, fmt.Errorf("parse block receipts: %w", err)
+	}
+	out := make([]Receipt, 0, len(raw))
+	for _, r := range raw {
+		out = append(out, r.receipt())
+	}
+	return out, nil
+}
+
+// GetTransactionReceipt fetches one transaction by hash, combining its
+// receipt with the submitted fields the receipt omits. A node that cannot
+// resolve the hash answers null; that is a miss, reported as a nil
+// transaction, never an empty one.
+func (a *Adapter) GetTransactionReceipt(ctx context.Context, txHash string) (*Transaction, []Log, error) {
+	result, err := a.call(ctx, "eth_getTransactionReceipt", []interface{}{txHash})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var raw receiptJSON
+	if err := json.Unmarshal(result, &raw); err != nil {
+		return nil, nil, fmt.Errorf("parse receipt: %w", err)
+	}
+	if raw.TransactionHash == "" {
+		return nil, nil, nil
+	}
+	r := raw.receipt()
+
+	tx := &Transaction{
+		Hash:             r.TxHash,
+		BlockHash:        r.BlockHash,
+		BlockNumber:      r.BlockNumber,
+		From:             r.From,
+		To:               r.To,
+		GasUsed:          r.GasUsed,
+		TransactionIndex: r.TxIndex,
+		ContractAddress:  r.ContractAddress,
+		Status:           r.Status,
+	}
+
+	// Second hop: the receipt has the post-execution fields (status,
+	// gasUsed, logs) but not the calldata, nor the original-submission
+	// fields (value, gasPrice, gas limit, nonce, type).
 	if byHash, err := a.call(ctx, "eth_getTransactionByHash", []interface{}{txHash}); err == nil {
-		var t2 struct {
-			Input                string `json:"input"`
-			Value                string `json:"value"`
-			GasPrice             string `json:"gasPrice"`
-			Gas                  string `json:"gas"`
-			Nonce                string `json:"nonce"`
-			Type                 string `json:"type"`
-			MaxFeePerGas         string `json:"maxFeePerGas"`
-			MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas"`
-		}
-		if json.Unmarshal(byHash, &t2) == nil {
-			tx.Input = t2.Input
-			tx.Value = t2.Value
-			tx.GasPrice = t2.GasPrice
-			tx.Gas = hexToUint64(t2.Gas)
-			tx.Nonce = hexToUint64(t2.Nonce)
-			tx.Type = uint8(hexToUint64(t2.Type))
+		var b txBody
+		if json.Unmarshal(byHash, &b) == nil {
+			tx.Input = b.Input
+			tx.Value = b.Value
+			tx.GasPrice = b.GasPrice
+			tx.Gas = hexToUint64(b.Gas)
+			tx.Nonce = hexToUint64(b.Nonce)
+			tx.Type = uint8(hexToUint64(b.Type))
 		}
 	}
 
-	return tx, logs, nil
+	return tx, r.Logs, nil
 }
 
 // TraceTransaction traces internal calls for a transaction using debug_traceTransaction
