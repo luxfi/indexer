@@ -18,9 +18,11 @@ name: Release
 #   * `cache-from: type=gha` is the GitHub-hosted Actions cache service. The
 #     registry cache is backend-independent.
 #
-# arm64 is dropped with it. It was built by QEMU emulation on an amd64 runner,
-# which is hours rather than minutes; it returns as a native matrix entry when
-# we own an arm64 runner. Until then this image is amd64-only.
+# arm64 is back, emulated on the amd64 pool. The lab runs both architectures,
+# so a single-arch tag deploys on half of it — a slow build beats an image that
+# cannot be pulled. It is emulated rather than cross-compiled because the
+# Dockerfile builds indexerd with CGO against sqlite-dev, so the compile runs
+# inside the target-arch container instead of keying off TARGETARCH.
 #
 # Semver-only: only a v* tag produces a {{version}} manifest, plus an immutable
 # sha tag on every run. No :latest, no floating tags.
@@ -41,9 +43,16 @@ concurrency:
 jobs:
   docker:
     runs-on: [lux-build-linux-amd64]
-    timeout-minutes: 45
+    # The arm64 leg compiles under emulation; 45 minutes was sized for amd64
+    # alone and would abort the release part-way through the second platform.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+
+      # binfmt for the emulated arm64 leg. One job builds both platforms on the
+      # amd64 pool, so without an interpreter registered the arm64 RUN steps
+      # have nothing to execute.
+      - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
         with:
@@ -68,7 +77,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=registry,ref=ghcr.io/luxfi/indexer:buildcache
