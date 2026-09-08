@@ -32,7 +32,7 @@ type TestConfig struct {
 func DefaultConfig() *TestConfig {
 	rpcURL := os.Getenv("LUX_RPC_URL")
 	if rpcURL == "" {
-		rpcURL = "http://127.0.0.1:9650/v1/chain/C/rpc"
+		rpcURL = "http://127.0.0.1:9650/v1/chain/c/rpc"
 	}
 
 	return &TestConfig{

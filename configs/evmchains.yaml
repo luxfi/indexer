@@ -10,7 +10,7 @@ chains:
     name: "Lux C-Chain"
     chain_id: 96369
     port: 4000
-    rpc: "${CCHAIN_RPC:-http://luxd-headless.lux-mainnet.svc:9630/v1/chain/C/rpc}"
+    rpc: "${CCHAIN_RPC:-http://luxd-headless.lux-mainnet.svc:9630/v1/chain/c/rpc}"
     enabled: true
 
   - slug: zoo

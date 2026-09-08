@@ -216,16 +216,16 @@ func GetRPCEndpoint(chain string) string {
 	// Check for external node via LUX_RPC_URL
 	if baseURL := os.Getenv("LUX_RPC_URL"); baseURL != "" {
 		// Extract host:port from base URL
-		// e.g., http://127.0.0.1:9650/v1/chain/C/rpc -> http://127.0.0.1:9650
+		// e.g., http://127.0.0.1:9650/v1/chain/c/rpc -> http://127.0.0.1:9650
 		parts := strings.Split(baseURL, "/v1/")
 		host := parts[0]
 		switch strings.ToUpper(chain) {
 		case "C":
-			return host + "/v1/chain/C/rpc"
+			return host + "/v1/chain/c/rpc"
 		case "P":
-			return host + "/v1/chain/P"
+			return host + "/v1/chain/p"
 		case "X":
-			return host + "/v1/chain/X"
+			return host + "/v1/chain/x"
 		default:
 			return host + "/v1/chain/" + chain + "/rpc"
 		}
@@ -238,11 +238,11 @@ func GetRPCEndpoint(chain string) string {
 
 	switch strings.ToUpper(chain) {
 	case "C":
-		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/C/rpc", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/c/rpc", port)
 	case "P":
-		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/P", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/p", port)
 	case "X":
-		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/X", port)
+		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/x", port)
 	default:
 		return fmt.Sprintf("http://127.0.0.1:%d/v1/chain/%s/rpc", port, chain)
 	}

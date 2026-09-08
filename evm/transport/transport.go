@@ -49,7 +49,7 @@ func isLuxdEndpoint(endpoint string) bool {
 
 // luxdZAPAddr derives the ZAP TCP address from a luxd HTTP endpoint.
 // luxd listens for ZAP on HTTP port + 10 by convention.
-// e.g. http://luxd-0.luxd:9630/v1/chain/C/rpc -> luxd-0.luxd:9640
+// e.g. http://luxd-0.luxd:9630/v1/chain/c/rpc -> luxd-0.luxd:9640
 func luxdZAPAddr(endpoint string) string {
 	// Strip scheme
 	addr := endpoint

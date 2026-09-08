@@ -16,7 +16,7 @@ import (
 
 // TestNew tests adapter creation
 func TestNew(t *testing.T) {
-	endpoint := "http://localhost:9650/v1/chain/X"
+	endpoint := "http://localhost:9650/v1/chain/x"
 	adapter := New(endpoint)
 
 	if adapter == nil {
