@@ -126,7 +126,7 @@ data:
         name: Lux C-Chain
         chain_id: 96369
         type: evm
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/C/rpc
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/c/rpc
         coin: LUX
         enabled: true
         default: true
@@ -162,12 +162,12 @@ data:
       - slug: xchain
         name: X-Chain
         type: dag
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/X
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/x
         coin: LUX
         enabled: true
       - slug: pchain
         name: P-Chain
         type: linear
-        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/P
+        rpc: http://luxd-0.luxd-headless.lux-mainnet.svc:9630/v1/chain/p
         coin: LUX
         enabled: true

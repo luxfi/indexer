@@ -23,8 +23,8 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name:     "custom endpoint",
-			endpoint: "http://localhost:9650/v1/chain/P",
-			expected: "http://localhost:9650/v1/chain/P",
+			endpoint: "http://localhost:9650/v1/chain/p",
+			expected: "http://localhost:9650/v1/chain/p",
 		},
 		{
 			name:     "empty endpoint uses default",
@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 
 // TestConstants tests package constants
 func TestConstants(t *testing.T) {
-	if DefaultRPCEndpoint != "http://localhost:9650/v1/chain/P" {
+	if DefaultRPCEndpoint != "http://localhost:9650/v1/chain/p" {
 		t.Errorf("unexpected DefaultRPCEndpoint: %s", DefaultRPCEndpoint)
 	}
 	if DefaultHTTPPort != 4100 {

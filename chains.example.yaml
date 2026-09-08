@@ -19,7 +19,7 @@ chains:
     name: C-Chain
     chain_id: 96369
     type: evm
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/C/rpc
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/c/rpc
     coin: LUX
     enabled: true
     default: true
@@ -31,7 +31,7 @@ chains:
   - slug: pchain
     name: P-Chain
     type: linear
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/P
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/p
     coin: LUX
     enabled: true
 
@@ -39,7 +39,7 @@ chains:
   - slug: xchain
     name: X-Chain
     type: dag
-    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/X
+    rpc: ${LUX_RPC:-http://localhost:9650}/v1/chain/x
     coin: LUX
     enabled: true
 

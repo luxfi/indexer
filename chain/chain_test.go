@@ -145,7 +145,7 @@ func TestConfigValidation(t *testing.T) {
 	cfg := Config{
 		ChainType:   ChainP,
 		ChainName:   "P-Chain",
-		RPCEndpoint: "http://localhost:9630/v1/chain/P",
+		RPCEndpoint: "http://localhost:9630/v1/chain/p",
 		RPCMethod:   "pvm",
 		DataDir:     "/tmp/test-indexer/pchain",
 		HTTPPort:    4100,
