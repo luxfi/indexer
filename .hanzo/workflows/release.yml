@@ -6,7 +6,7 @@ name: Release
 # work here:
 #
 #   * `runs-on: [self-hosted, linux, amd64]` is the bare triple. The pool on
-#     this forge is named `lux-build-linux-amd64`; nothing answers to the
+#     this forge is named `linux-amd64`; nothing answers to the
 #     triple, and a job naming a label no runner carries does not fail, it
 #     waits.
 #
@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   docker:
-    runs-on: [lux-build-linux-amd64]
+    runs-on: [linux-amd64]
     # The arm64 leg compiles under emulation; 45 minutes was sized for amd64
     # alone and would abort the release part-way through the second platform.
     timeout-minutes: 180
