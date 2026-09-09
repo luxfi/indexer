@@ -12,13 +12,13 @@ ARG VERSION=dev
 # sum.golang.org cross-checks.
 RUN rm -f go.sum && CGO_ENABLED=1 CGO_CFLAGS="-D_LARGEFILE64_SOURCE" GOOS=linux \
     GOSUMDB=off go build -mod=mod \
-    -ldflags="-s -w -X main.version=${VERSION}" -o /indexerd ./cmd/indexerd/
+    -ldflags="-s -w -linkmode external -extldflags '-static' -X main.version=${VERSION}" -o /indexerd ./cmd/indexerd/
 
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates sqlite-libs
+# The binary and the TLS roots, nothing else. Statically linked, so no libc and
+# no sqlite-libs to keep patched, and no shell for anything to run in.
+FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /indexerd /usr/local/bin/indexerd
-RUN adduser -D -u 65532 indexer
-USER indexer
+USER nonroot
 VOLUME /data
 ENV DATA_DIR=/data HTTP_ADDR=:8091
 EXPOSE 8091
