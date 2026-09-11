@@ -40,7 +40,7 @@ Files importing `github.com/hanzoai/base/core`:
 - `collections.go`, `notifications.go`, `concentration.go` — same.
 - `graphql_test.go` — rewrite against plain `httptest.Server`.
 
-Rationale: `hanzoai/base` is an application framework (PocketBase fork) —
+Rationale: `hanzoai/base` is an application framework —
 overkill for a stateless per-chain indexer. Adds a 40 MB dep, a DB layer
 we don't use (SQLite chain DBs are per-chain, not Base's central DB),
 and blocks embedding in CI-built binaries.
