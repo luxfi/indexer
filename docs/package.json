@@ -8,7 +8,7 @@
     "export": "docs-mdx && next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "node_modules/tsgo/bin/tsc --noEmit --incremental false",
     "postinstall": "docs-mdx"
   },
   "dependencies": {
@@ -31,7 +31,8 @@
     "@types/react-dom": "^19.2.3",
     "rehype-pretty-code": "^0.14.1",
     "shiki": "^1.27.2",
-    "typescript": "7.0.2"
+    "tsgo": "npm:typescript@7.0.2",
+    "typescript": "6.0.3"
   },
   "packageManager": "pnpm@9.15.0"
 }
