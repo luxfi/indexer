@@ -44,3 +44,6 @@ QWEN.md
 
 # Runtime
 logs/
+
+# Node
+node_modules/
