@@ -79,7 +79,7 @@ export function StatsPage() {
             { label: 'Total Blocks', value: Number(stats.total_blocks).toLocaleString() },
             { label: 'Total Transactions', value: Number(stats.total_transactions).toLocaleString() },
             { label: 'Total Addresses', value: Number(stats.total_addresses).toLocaleString() },
-            { label: 'Avg Block Time', value: `${stats.average_block_time.toFixed(1)}s` },
+            { label: 'Avg Block Time', value: `${(stats.average_block_time / 1000).toFixed(1)}s` },
             { label: 'Coin Price', value: stats.coin_price ? `$${stats.coin_price}` : '--' },
             { label: 'Market Cap', value: stats.market_cap ? `$${Number(stats.market_cap).toLocaleString()}` : '--' },
           ].map((item) => (

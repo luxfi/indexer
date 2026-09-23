@@ -244,13 +244,14 @@ func TestAddress_BalanceComesFromChain(t *testing.T) {
 	}
 }
 
-// average_block_time was structurally 0: subtracting two TEXT datetimes in
-// SQLite yields 0, so the SPA printed blocks as arriving instantaneously.
+// average_block_time is milliseconds, and was structurally 0: subtracting two
+// TEXT datetimes in SQLite yields 0, so the SPA printed blocks as arriving
+// instantaneously.
 func TestStats_BlockTimeAndTodayAreReal(t *testing.T) {
 	ts := newEVMServer(t, "")
 	body := getObj(t, ts, "/v1/explorer/stats")
-	if bt, _ := body["average_block_time"].(float64); bt <= 0 {
-		t.Errorf("want a positive average block time from two blocks 3s apart, got %v", body["average_block_time"])
+	if bt, _ := body["average_block_time"].(float64); bt != 3000 {
+		t.Errorf("want 3000 ms from two blocks 3s apart, got %v", body["average_block_time"])
 	}
 	if body["gas_used_today"] == "0" {
 		t.Errorf("want today's gas from blocks minted seconds ago, got %v", body["gas_used_today"])

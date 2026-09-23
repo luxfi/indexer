@@ -1247,7 +1247,7 @@ func (s *StandaloneServer) stats(r *http.Request) (any, int) {
 		"total_blocks":                   fmt.Sprintf("%d", bc),
 		"total_addresses":                fmt.Sprintf("%d", ac),
 		"total_transactions":             fmt.Sprintf("%d", tc),
-		"average_block_time":             avgBlockTime,
+		"average_block_time":             avgBlockTime * 1000, // milliseconds, as Blockscout's /stats defines it
 		"coin_price":                     nil,
 		"coin_price_change_percentage":   nil,
 		"total_gas_used":                 fmt.Sprintf("%.0f", totalGas),

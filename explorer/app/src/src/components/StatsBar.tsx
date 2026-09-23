@@ -10,7 +10,7 @@ export function StatsBar() {
     { label: 'Blocks', value: Number(data.total_blocks).toLocaleString() },
     { label: 'Transactions', value: Number(data.total_transactions).toLocaleString() },
     { label: 'Addresses', value: Number(data.total_addresses).toLocaleString() },
-    { label: 'Avg Block Time', value: `${data.average_block_time.toFixed(1)}s` },
+    { label: 'Avg Block Time', value: `${(data.average_block_time / 1000).toFixed(1)}s` },
   ]
 
   return (
