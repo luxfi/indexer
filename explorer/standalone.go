@@ -140,7 +140,7 @@ func NewStandaloneServer(cfg Config) (*StandaloneServer, error) {
 	// SQLite's WAL journal lets the indexer's writer + this connection's
 	// occasional verify writes coexist without lockup; readers continue
 	// concurrently via separate connections in the same pool.
-	dsn := fmt.Sprintf("file:%s?mode=rw&_journal_mode=WAL&_busy_timeout=5000&cache=shared", cfg.IndexerDBPath)
+	dsn := fmt.Sprintf("file:%s?mode=rw&_journal_mode=WAL&_busy_timeout=5000", cfg.IndexerDBPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err

@@ -72,7 +72,11 @@ func NewSQLite(cfg Config) (*SQLite, error) {
 	if os.Getenv("REPLICATE_S3_ENDPOINT") != "" {
 		ckpt = "&_auto_checkpoint=0"
 	}
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&cache=shared%s", path, ckpt)
+	// No shared cache. The explorer reads this file from the same process, and
+	// in shared-cache mode SQLite locks per table and answers a blocked write
+	// with SQLITE_LOCKED, which busy_timeout does not wait out: the write fails
+	// at once. WAL alone lets readers and this one writer run together.
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000%s", path, ckpt)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite: %w", err)

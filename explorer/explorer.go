@@ -132,7 +132,7 @@ func (s *Service) Close() {
 
 // openIndexerDB opens a read-only connection to the indexer's SQLite database.
 func (s *Service) openIndexerDB() error {
-	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", s.config.IndexerDBPath)
+	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", s.config.IndexerDBPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return fmt.Errorf("explorer: failed to open indexer db: %w", err)
@@ -154,7 +154,7 @@ func (s *Service) openIndexerDB() error {
 		s.chainDBs = make(map[string]*sql.DB, len(s.config.ChainDBPaths))
 		for chain, dbPath := range s.config.ChainDBPaths {
 			cdb, err := sql.Open("sqlite3",
-				fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", dbPath))
+				fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", dbPath))
 			if err != nil {
 				s.logger.Warn("explorer: failed to open cross-chain db",
 					slog.String("chain", chain), slog.String("error", err.Error()))

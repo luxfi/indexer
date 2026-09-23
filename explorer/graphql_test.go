@@ -194,7 +194,7 @@ func TestCrossChainSearch(t *testing.T) {
 
 	// Open cross-chain DB connections (mirrors openIndexerDB behavior).
 	zoo, err := sql.Open("sqlite3",
-		fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000&cache=shared", tdb2.Path))
+		fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", tdb2.Path))
 	if err != nil {
 		t.Fatal(err)
 	}
