@@ -93,7 +93,7 @@ func (h *HTTP) BatchCall(ctx context.Context, calls []RPCCall) ([]json.RawMessag
 
 	var results []struct {
 		Result json.RawMessage `json:"result"`
-		Error  *rpcError       `json:"error"`
+		Error  *RPCError       `json:"error"`
 		ID     uint64          `json:"id"`
 	}
 
@@ -104,7 +104,7 @@ func (h *HTTP) BatchCall(ctx context.Context, calls []RPCCall) ([]json.RawMessag
 	out := make([]json.RawMessage, len(results))
 	for i, r := range results {
 		if r.Error != nil {
-			return nil, fmt.Errorf("rpc error %d in batch[%d]: %s", r.Error.Code, i, r.Error.Message)
+			return nil, fmt.Errorf("batch[%d]: %w", i, r.Error)
 		}
 		out[i] = r.Result
 	}
@@ -141,7 +141,7 @@ func (h *HTTP) doRequest(ctx context.Context, body []byte) (json.RawMessage, err
 
 	var result struct {
 		Result json.RawMessage `json:"result"`
-		Error  *rpcError       `json:"error"`
+		Error  *RPCError       `json:"error"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -149,13 +149,20 @@ func (h *HTTP) doRequest(ctx context.Context, body []byte) (json.RawMessage, err
 	}
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("rpc error %d: %s", result.Error.Code, result.Error.Message)
+		return nil, result.Error
 	}
 
 	return result.Result, nil
 }
 
-type rpcError struct {
+// RPCError is the error object a JSON-RPC server answers with. Its code is
+// what tells "this node has no such method" (MethodNotFound) from a failure.
+type RPCError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
+
+// MethodNotFound is the JSON-RPC code for a method the server does not serve.
+const MethodNotFound = -32601
+
+func (e *RPCError) Error() string { return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message) }

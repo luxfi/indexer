@@ -54,9 +54,15 @@ const reorgDepth = 128
 const regenesisConfirmations = 3
 
 // auditInterval is how often the index is checked for heights it should hold
-// and does not. Each check reads only the heights above the last clean one, so
-// its cost is one indexed range count however long the chain is.
+// and does not, and for blocks whose transactions it holds wrongly. Each check
+// reads only the heights above the last clean one, so its cost is a few indexed
+// range counts however long the chain is.
 const auditInterval = 5 * time.Minute
+
+// auditBudget is how many mismatched heights one audit pass reads again. A
+// pass with more to do stops there and the next runs right after the next head
+// poll, so repairing a long history never holds the head back for long.
+const auditBudget = 256
 
 // Indexer is the main EVM chain indexer
 type Indexer struct {
@@ -76,8 +82,9 @@ type Indexer struct {
 	// genesisAt fetches block 0's hash. A field so tests can answer without a
 	// network.
 	genesisAt func(context.Context) (string, error)
-	// audited is the lowest height no audit has yet proven held: every height
-	// from StartBlock up to it is in the index. Zero after the index is emptied.
+	// audited is the lowest height no audit has yet proven whole: every height
+	// from StartBlock up to it is in the index with its transactions. Zero
+	// after the index is emptied.
 	audited uint64
 }
 
@@ -356,10 +363,11 @@ func (idx *Indexer) startIndexing(ctx context.Context) {
 		log.Printf("[evm] Backfilled %d addresses from existing transactions", n)
 	}
 
-	// Fill whatever an earlier run left missing, then index immediately on
-	// startup before entering the ticker loop. The audit runs on this goroutine
-	// so the index keeps a single writer.
-	idx.audit(ctx)
+	// Repair whatever an earlier run left missing or wrong, then index
+	// immediately on startup before entering the ticker loop. The audit runs on
+	// this goroutine so the index keeps a single writer; while it has more to
+	// do, a pass follows every head poll.
+	more := idx.audit(ctx)
 	idx.indexNewBlocks(ctx)
 
 	ticker := time.NewTicker(2 * time.Second)
@@ -372,37 +380,47 @@ func (idx *Indexer) startIndexing(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-audit.C:
-			idx.audit(ctx)
+			more = idx.audit(ctx)
 		case <-ticker.C:
 			idx.indexNewBlocks(ctx)
+			if more {
+				more = idx.audit(ctx)
+			}
 		}
 	}
 }
 
-// audit indexes every height the index should hold and does not, from the last
-// clean audit up to the highest block held. The height loop resumes from MAX+1
-// and never looks under it, so a height it once moved past stays missing unless
-// something goes back for it; this is that. A height that still cannot be read
-// ends the pass, and the next audit starts from the same place.
-func (idx *Indexer) audit(ctx context.Context) {
-	// A null block used to be stored as a row with no hash at height 0. It is
-	// not a block, and counting it made the index look one block fuller.
-	if err := idx.store.Exec(ctx, "DELETE FROM evm_blocks WHERE hash = ''"); err != nil {
-		log.Printf("[evm] audit: %v", err)
-		return
+// audit makes the index whole from the last clean audit up to the highest block
+// held. It indexes every height missing under that block, then reads again
+// every height whose stored transactions do not match it. The height loop
+// resumes from MAX+1 and never looks under it, so whatever an earlier run left
+// missing or wrong stays that way unless something goes back for it; this is
+// that. A height that still cannot be read ends the pass, and the next audit
+// starts from the same place. It reports whether it stopped at auditBudget with
+// heights left to read again.
+func (idx *Indexer) audit(ctx context.Context) bool {
+	// Rows that were never anything: a null block stored as a row with no hash
+	// at height 0, and a transaction stored with no hash, which the hash key
+	// then merged every later one into. The heights they stood for are found
+	// below, as a gap or as a block short of its transactions.
+	for _, t := range []string{"evm_blocks", "evm_transactions"} {
+		if err := idx.store.Exec(ctx, "DELETE FROM "+t+" WHERE hash = ''"); err != nil {
+			log.Printf("[evm] audit: %v", err)
+			return false
+		}
 	}
 	from := max(idx.audited, idx.config.StartBlock)
 	holes, next, err := idx.holes(ctx, from)
 	if err != nil {
 		log.Printf("[evm] audit: %v", err)
-		return
+		return false
 	}
 	filled := 0
 	for _, h := range holes {
 		for n := h[0]; n <= h[1]; n++ {
 			if _, err := idx.indexBlock(ctx, n); err != nil {
 				log.Printf("[evm] audit: height %d: %v (filled %d, next audit resumes here)", n, err, filled)
-				return
+				return false
 			}
 			filled++
 		}
@@ -410,7 +428,63 @@ func (idx *Indexer) audit(ctx context.Context) {
 	if filled > 0 {
 		log.Printf("[evm] audit: filled %d missing heights in %d holes between %d and %d", filled, len(holes), from, next-1)
 	}
+	// Every hole at or above from is filled, so a height under the first one
+	// not yet read again is whole: that is where the next pass starts.
+	wrong, err := idx.mismatched(ctx, from)
+	if err != nil {
+		log.Printf("[evm] audit: %v", err)
+		return false
+	}
+	for i, n := range wrong {
+		if i == auditBudget {
+			idx.audited = n
+			log.Printf("[evm] audit: re-read %d heights whose transactions did not match their block; %d remain from %d", i, len(wrong)-i, n)
+			return true
+		}
+		if _, err := idx.indexBlock(ctx, n); err != nil {
+			idx.audited = n
+			log.Printf("[evm] audit: height %d: %v (re-read %d of %d, next audit resumes here)", n, err, i, len(wrong))
+			return false
+		}
+	}
+	if len(wrong) > 0 {
+		log.Printf("[evm] audit: re-read %d heights whose transactions did not match their block, between %d and %d", len(wrong), wrong[0], wrong[len(wrong)-1])
+	}
 	idx.audited = next
+	return false
+}
+
+// mismatched returns the heights at or above from whose stored transactions do
+// not match the block held there: a block with more or fewer transaction rows
+// than it carries, or transaction rows filed under a block hash the index does
+// not hold at their height. The totals come first; they agree whenever every
+// block does, so a consistent index costs two range reads and the per-block
+// comparison runs only when they differ.
+func (idx *Indexer) mismatched(ctx context.Context, from uint64) ([]uint64, error) {
+	rows, err := idx.store.Query(ctx, fmt.Sprintf(`SELECT
+		(SELECT COALESCE(SUM(tx_count), 0) FROM evm_blocks WHERE number >= %[1]d) AS want,
+		(SELECT COUNT(*) FROM evm_transactions WHERE block_number >= %[1]d) AS have`, from))
+	if err != nil {
+		return nil, fmt.Errorf("count transactions: %w", err)
+	}
+	if len(rows) == 0 || toInt64(rows[0]["want"]) == toInt64(rows[0]["have"]) {
+		return nil, nil
+	}
+	rows, err = idx.store.Query(ctx, fmt.Sprintf(`
+		SELECT number FROM evm_blocks b WHERE number >= %[1]d AND tx_count != (
+			SELECT COUNT(*) FROM evm_transactions t WHERE t.block_number = b.number AND t.block_hash = b.hash)
+		UNION
+		SELECT block_number AS number FROM evm_transactions t WHERE block_number >= %[1]d AND NOT EXISTS (
+			SELECT 1 FROM evm_blocks b WHERE b.number = t.block_number AND b.hash = t.block_hash)
+		ORDER BY number`, from))
+	if err != nil {
+		return nil, fmt.Errorf("compare transactions: %w", err)
+	}
+	out := make([]uint64, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, uint64(toInt64(r["number"])))
+	}
+	return out, nil
 }
 
 // holes returns the runs of heights at or above from that the index does not
@@ -540,22 +614,19 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 		}
 	}
 
-	// Get last indexed block from storage
+	// Get last indexed block from storage. An empty index has no MAX, which is
+	// not the same as holding block 0.
 	var lastIndexed uint64
-	rows, queryErr := idx.store.Query(ctx, "SELECT COALESCE(MAX(number), 0) as max_num FROM evm_blocks")
+	var empty bool
+	rows, queryErr := idx.store.Query(ctx, "SELECT MAX(number) as max_num FROM evm_blocks")
 	if queryErr != nil {
 		log.Printf("[evm] Failed to query last indexed block: %v", queryErr)
 		return
 	}
-	if len(rows) > 0 {
-		if v, ok := rows[0]["max_num"]; ok {
-			switch h := v.(type) {
-			case int64:
-				lastIndexed = uint64(h)
-			case float64:
-				lastIndexed = uint64(h)
-			}
-		}
+	if len(rows) == 0 || rows[0]["max_num"] == nil {
+		empty = true
+	} else {
+		lastIndexed = uint64(toInt64(rows[0]["max_num"]))
 	}
 
 	// A chain rebuilt from genesis reports a head below everything we hold, so
@@ -567,18 +638,16 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 			log.Printf("[evm] could not clear the replaced chain: %v", err)
 			return
 		}
-		lastIndexed = 0
+		lastIndexed, empty = 0, true
 	}
 
 	// Index new blocks. When there is existing state, resume from MAX+1.
 	// Otherwise, honor an operator-supplied StartBlock (useful for
-	// mainnet-fork devnets where genesis-from-0 backfill is wasteful), or
-	// fall back to 0 for a true fresh-genesis chain.
-	startBlock := lastIndexed
-	if lastIndexed > 0 {
+	// mainnet-fork devnets where genesis-from-0 backfill is wasteful), which
+	// is 0 for a true fresh-genesis chain.
+	startBlock := idx.config.StartBlock
+	if !empty {
 		startBlock = lastIndexed + 1
-	} else if idx.config.StartBlock > 0 {
-		startBlock = idx.config.StartBlock
 	}
 
 	if startBlock <= block.Number && idx.lastLogTime.Add(30*time.Second).Before(time.Now()) {
@@ -600,44 +669,51 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 
 // indexBlock stores one block with everything in it. It does not announce the
 // block: the live stream is for the head, and the audit fills old heights.
+//
+// It is safe to repeat. Rows are keyed and replaced, and the running totals —
+// an address's transaction count, a holder's balance — move only for a
+// transaction or transfer not already stored, so reading a height again
+// corrects its rows without counting anything twice. The block row is written
+// last: it is what marks the height held, so a height is held only once
+// everything in it is.
 func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock, error) {
 	block, err := idx.adapter.GetBlockByNumber(ctx, blockNum)
 	if err != nil {
 		return nil, err
 	}
 
-	// Execution results for the whole block in one read, indexed by hash, and
-	// read before anything is written: once the block row is stored this height
-	// counts as held. A node without eth_getBlockReceipts answers with an error,
-	// and its transactions are still indexed with every submitted field. A null
-	// answer is a backend that does not hold the block yet, so the block is not
-	// indexed until one that does answers.
-	receipts := make(map[string]Receipt)
-	rs, err := idx.adapter.BlockReceipts(ctx, blockNum)
-	if errors.Is(err, ErrNoBlock) && len(block.Transactions) > 0 {
+	// A transaction is its hash: it keys the row, and a row without one is not
+	// a transaction. A block that carries one without a hash is not an answer
+	// this index can store.
+	hashes := make([]string, len(block.Transactions))
+	for i, tx := range block.Transactions {
+		if tx.Hash == "" {
+			return nil, fmt.Errorf("block %d: transaction %d has no hash", blockNum, i)
+		}
+		hashes[i] = tx.Hash
+	}
+
+	// Execution results, read before anything is written. A node that serves
+	// no receipts at all leaves the transactions with every submitted field
+	// and no result. Anything else — a backend that does not hold the block, a
+	// failed call — is retried rather than stored without its results.
+	receipts := make(map[string]Receipt, len(hashes))
+	rs, err := idx.adapter.Receipts(ctx, blockNum, hashes)
+	if err != nil && !errors.Is(err, ErrNoReceipts) {
 		return nil, err
+	}
+	if err == nil && len(rs) != len(hashes) {
+		return nil, fmt.Errorf("block %d: %d receipts for %d transactions", blockNum, len(rs), len(hashes))
 	}
 	for _, r := range rs {
 		receipts[r.TxHash] = r
 	}
 
-	// Store block using EVM-specific schema with backend-portable SQL
-	query := idx.upsertBlockSQL()
-	args := idx.blockArgs(block)
-
-	err = idx.store.Exec(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store block: %w", err)
-	}
-
-	// Index transactions: fetch receipts for each tx hash. Track each
-	// address's per-block tx count and known contract status so the
-	// downstream upsert can increment counters and resolve is_contract
-	// (the old code passed isContract:false for every from/to and only
-	// flagged the contract-creation address — but a SimplePool created
-	// via `new` inside a script is a regular CALL to the creator's
-	// factory, not a top-level creation tx, so the indexer never knew
-	// it was a contract).
+	// Track each address's per-block tx count and known contract status so the
+	// downstream upsert can increment counters and resolve is_contract (a
+	// SimplePool created via `new` inside a script is a regular CALL to the
+	// creator's factory, not a top-level creation tx, so only eth_getCode tells
+	// it is a contract).
 	addrTxCount := make(map[string]uint64)
 	addrIsContract := make(map[string]bool)
 	// Track tokens discovered in this block so we can insert a placeholder
@@ -649,37 +725,31 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock,
 	itemsSeen := make(map[item]struct{})
 
 	for i, tx := range block.Transactions {
-		// An empty hash is not a transaction. Writing one anyway lands a
-		// blank row that the hash primary key then merges every later
-		// failure into, so a whole chain's history collapses to one row.
-		if tx.Hash == "" {
-			continue
-		}
 		r := receipts[tx.Hash]
 		tx.GasUsed = r.GasUsed
 		tx.Status = r.Status
 		tx.ContractAddress = r.ContractAddress
-		logs := r.Logs
 
+		fresh, err := idx.absent(ctx, "evm_transactions", "hash", tx.Hash)
+		if err != nil {
+			return nil, err
+		}
 		status := 0
 		if tx.Status != nil {
 			status = *tx.Status
 		}
-		txQ := idx.upsertTxSQL()
-		txArgs := []interface{}{
+		if err := idx.store.Exec(ctx, idx.upsertTxSQL(),
 			tx.Hash, block.Hash, int64(block.Number), i,
 			tx.From, tx.To, tx.Value,
 			int64(tx.Gas), tx.GasPrice, int64(tx.GasUsed),
 			int64(tx.Nonce), tx.Input, status, tx.ContractAddress,
-			block.Timestamp, time.Now(),
-		}
-		if err := idx.store.Exec(ctx, txQ, txArgs...); err != nil {
-			continue
+			block.Timestamp, time.Now()); err != nil {
+			return nil, fmt.Errorf("store tx %s: %w", tx.Hash, err)
 		}
 
 		// Index logs + extract token transfers. Receipts include the full
 		// log list already, so this is "free" — no separate eth_getLogs.
-		for _, l := range logs {
+		for _, l := range r.Logs {
 			logID := fmt.Sprintf("%s-%d", l.TxHash, l.LogIndex)
 			topic0, topic1, topic2, topic3 := "", "", "", ""
 			if len(l.Topics) > 0 {
@@ -694,10 +764,12 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock,
 			if len(l.Topics) > 3 {
 				topic3 = l.Topics[3]
 			}
-			_ = idx.store.Exec(ctx, idx.upsertLogSQL(),
+			if err := idx.store.Exec(ctx, idx.upsertLogSQL(),
 				logID, l.TxHash, int64(l.LogIndex), int64(block.Number),
 				l.Address, topic0, topic1, topic2, topic3, l.Data,
-				block.Timestamp, time.Now())
+				block.Timestamp, time.Now()); err != nil {
+				return nil, fmt.Errorf("store log %s: %w", logID, err)
+			}
 
 			// Every token movement in this log, decoded once by
 			// decodeTransfers — ERC-20, ERC-721, ERC-1155 single and
@@ -707,33 +779,44 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock,
 				TxHash: l.TxHash, LogIndex: l.LogIndex, BlockNumber: l.BlockNumber,
 				Address: l.Address, Topics: l.Topics, Data: l.Data,
 			}, block.Timestamp) {
-				_ = idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
+				moved, err := idx.absent(ctx, "evm_token_transfers", "id", t.ID)
+				if err != nil {
+					return nil, err
+				}
+				if err := idx.store.Exec(ctx, idx.upsertTokenTransferSQL(),
 					t.ID, t.TxHash, int64(t.LogIndex), int64(t.BlockNumber),
 					t.TokenAddress, t.TokenType, t.From, t.To, t.Value, t.TokenID,
-					block.Timestamp, time.Now())
+					block.Timestamp, time.Now()); err != nil {
+					return nil, fmt.Errorf("store transfer %s: %w", t.ID, err)
+				}
 
 				tokenLo := strings.ToLower(t.TokenAddress)
 				tokensSeen[tokenLo] = t.TokenType
-				// Per-holder state. ERC-20 moves an amount between two
-				// running totals; an ERC-721 id moves whole, so the row
-				// leaves the sender and arrives at the recipient; an
-				// ERC-1155 id has an amount per holder, so it moves like
-				// ERC-20 but keyed by id as well.
+				if t.TokenType == TypeERC721 || t.TokenType == TypeERC1155 {
+					itemsSeen[item{tokenLo, t.TokenID, t.TokenType}] = struct{}{}
+				}
+				// Per-holder state, moved once per transfer. ERC-20 moves an
+				// amount between two running totals; an ERC-721 id moves
+				// whole, so the row leaves the sender and arrives at the
+				// recipient; an ERC-1155 id has an amount per holder, so it
+				// moves like ERC-20 but keyed by id as well.
+				if !moved {
+					continue
+				}
 				switch t.TokenType {
 				case TypeERC20:
 					idx.move(ctx, tokenLo, t.From, t.To, "", t.Value, TypeERC20)
 				case TypeERC721:
 					idx.move(ctx, tokenLo, t.From, t.To, t.TokenID, "1", TypeERC721)
-					itemsSeen[item{tokenLo, t.TokenID, TypeERC721}] = struct{}{}
 				case TypeERC1155:
 					idx.move(ctx, tokenLo, t.From, t.To, t.TokenID, t.Value, TypeERC1155)
-					itemsSeen[item{tokenLo, t.TokenID, TypeERC1155}] = struct{}{}
 				}
 			}
 		}
 
 		// Each tx touches up to 3 distinct addresses. Dedup per-tx so a
-		// self-send doesn't double-count.
+		// self-send doesn't double-count, and count a tx only the first time
+		// it is stored.
 		touched := make(map[string]struct{}, 3)
 		if tx.From != "" {
 			touched[tx.From] = struct{}{}
@@ -745,8 +828,12 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock,
 			touched[tx.ContractAddress] = struct{}{}
 			addrIsContract[tx.ContractAddress] = true
 		}
+		var d uint64
+		if fresh {
+			d = 1
+		}
 		for a := range touched {
-			addrTxCount[a]++
+			addrTxCount[a] += d
 		}
 	}
 
@@ -791,7 +878,48 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock,
 			addr, int64(dCount), addrIsContract[addr], now, now)
 	}
 
+	// What this height held before and the chain no longer has: transactions
+	// filed under another block hash (a replaced block's, or none at all), and
+	// the replaced block's row. Then this block's row, which marks it held.
+	if err := idx.store.Exec(ctx, idx.sql("DELETE FROM evm_transactions WHERE block_number = ? AND block_hash != ?"),
+		int64(block.Number), block.Hash); err != nil {
+		return nil, fmt.Errorf("clear replaced transactions: %w", err)
+	}
+	if err := idx.store.Exec(ctx, idx.upsertBlockSQL(), idx.blockArgs(block)...); err != nil {
+		return nil, fmt.Errorf("store block: %w", err)
+	}
+	if err := idx.store.Exec(ctx, idx.sql("DELETE FROM evm_blocks WHERE number = ? AND hash != ?"),
+		int64(block.Number), block.Hash); err != nil {
+		return nil, fmt.Errorf("clear replaced block: %w", err)
+	}
 	return block, nil
+}
+
+// absent reports whether no row of table has col = v.
+func (idx *Indexer) absent(ctx context.Context, table, col, v string) (bool, error) {
+	rows, err := idx.store.Query(ctx, idx.sql("SELECT 1 AS x FROM "+table+" WHERE "+col+" = ? LIMIT 1"), v)
+	if err != nil {
+		return false, fmt.Errorf("look up %s: %w", table, err)
+	}
+	return len(rows) == 0, nil
+}
+
+// sql writes q's ? placeholders the way the backend numbers them.
+func (idx *Indexer) sql(q string) string {
+	if idx.store.Backend() != storage.BackendPostgres {
+		return q
+	}
+	var b strings.Builder
+	n := 0
+	for _, c := range q {
+		if c == '?' {
+			n++
+			fmt.Fprintf(&b, "$%d", n)
+			continue
+		}
+		b.WriteRune(c)
+	}
+	return b.String()
 }
 
 // backfillAddresses upserts every from/to/contract address found in
@@ -876,16 +1004,22 @@ func (idx *Indexer) upsertAddrSQL() string {
 	}
 }
 
-// upsertTxSQL returns the correct upsert SQL for transactions
+// upsertTxSQL returns the upsert SQL for transactions. A stored transaction is
+// replaced, so reading its block again corrects it.
 func (idx *Indexer) upsertTxSQL() string {
 	switch idx.store.Backend() {
 	case storage.BackendPostgres:
 		return `INSERT INTO evm_transactions (hash, block_hash, block_number, tx_index,
 			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-			ON CONFLICT (hash) DO NOTHING`
+			ON CONFLICT (hash) DO UPDATE SET
+				block_hash = EXCLUDED.block_hash, block_number = EXCLUDED.block_number, tx_index = EXCLUDED.tx_index,
+				from_addr = EXCLUDED.from_addr, to_addr = EXCLUDED.to_addr, value = EXCLUDED.value,
+				gas = EXCLUDED.gas, gas_price = EXCLUDED.gas_price, gas_used = EXCLUDED.gas_used,
+				nonce = EXCLUDED.nonce, input = EXCLUDED.input, status = EXCLUDED.status,
+				contract_addr = EXCLUDED.contract_addr, timestamp = EXCLUDED.timestamp`
 	default:
-		return `INSERT OR IGNORE INTO evm_transactions (hash, block_hash, block_number, tx_index,
+		return `INSERT OR REPLACE INTO evm_transactions (hash, block_hash, block_number, tx_index,
 			from_addr, to_addr, value, gas, gas_price, gas_used, nonce, input, status, contract_addr, timestamp, created_at)
 			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	}

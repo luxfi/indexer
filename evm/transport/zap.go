@@ -386,8 +386,14 @@ func (z *ZAP) handleResponse(data []byte) {
 	ch := val.(chan zapResponse)
 
 	if errFlag != 0 {
+		// A JSON-RPC error object keeps its code, as it does over HTTP.
+		var err error = fmt.Errorf("zap rpc error: %s", string(payload))
+		var e RPCError
+		if json.Unmarshal(payload, &e) == nil && e.Code != 0 {
+			err = &e
+		}
 		select {
-		case ch <- zapResponse{err: fmt.Errorf("zap rpc error: %s", string(payload))}:
+		case ch <- zapResponse{err: err}:
 		default:
 		}
 	} else {

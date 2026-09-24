@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/luxfi/indexer/chain"
@@ -204,6 +206,9 @@ type Adapter struct {
 	traceTimeout string // e.g. "120s"
 	prefix       string // table name prefix, e.g. "cchain", "zoo", "hanzo"
 	mu           sync.RWMutex
+	// perTx is set once the node has answered that it has no
+	// eth_getBlockReceipts; receipts are then read one transaction at a time.
+	perTx atomic.Bool
 }
 
 // Tbl returns the prefixed table name, e.g. Tbl("blocks") returns "cchain_blocks"
@@ -396,6 +401,17 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 		}
 	}
 	return blocks, nil
+}
+
+// ErrNoReceipts is a node that serves neither eth_getBlockReceipts nor
+// eth_getTransactionReceipt. Its transactions can be indexed only without
+// their execution results.
+var ErrNoReceipts = errors.New("receipts not served")
+
+// unsupported reports a node answering that it has no such method.
+func unsupported(err error) bool {
+	var e *transport.RPCError
+	return errors.As(err, &e) && e.Code == transport.MethodNotFound
 }
 
 // ErrNoBlock is a node answering a block request with null: it does not hold
@@ -620,6 +636,44 @@ func (r receiptJSON) receipt() Receipt {
 		})
 	}
 	return out
+}
+
+// Receipts returns the execution results of a block's transactions, given
+// their hashes. It asks for the whole block in one call; a node that answers it
+// has no eth_getBlockReceipts is asked per transaction instead, and, having no
+// such method once, is never asked for it again. A null receipt is ErrNoBlock
+// either way: a node that does not hold the block, not a result to leave out.
+func (a *Adapter) Receipts(ctx context.Context, number uint64, hashes []string) ([]Receipt, error) {
+	if len(hashes) == 0 {
+		return nil, nil
+	}
+	if !a.perTx.Load() {
+		rs, err := a.BlockReceipts(ctx, number)
+		if !unsupported(err) {
+			return rs, err
+		}
+		a.perTx.Store(true)
+		log.Printf("[evm] %s has no eth_getBlockReceipts; reading receipts per transaction", a.rpcEndpoint)
+	}
+	out := make([]Receipt, 0, len(hashes))
+	for _, h := range hashes {
+		res, err := a.call(ctx, "eth_getTransactionReceipt", []interface{}{h})
+		if unsupported(err) {
+			return nil, ErrNoReceipts
+		}
+		if err != nil {
+			return nil, err
+		}
+		if isNull(res) {
+			return nil, fmt.Errorf("eth_getTransactionReceipt %s: %w", h, ErrNoBlock)
+		}
+		var raw receiptJSON
+		if err := json.Unmarshal(res, &raw); err != nil {
+			return nil, fmt.Errorf("parse receipt %s: %w", h, err)
+		}
+		out = append(out, raw.receipt())
+	}
+	return out, nil
 }
 
 // BlockReceipts returns the execution result of every transaction in a

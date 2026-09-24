@@ -141,6 +141,31 @@ Zero branding in code. Configure at runtime:
 explorer --chain-name="My Chain" --coin=MYC --chain-id=12345
 ```
 
+## EVM Index Integrity
+
+`evm/indexer.go` holds each chain as a contiguous run of heights, each with all
+of its transactions:
+
+- A block row marks its height held and is written last, after the block's
+  transactions, logs and transfers. The head loop resumes from MAX+1.
+- A `null` block, or `null` receipts for a block with transactions, is
+  `ErrNoBlock`: a backend behind a load-balanced RPC that does not hold it yet.
+  The height is retried, never skipped.
+- A transaction without a hash is refused with its block. No row is ever keyed
+  by the empty hash.
+- Receipts come from `eth_getBlockReceipts`. A node answering MethodNotFound
+  (-32601, `transport.RPCError`) is read per transaction with
+  `eth_getTransactionReceipt` from then on (zood). A node serving neither
+  yields transactions without results.
+- `indexBlock` can be repeated safely. Rows are replaced, and address tx counts
+  and token balances move only for a transaction or transfer not already
+  stored. Rows at the height under another block hash are deleted.
+- The audit (at start, then every 5 minutes) deletes hashless rows, fills
+  missing heights, and reads again every block whose transaction rows do not
+  match its `tx_count` or its hash. It reads only above the last clean audit,
+  and totals are compared before any per-block query. A repair runs 256 heights
+  per pass, with a pass after every head poll until it is done.
+
 ## EVM Feature Parity
 
 What the Go indexer covers, and where it stops:

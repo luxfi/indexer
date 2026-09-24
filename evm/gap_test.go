@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,16 +21,21 @@ import (
 
 // seats stands in for an RPC Service spread over several nodes, some of them
 // behind. Every node agrees on the tip it reports, but a request for a block or
-// its receipts lands on a lagging node every `every`-th time and is answered
-// with null, as a node answers for a block it does not hold.
+// a receipt lands on a lagging node every `every`-th time and is answered with
+// null, as a node answers for a block it does not hold. A node can also lack
+// eth_getBlockReceipts or eth_getTransactionReceipt altogether, as zood does,
+// and answer MethodNotFound.
 type seats struct {
-	mu       sync.Mutex
-	tip      uint64
-	every    int
-	calls    int
-	nulls    int
-	withTxs  func(h uint64) bool
-	requests map[string]int
+	mu            sync.Mutex
+	tip           uint64
+	every         int
+	calls         int
+	nulls         int
+	txs           func(h uint64) int // transactions in block h
+	blockReceipts bool               // serves eth_getBlockReceipts
+	txReceipts    bool               // serves eth_getTransactionReceipt
+	hashless      map[uint64]bool    // blocks whose transactions come without a hash
+	requests      map[string]int
 }
 
 func (s *seats) serve(w http.ResponseWriter, r *http.Request) {
@@ -45,47 +52,87 @@ func (s *seats) serve(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	s.requests[req.Method]++
 
-	var result any
+	reply := map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": nil}
+	var arg string
+	if len(req.Params) > 0 {
+		_ = json.Unmarshal(req.Params[0], &arg)
+	}
+	lagging := func() bool {
+		s.calls++
+		if s.every > 0 && s.calls%s.every == 0 {
+			s.nulls++
+			return true
+		}
+		return false
+	}
 	switch req.Method {
-	case "eth_getBlockByNumber", "eth_getBlockReceipts":
-		var tag string
-		_ = json.Unmarshal(req.Params[0], &tag)
+	case "eth_getBlockByNumber":
 		h := s.tip
-		if tag != "latest" {
-			h = hexToUint64(tag)
-			s.calls++
-			if s.every > 0 && s.calls%s.every == 0 {
-				s.nulls++
-				break // result stays nil: null
+		if arg != "latest" {
+			h = hexToUint64(arg)
+			if lagging() {
+				break
 			}
 		}
-		if h > s.tip {
+		if h <= s.tip {
+			reply["result"] = s.block(h)
+		}
+	case "eth_getBlockReceipts":
+		if !s.blockReceipts {
+			delete(reply, "result")
+			reply["error"] = map[string]any{"code": -32601, "message": "the method eth_getBlockReceipts does not exist/is not available"}
 			break
 		}
-		if req.Method == "eth_getBlockByNumber" {
-			result = s.block(h)
-		} else {
-			result = s.receipts(h)
+		if h := hexToUint64(arg); !lagging() && h <= s.tip {
+			out := []any{}
+			for i := 0; i < s.txs(h); i++ {
+				out = append(out, receipt(h, i))
+			}
+			reply["result"] = out
+		}
+	case "eth_getTransactionReceipt":
+		if !s.txReceipts {
+			delete(reply, "result")
+			reply["error"] = map[string]any{"code": -32601, "message": "the method eth_getTransactionReceipt does not exist/is not available"}
+			break
+		}
+		n, err := strconv.ParseUint(strings.TrimPrefix(arg, "0x"), 16, 64)
+		if err == nil && n >= txBase && !lagging() {
+			h, i := (n-txBase)/16, int((n-txBase)%16)
+			if h <= s.tip && i < s.txs(h) {
+				reply["result"] = receipt(h, i)
+			}
 		}
 	case "eth_getCode":
-		result = "0x"
+		reply["result"] = "0x"
 	default:
-		result = "0x0"
+		reply["result"] = "0x0"
 	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": result})
+	_ = json.NewEncoder(w).Encode(reply)
 }
 
-func blockHash(h uint64) string { return fmt.Sprintf("0x%064x", h+1) }
-func txHash(h uint64) string    { return fmt.Sprintf("0x%064x", h+0xabc000) }
+const (
+	sender    = "0x00000000000000000000000000000000000000aa"
+	recipient = "0x00000000000000000000000000000000000000bb"
+	txBase    = 0xabc000
+)
+
+func blockHash(h uint64) string     { return fmt.Sprintf("0x%064x", h+1) }
+func txHash(h uint64, i int) string { return fmt.Sprintf("0x%064x", txBase+h*16+uint64(i)) }
 
 func (s *seats) block(h uint64) map[string]any {
 	txs := []any{}
-	if s.withTxs(h) {
-		txs = append(txs, map[string]any{
-			"hash": txHash(h), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
-			"from": "0x00000000000000000000000000000000000000aa", "to": "0x00000000000000000000000000000000000000bb",
-			"value": "0x1", "gas": "0x5208", "gasPrice": "0x1", "nonce": "0x0", "input": "0x", "transactionIndex": "0x0",
-		})
+	for i := 0; i < s.txs(h); i++ {
+		tx := map[string]any{
+			"hash": txHash(h, i), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
+			"from": sender, "to": recipient,
+			"value": "0x1", "gas": "0x5208", "gasPrice": "0x1", "nonce": fmt.Sprintf("0x%x", i), "input": "0x",
+			"transactionIndex": fmt.Sprintf("0x%x", i),
+		}
+		if s.hashless[h] {
+			delete(tx, "hash")
+		}
+		txs = append(txs, tx)
 	}
 	parent := "0x" + fmt.Sprintf("%064x", 0)
 	if h > 0 {
@@ -98,20 +145,26 @@ func (s *seats) block(h uint64) map[string]any {
 	}
 }
 
-func (s *seats) receipts(h uint64) []any {
-	out := []any{}
-	if s.withTxs(h) {
-		out = append(out, map[string]any{
-			"transactionHash": txHash(h), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
-			"status": "0x1", "gasUsed": "0x5208", "logs": []any{},
-		})
+func receipt(h uint64, i int) map[string]any {
+	return map[string]any{
+		"transactionHash": txHash(h, i), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
+		"from": sender, "to": recipient, "transactionIndex": fmt.Sprintf("0x%x", i),
+		"status": "0x1", "gasUsed": "0x5208", "logs": []any{},
 	}
-	return out
 }
 
 func newSeats(t *testing.T, tip uint64, every int) (*seats, *Indexer) {
 	t.Helper()
-	s := &seats{tip: tip, every: every, requests: map[string]int{}, withTxs: func(h uint64) bool { return h%3 == 1 }}
+	s := &seats{
+		tip: tip, every: every, requests: map[string]int{},
+		txs: func(h uint64) int {
+			if h%3 == 1 {
+				return 1
+			}
+			return 0
+		},
+		blockReceipts: true, txReceipts: true, hashless: map[uint64]bool{},
+	}
 	srv := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(srv.Close)
 
@@ -131,6 +184,11 @@ func newSeats(t *testing.T, tip uint64, every int) (*seats, *Indexer) {
 	if err := idx.Init(ctx); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
+	// The head loop announces every block it indexes; drain the stream as Run
+	// does, or the loop blocks once its buffer is full.
+	live, stop := context.WithCancel(ctx)
+	t.Cleanup(stop)
+	go idx.subscriber.Run(live)
 	return s, idx
 }
 
