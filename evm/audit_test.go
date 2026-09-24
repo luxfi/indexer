@@ -5,6 +5,7 @@ package evm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -107,7 +108,7 @@ func TestAuditReplacesWrongTransactions(t *testing.T) {
 		t.Fatalf("seed replaced block: %v", err)
 	}
 
-	wrong, err := idx.mismatched(ctx, 0)
+	wrong, err := idx.mismatched(ctx, 0, tip+1)
 	if err != nil {
 		t.Fatalf("mismatched: %v", err)
 	}
@@ -173,6 +174,42 @@ func TestAuditRepairsInBudgetedPasses(t *testing.T) {
 		t.Fatalf("%d passes for %d heights, want 3", passes, tip)
 	}
 	whole(t, s, idx)
+}
+
+// A long history is compared auditWindow heights per pass, so the first audit of
+// a million-block index is a walk of short reads, not one long one.
+func TestAuditComparesInWindows(t *testing.T) {
+	const tip = 2*auditWindow + 500
+	short := map[uint64]bool{5: true, auditWindow + 2345: true, 2*auditWindow + 400: true}
+	s, idx := newSeats(t, tip, 0)
+	s.txs = func(h uint64) int {
+		if short[h] {
+			return 1
+		}
+		return 0
+	}
+	ctx := context.Background()
+	for h := uint64(0); h <= tip; h++ {
+		b := &EVMBlock{Number: h, Hash: blockHash(h), Timestamp: time.Unix(1_700_000_000+int64(h), 0), Transactions: make([]Transaction, s.txs(h))}
+		if err := idx.store.Exec(ctx, idx.upsertBlockSQL(), idx.blockArgs(b)...); err != nil {
+			t.Fatalf("seed %d: %v", h, err)
+		}
+	}
+
+	var at []uint64
+	for more := true; more; {
+		more = idx.audit(ctx)
+		at = append(at, idx.audited)
+	}
+	if want := []uint64{auditWindow, 2 * auditWindow, tip + 1}; fmt.Sprint(at) != fmt.Sprint(want) {
+		t.Fatalf("audit passes ended at %v, want %v", at, want)
+	}
+	if n := s.requests["eth_getBlockByNumber"]; n != len(short) {
+		t.Fatalf("read %d blocks, want only the %d short ones", n, len(short))
+	}
+	if n := count(t, idx, "SELECT COUNT(*) AS n FROM evm_transactions"); n != int64(len(short)) {
+		t.Fatalf("%d transactions, want %d", n, len(short))
+	}
 }
 
 // zood has no eth_getBlockReceipts. The indexer asks once, then reads each

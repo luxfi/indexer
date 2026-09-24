@@ -59,10 +59,14 @@ const regenesisConfirmations = 3
 // range counts however long the chain is.
 const auditInterval = 5 * time.Minute
 
-// auditBudget is how many mismatched heights one audit pass reads again. A
-// pass with more to do stops there and the next runs right after the next head
-// poll, so repairing a long history never holds the head back for long.
-const auditBudget = 256
+// auditBudget is how many mismatched heights one audit pass reads again, and
+// auditWindow how many heights' transactions it compares. A pass with more to do
+// stops there and the next runs right after the next head poll, so neither
+// checking nor repairing a long history holds the head back for long.
+const (
+	auditBudget = 256
+	auditWindow = 10000
+)
 
 // Indexer is the main EVM chain indexer
 type Indexer struct {
@@ -430,7 +434,8 @@ func (idx *Indexer) audit(ctx context.Context) bool {
 	}
 	// Every hole at or above from is filled, so a height under the first one
 	// not yet read again is whole: that is where the next pass starts.
-	wrong, err := idx.mismatched(ctx, from)
+	to := min(next, from+auditWindow)
+	wrong, err := idx.mismatched(ctx, from, to)
 	if err != nil {
 		log.Printf("[evm] audit: %v", err)
 		return false
@@ -450,20 +455,20 @@ func (idx *Indexer) audit(ctx context.Context) bool {
 	if len(wrong) > 0 {
 		log.Printf("[evm] audit: re-read %d heights whose transactions did not match their block, between %d and %d", len(wrong), wrong[0], wrong[len(wrong)-1])
 	}
-	idx.audited = next
-	return false
+	idx.audited = to
+	return to < next
 }
 
-// mismatched returns the heights at or above from whose stored transactions do
-// not match the block held there: a block with more or fewer transaction rows
-// than it carries, or transaction rows filed under a block hash the index does
-// not hold at their height. The totals come first; they agree whenever every
-// block does, so a consistent index costs two range reads and the per-block
+// mismatched returns the heights in [from, to) whose stored transactions do not
+// match the block held there: a block with more or fewer transaction rows than
+// it carries, or transaction rows filed under a block hash the index does not
+// hold at their height. The totals come first; they agree whenever every block
+// does, so a consistent range costs two range reads and the per-block
 // comparison runs only when they differ.
-func (idx *Indexer) mismatched(ctx context.Context, from uint64) ([]uint64, error) {
+func (idx *Indexer) mismatched(ctx context.Context, from, to uint64) ([]uint64, error) {
 	rows, err := idx.store.Query(ctx, fmt.Sprintf(`SELECT
-		(SELECT COALESCE(SUM(tx_count), 0) FROM evm_blocks WHERE number >= %[1]d) AS want,
-		(SELECT COUNT(*) FROM evm_transactions WHERE block_number >= %[1]d) AS have`, from))
+		(SELECT COALESCE(SUM(tx_count), 0) FROM evm_blocks WHERE number >= %[1]d AND number < %[2]d) AS want,
+		(SELECT COUNT(*) FROM evm_transactions WHERE block_number >= %[1]d AND block_number < %[2]d) AS have`, from, to))
 	if err != nil {
 		return nil, fmt.Errorf("count transactions: %w", err)
 	}
@@ -471,12 +476,12 @@ func (idx *Indexer) mismatched(ctx context.Context, from uint64) ([]uint64, erro
 		return nil, nil
 	}
 	rows, err = idx.store.Query(ctx, fmt.Sprintf(`
-		SELECT number FROM evm_blocks b WHERE number >= %[1]d AND tx_count != (
+		SELECT number FROM evm_blocks b WHERE number >= %[1]d AND number < %[2]d AND tx_count != (
 			SELECT COUNT(*) FROM evm_transactions t WHERE t.block_number = b.number AND t.block_hash = b.hash)
 		UNION
-		SELECT block_number AS number FROM evm_transactions t WHERE block_number >= %[1]d AND NOT EXISTS (
+		SELECT block_number AS number FROM evm_transactions t WHERE block_number >= %[1]d AND block_number < %[2]d AND NOT EXISTS (
 			SELECT 1 FROM evm_blocks b WHERE b.number = t.block_number AND b.hash = t.block_hash)
-		ORDER BY number`, from))
+		ORDER BY number`, from, to))
 	if err != nil {
 		return nil, fmt.Errorf("compare transactions: %w", err)
 	}

@@ -163,8 +163,9 @@ of its transactions:
 - The audit (at start, then every 5 minutes) deletes hashless rows, fills
   missing heights, and reads again every block whose transaction rows do not
   match its `tx_count` or its hash. It reads only above the last clean audit,
-  and totals are compared before any per-block query. A repair runs 256 heights
-  per pass, with a pass after every head poll until it is done.
+  compares 10000 heights per pass, and compares totals before any per-block
+  query. A pass reads at most 256 heights again. While work remains, a pass
+  follows every head poll.
 
 ## EVM Feature Parity
 
