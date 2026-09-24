@@ -6,6 +6,7 @@ package evm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -52,6 +53,11 @@ const reorgDepth = 128
 // the answer comes from the genesis hash.
 const regenesisConfirmations = 3
 
+// auditInterval is how often the index is checked for heights it should hold
+// and does not. Each check reads only the heights above the last clean one, so
+// its cost is one indexed range count however long the chain is.
+const auditInterval = 5 * time.Minute
+
 // Indexer is the main EVM chain indexer
 type Indexer struct {
 	config      Config
@@ -70,6 +76,9 @@ type Indexer struct {
 	// genesisAt fetches block 0's hash. A field so tests can answer without a
 	// network.
 	genesisAt func(context.Context) (string, error)
+	// audited is the lowest height no audit has yet proven held: every height
+	// from StartBlock up to it is in the index. Zero after the index is emptied.
+	audited uint64
 }
 
 // EVMBlock represents a parsed EVM block
@@ -347,20 +356,96 @@ func (idx *Indexer) startIndexing(ctx context.Context) {
 		log.Printf("[evm] Backfilled %d addresses from existing transactions", n)
 	}
 
-	// Index immediately on startup before entering ticker loop
+	// Fill whatever an earlier run left missing, then index immediately on
+	// startup before entering the ticker loop. The audit runs on this goroutine
+	// so the index keeps a single writer.
+	idx.audit(ctx)
 	idx.indexNewBlocks(ctx)
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
+	audit := time.NewTicker(auditInterval)
+	defer audit.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-audit.C:
+			idx.audit(ctx)
 		case <-ticker.C:
 			idx.indexNewBlocks(ctx)
 		}
 	}
+}
+
+// audit indexes every height the index should hold and does not, from the last
+// clean audit up to the highest block held. The height loop resumes from MAX+1
+// and never looks under it, so a height it once moved past stays missing unless
+// something goes back for it; this is that. A height that still cannot be read
+// ends the pass, and the next audit starts from the same place.
+func (idx *Indexer) audit(ctx context.Context) {
+	// A null block used to be stored as a row with no hash at height 0. It is
+	// not a block, and counting it made the index look one block fuller.
+	if err := idx.store.Exec(ctx, "DELETE FROM evm_blocks WHERE hash = ''"); err != nil {
+		log.Printf("[evm] audit: %v", err)
+		return
+	}
+	from := max(idx.audited, idx.config.StartBlock)
+	holes, next, err := idx.holes(ctx, from)
+	if err != nil {
+		log.Printf("[evm] audit: %v", err)
+		return
+	}
+	filled := 0
+	for _, h := range holes {
+		for n := h[0]; n <= h[1]; n++ {
+			if _, err := idx.indexBlock(ctx, n); err != nil {
+				log.Printf("[evm] audit: height %d: %v (filled %d, next audit resumes here)", n, err, filled)
+				return
+			}
+			filled++
+		}
+	}
+	if filled > 0 {
+		log.Printf("[evm] audit: filled %d missing heights in %d holes between %d and %d", filled, len(holes), from, next-1)
+	}
+	idx.audited = next
+}
+
+// holes returns the runs of heights at or above from that the index does not
+// hold below the highest one it does, and the height after that highest one
+// (from itself when nothing at or above from is held). The count comes first
+// because it is one pass over the height index and almost always proves there
+// is nothing to find; the runs are read only when it does not.
+func (idx *Indexer) holes(ctx context.Context, from uint64) (runs [][2]uint64, next uint64, err error) {
+	rows, err := idx.store.Query(ctx, fmt.Sprintf(
+		"SELECT COUNT(DISTINCT number) AS n, MIN(number) AS lo, MAX(number) AS hi FROM evm_blocks WHERE number >= %d", from))
+	if err != nil {
+		return nil, 0, fmt.Errorf("count heights: %w", err)
+	}
+	if len(rows) == 0 || toInt64(rows[0]["n"]) == 0 {
+		return nil, from, nil
+	}
+	n, lo, hi := uint64(toInt64(rows[0]["n"])), uint64(toInt64(rows[0]["lo"])), uint64(toInt64(rows[0]["hi"]))
+	if lo == from && hi-lo+1 == n {
+		return nil, hi + 1, nil
+	}
+	if lo > from {
+		runs = append(runs, [2]uint64{from, lo - 1})
+	}
+	rows, err = idx.store.Query(ctx, fmt.Sprintf(`
+		SELECT prev + 1 AS lo, number - 1 AS hi FROM (
+			SELECT number, LAG(number) OVER (ORDER BY number) AS prev
+			FROM (SELECT DISTINCT number FROM evm_blocks WHERE number >= %d) AS held
+		) AS steps WHERE number > prev + 1 ORDER BY number`, from))
+	if err != nil {
+		return nil, 0, fmt.Errorf("find holes: %w", err)
+	}
+	for _, r := range rows {
+		runs = append(runs, [2]uint64{uint64(toInt64(r["lo"])), uint64(toInt64(r["hi"]))})
+	}
+	return runs, hi + 1, nil
 }
 
 // tables the EVM indexer owns. Everything it has ever learned about a chain is
@@ -431,6 +516,7 @@ func (idx *Indexer) forget(ctx context.Context) error {
 			return fmt.Errorf("clear %s: %w", t, err)
 		}
 	}
+	idx.audited = 0
 	return nil
 }
 
@@ -500,18 +586,39 @@ func (idx *Indexer) indexNewBlocks(ctx context.Context) {
 		idx.lastLogTime = time.Now()
 	}
 
+	// A height that cannot be read ends the pass: the next one resumes from
+	// MAX+1, which is that height. Moving on would leave it missing for good.
 	for blockNum := startBlock; blockNum <= block.Number; blockNum++ {
-		if err := idx.indexBlock(ctx, blockNum); err != nil {
+		b, err := idx.indexBlock(ctx, blockNum)
+		if err != nil {
 			log.Printf("[evm] Failed to index block %d: %v", blockNum, err)
 			return
 		}
+		idx.subscriber.BroadcastBlock(b)
 	}
 }
 
-func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
+// indexBlock stores one block with everything in it. It does not announce the
+// block: the live stream is for the head, and the audit fills old heights.
+func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) (*EVMBlock, error) {
 	block, err := idx.adapter.GetBlockByNumber(ctx, blockNum)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	// Execution results for the whole block in one read, indexed by hash, and
+	// read before anything is written: once the block row is stored this height
+	// counts as held. A node without eth_getBlockReceipts answers with an error,
+	// and its transactions are still indexed with every submitted field. A null
+	// answer is a backend that does not hold the block yet, so the block is not
+	// indexed until one that does answers.
+	receipts := make(map[string]Receipt)
+	rs, err := idx.adapter.BlockReceipts(ctx, blockNum)
+	if errors.Is(err, ErrNoBlock) && len(block.Transactions) > 0 {
+		return nil, err
+	}
+	for _, r := range rs {
+		receipts[r.TxHash] = r
 	}
 
 	// Store block using EVM-specific schema with backend-portable SQL
@@ -520,7 +627,7 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 
 	err = idx.store.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("store block: %w", err)
+		return nil, fmt.Errorf("store block: %w", err)
 	}
 
 	// Index transactions: fetch receipts for each tx hash. Track each
@@ -540,15 +647,6 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 	// The (collection, id) pairs this block moved. Each one is an item whose
 	// tokenURI we go on to read — see readURI.
 	itemsSeen := make(map[item]struct{})
-	// Execution results for the whole block in one read, indexed by hash.
-	// A block whose receipts cannot be read still yields its transactions;
-	// they carry every submitted field, and only the result is missing.
-	receipts := make(map[string]Receipt)
-	if rs, err := idx.adapter.BlockReceipts(ctx, blockNum); err == nil {
-		for _, r := range rs {
-			receipts[r.TxHash] = r
-		}
-	}
 
 	for i, tx := range block.Transactions {
 		// An empty hash is not a transaction. Writing one anyway lands a
@@ -693,10 +791,7 @@ func (idx *Indexer) indexBlock(ctx context.Context, blockNum uint64) error {
 			addr, int64(dCount), addrIsContract[addr], now, now)
 	}
 
-	// Broadcast new block
-	idx.subscriber.BroadcastBlock(block)
-
-	return nil
+	return block, nil
 }
 
 // backfillAddresses upserts every from/to/contract address found in

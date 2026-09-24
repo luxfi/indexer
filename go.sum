@@ -138,7 +138,7 @@ github.com/hablullah/go-juliandays v1.0.0 h1:A8YM7wIj16SzlKT0SRJc9CD29iiaUzpBLzh
 github.com/hablullah/go-juliandays v1.0.0/go.mod h1:0JOYq4oFOuDja+oospuc61YoX+uNEn7Z6uHYTbBzdGc=
 github.com/hanzoai/csqlite v0.1.2 h1:4DzdgUfKADhzEP66Y30/HwepuBLrwt7NsemJMfrPGl4=
 github.com/hanzoai/csqlite v0.1.2/go.mod h1:H31a/O6VXuklR9UBkgY++bmAK5uzVfXPqU0F6P9Wsos=
-github.com/hanzoai/replicate v0.6.0 h1:YxjIynlo3iKtpf6GeQngeB5RbexIKPPKsZIoq5EHe3E=
+github.com/hanzoai/replicate v0.6.0 h1:5Rl34569IHJ5hXOvrkjbadfKNt/2rGZd83vhcSIRSPE=
 github.com/hanzoai/replicate v0.6.0/go.mod h1:PBvHNQ7cXBJejTWDWxXWvtUwjT5O66pTC7npxLWu8H0=
 github.com/hanzoai/vfs v0.4.1 h1:erXat8LUZRI+fuw+8XNpslWdAaIrkGPXNGbP3PGQUBU=
 github.com/hanzoai/vfs v0.4.1/go.mod h1:8AzyntfZgjK6iiB4A+xPestHgSAGUEHMthTkhACRIjM=

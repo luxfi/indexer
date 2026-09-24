@@ -13,10 +13,12 @@
 package evm
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -377,7 +379,7 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 			defer wg.Done()
 			defer func() { <-sem }()
 			blockNum := fmt.Sprintf("0x%x", latest-uint64(i))
-			res, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+			res, err := a.block(ctx, "eth_getBlockByNumber", blockNum)
 			if err != nil {
 				return // leave nil; caller-side filtering drops it
 			}
@@ -396,34 +398,67 @@ func (a *Adapter) GetRecentBlocks(ctx context.Context, limit int) ([]json.RawMes
 	return blocks, nil
 }
 
+// ErrNoBlock is a node answering a block request with null: it does not hold
+// that block. Behind a load-balanced RPC that is one backend running behind its
+// peers, not a hole in the chain, so the caller asks again rather than moving on.
+var ErrNoBlock = errors.New("block not served")
+
+// block asks for one block, with full transactions, and refuses a null answer.
+// JSON null decodes into a struct as all zero values without error, so a null
+// that reached a parser became a block with no hash at height 0 and the height
+// asked for was silently never indexed.
+func (a *Adapter) block(ctx context.Context, method string, id string) (json.RawMessage, error) {
+	res, err := a.call(ctx, method, []interface{}{id, true})
+	if err != nil {
+		return nil, err
+	}
+	if isNull(res) {
+		return nil, fmt.Errorf("%s %s: %w", method, id, ErrNoBlock)
+	}
+	return res, nil
+}
+
+// isNull reports a JSON-RPC result that holds nothing.
+func isNull(v json.RawMessage) bool {
+	v = bytes.TrimSpace(v)
+	return len(v) == 0 || bytes.Equal(v, []byte("null"))
+}
+
 // GetBlockByID fetches a specific block by hash
 func (a *Adapter) GetBlockByID(ctx context.Context, id string) (json.RawMessage, error) {
-	return a.call(ctx, "eth_getBlockByHash", []interface{}{id, true})
+	return a.block(ctx, "eth_getBlockByHash", id)
 }
 
 // GetBlockByHeight fetches a specific block by number
 func (a *Adapter) GetBlockByHeight(ctx context.Context, height uint64) (json.RawMessage, error) {
-	blockNum := fmt.Sprintf("0x%x", height)
-	return a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+	return a.block(ctx, "eth_getBlockByNumber", fmt.Sprintf("0x%x", height))
 }
 
 // GetLatestBlock fetches the latest block and returns a parsed EVMBlock
 func (a *Adapter) GetLatestBlock(ctx context.Context) (*EVMBlock, error) {
-	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{"latest", true})
+	result, err := a.block(ctx, "eth_getBlockByNumber", "latest")
 	if err != nil {
 		return nil, err
 	}
 	return a.parseEVMBlock(result)
 }
 
-// GetBlockByNumber fetches a specific block by number and returns a parsed EVMBlock
+// GetBlockByNumber fetches a specific block by number and returns a parsed
+// EVMBlock. An answer that is not that block is not served: it carries no hash,
+// or it is some other height.
 func (a *Adapter) GetBlockByNumber(ctx context.Context, number uint64) (*EVMBlock, error) {
-	blockNum := fmt.Sprintf("0x%x", number)
-	result, err := a.call(ctx, "eth_getBlockByNumber", []interface{}{blockNum, true})
+	result, err := a.GetBlockByHeight(ctx, number)
 	if err != nil {
 		return nil, err
 	}
-	return a.parseEVMBlock(result)
+	b, err := a.parseEVMBlock(result)
+	if err != nil {
+		return nil, err
+	}
+	if b.Hash == "" || b.Number != number {
+		return nil, fmt.Errorf("block %d answered as %d %q: %w", number, b.Number, b.Hash, ErrNoBlock)
+	}
+	return b, nil
 }
 
 // parseEVMBlock parses raw JSON into an EVMBlock
@@ -600,6 +635,9 @@ func (a *Adapter) BlockReceipts(ctx context.Context, number uint64) ([]Receipt, 
 	result, err := a.call(ctx, "eth_getBlockReceipts", []interface{}{fmt.Sprintf("0x%x", number)})
 	if err != nil {
 		return nil, err
+	}
+	if isNull(result) {
+		return nil, fmt.Errorf("eth_getBlockReceipts 0x%x: %w", number, ErrNoBlock)
 	}
 	var raw []receiptJSON
 	if err := json.Unmarshal(result, &raw); err != nil {
