@@ -40,7 +40,7 @@ func whole(t *testing.T, s *seats, idx *Indexer) (total int64) {
 	for h := uint64(0); h <= s.tip; h++ {
 		n := int64(s.txs(h))
 		total += n
-		if got := count(t, idx, "SELECT COUNT(*) AS n FROM evm_transactions WHERE block_number = ? AND block_hash = ?", int64(h), blockHash(h)); got != n {
+		if got := count(t, idx, "SELECT COUNT(*) AS n FROM evm_transactions WHERE block_number = ? AND block_hash = ?", int64(h), s.blockHash(h)); got != n {
 			t.Fatalf("block %d holds %d transactions, the chain has %d", h, got, n)
 		}
 	}
@@ -190,7 +190,7 @@ func TestAuditComparesInWindows(t *testing.T) {
 	}
 	ctx := context.Background()
 	for h := uint64(0); h <= tip; h++ {
-		b := &EVMBlock{Number: h, Hash: blockHash(h), Timestamp: time.Unix(1_700_000_000+int64(h), 0), Transactions: make([]Transaction, s.txs(h))}
+		b := &EVMBlock{Number: h, Hash: s.blockHash(h), Timestamp: time.Unix(1_700_000_000+int64(h), 0), Transactions: make([]Transaction, s.txs(h))}
 		if err := idx.store.Exec(ctx, idx.upsertBlockSQL(), idx.blockArgs(b)...); err != nil {
 			t.Fatalf("seed %d: %v", h, err)
 		}

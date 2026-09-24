@@ -166,6 +166,15 @@ of its transactions:
   compares 10000 heights per pass, and compares totals before any per-block
   query. A pass reads at most 256 heights again. While work remains, a pass
   follows every head poll.
+- A relaunched chain is emptied and reindexed from its new blocks. The check
+  starts when the head stays more than `reorgDepth` (128) under the cursor for
+  `regenesisConfirmations` (3) polls running. It is a relaunch if block 0's
+  hash changed, or if the chain's block at the lowest height above genesis the
+  index holds is a hash the index does not hold. The second test catches a
+  restart from the same genesis. It compares against the stored rows, so it
+  holds across an explorer restart. A lagging node serves that block unchanged,
+  and a `null` proves nothing, so neither erases anything. All eight tables in
+  `evmTables` are emptied, including `evm_token_instances`.
 
 ## EVM Feature Parity
 

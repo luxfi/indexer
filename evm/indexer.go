@@ -86,6 +86,9 @@ type Indexer struct {
 	// genesisAt fetches block 0's hash. A field so tests can answer without a
 	// network.
 	genesisAt func(context.Context) (string, error)
+	// replacedAt reports whether the chain no longer holds a block the index
+	// holds deeper than reorgDepth under the cursor. A field for the same reason.
+	replacedAt func(ctx context.Context, cursor uint64) (bool, error)
 	// audited is the lowest height no audit has yet proven whole: every height
 	// from StartBlock up to it is in the index with its transactions. Zero
 	// after the index is emptied.
@@ -127,6 +130,7 @@ func NewIndexer(cfg Config, store storage.Store) (*Indexer, error) {
 		subscriber: NewSubscriber(),
 	}
 	idx.genesisAt = idx.fetchGenesis
+	idx.replacedAt = idx.replaced
 
 	return idx, nil
 }
@@ -528,7 +532,7 @@ func (idx *Indexer) holes(ctx context.Context, from uint64) (runs [][2]uint64, n
 }
 
 // tables the EVM indexer owns. Everything it has ever learned about a chain is
-// in these seven, so forgetting a chain means emptying exactly this list.
+// in these eight, so forgetting a chain means emptying exactly this list.
 var evmTables = []string{
 	"evm_blocks",
 	"evm_transactions",
@@ -537,23 +541,27 @@ var evmTables = []string{
 	"evm_token_transfers",
 	"evm_logs",
 	"evm_token_balances",
+	"evm_token_instances",
 }
 
 // relaunched reports whether the chain under us has been rebuilt from genesis
 // rather than merely reorged or gone quiet.
 //
-// It asks two questions in order, and the order is the point. First a free one:
+// It asks in order of cost, and the order is the point. First a free question:
 // has the head stayed more than reorgDepth under our cursor for several polls
-// running? That costs nothing and is wrong often — a lagging backend looks the
-// same. So it only decides whether the second question is worth asking. That one
-// costs an RPC and is not wrong: has block 0's hash changed? A different genesis
-// is a different chain, whatever the heights say. An unchanged genesis proves the
-// chain is the one we have been indexing all along, so the streak was a lie and
-// we clear it.
+// running? That is wrong often — a lagging backend looks the same — so it only
+// decides whether the next two are worth asking. Both cost an RPC and neither is
+// wrong. Has block 0's hash changed? A different genesis is a different chain.
+// If not, is the lowest block the index holds above genesis still the chain's
+// block at that height? A chain restarted from its own genesis keeps block 0
+// and replaces every block after it, while a node that is merely behind serves
+// that block unchanged. Only a real hash mismatch, at a height deeper than any
+// reorg reaches, is a relaunch; a match proves the chain is the one we have
+// been indexing all along, so the streak was a lie and we clear it.
 //
-// With no baseline yet — first poll, or the probe failed — there is nothing to
-// compare against, so the answer is no. Erasing a chain requires proof that it
-// is gone, and absence of evidence is not that.
+// An answer that cannot be read is not evidence of anything: the index is kept
+// and the question asked again on the next poll. Erasing a chain requires proof
+// that it is gone, and absence of evidence is not that.
 func (idx *Indexer) relaunched(ctx context.Context, head, cursor uint64) bool {
 	if cursor <= idx.config.StartBlock+reorgDepth || head+reorgDepth >= cursor {
 		idx.lowHead = 0
@@ -570,21 +578,61 @@ func (idx *Indexer) relaunched(ctx context.Context, head, cursor uint64) bool {
 			head, cursor, idx.lowHead, err)
 		return false
 	}
-	if idx.genesis == "" {
+	if idx.genesis != "" && idx.genesis != now {
+		log.Printf("[evm] chain relaunched: genesis %s became %s, head %d under cursor %d — reindexing from the new chain",
+			idx.genesis, now, head, cursor)
 		idx.genesis = now
-		log.Printf("[evm] head %d far under cursor %d with no genesis on record — noted %s, keeping the index", head, cursor, now)
-		return false
-	}
-	if idx.genesis == now {
 		idx.lowHead = 0
+		return true
+	}
+	idx.genesis = now
+
+	moved, err := idx.replacedAt(ctx, cursor)
+	if err != nil {
+		log.Printf("[evm] head %d far under cursor %d for %d polls, genesis unchanged, but the chain's older blocks are unreadable (%v) — keeping the index",
+			head, cursor, idx.lowHead, err)
 		return false
 	}
-
-	log.Printf("[evm] chain relaunched: genesis %s became %s, head %d under cursor %d — reindexing from the new chain",
-		idx.genesis, now, head, cursor)
-	idx.genesis = now
 	idx.lowHead = 0
+	if !moved {
+		return false
+	}
+	log.Printf("[evm] chain relaunched from its own genesis %s: head %d under cursor %d and the blocks above genesis replaced — reindexing from the new chain",
+		now, head, cursor)
 	return true
+}
+
+// replaced reports whether the chain no longer holds the lowest block the index
+// holds above genesis. That block is compared only when it sits deeper than
+// reorgDepth under the cursor, where no reorg reaches; nearer the cursor, or
+// with nothing above genesis held, there is no evidence and the answer is no. A
+// null answer is a node that does not hold that height yet, which proves
+// nothing either way, so it is an error rather than a verdict.
+func (idx *Indexer) replaced(ctx context.Context, cursor uint64) (bool, error) {
+	rows, err := idx.store.Query(ctx, fmt.Sprintf(
+		"SELECT MIN(number) AS n FROM evm_blocks WHERE number >= %d AND hash != ''", max(1, idx.config.StartBlock)))
+	if err != nil {
+		return false, fmt.Errorf("lowest block held: %w", err)
+	}
+	if len(rows) == 0 || rows[0]["n"] == nil {
+		return false, nil
+	}
+	h := uint64(toInt64(rows[0]["n"]))
+	if h+reorgDepth >= cursor {
+		return false, nil
+	}
+	b, err := idx.adapter.GetBlockByNumber(ctx, h)
+	if err != nil {
+		return false, err
+	}
+	gone, err := idx.absent(ctx, "evm_blocks", "hash", b.Hash)
+	if err != nil {
+		return false, err
+	}
+	if gone {
+		log.Printf("[evm] block %d is now %s, which the index does not hold", h, b.Hash)
+	}
+	return gone, nil
 }
 
 // forget empties this chain's tables. Each chain is indexed into its own

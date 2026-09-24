@@ -24,7 +24,10 @@ import (
 // a receipt lands on a lagging node every `every`-th time and is answered with
 // null, as a node answers for a block it does not hold. A node can also lack
 // eth_getBlockReceipts or eth_getTransactionReceipt altogether, as zood does,
-// and answer MethodNotFound.
+// and answer MethodNotFound. The chain itself can be replaced above genesis:
+// epoch numbers the chain each height belongs to, so a relaunch from the same
+// genesis moves every height above 0 to a new epoch and a reorg moves only the
+// heights it rewrote. lag makes "latest" answer from a node that far behind.
 type seats struct {
 	mu            sync.Mutex
 	tip           uint64
@@ -35,6 +38,9 @@ type seats struct {
 	blockReceipts bool               // serves eth_getBlockReceipts
 	txReceipts    bool               // serves eth_getTransactionReceipt
 	hashless      map[uint64]bool    // blocks whose transactions come without a hash
+	epoch         func(h uint64) uint64
+	lag           uint64
+	gone          map[uint64]bool // heights answered null by number
 	requests      map[string]int
 }
 
@@ -67,10 +73,10 @@ func (s *seats) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	switch req.Method {
 	case "eth_getBlockByNumber":
-		h := s.tip
+		h := s.tip - s.lag
 		if arg != "latest" {
 			h = hexToUint64(arg)
-			if lagging() {
+			if lagging() || s.gone[h] {
 				break
 			}
 		}
@@ -86,7 +92,7 @@ func (s *seats) serve(w http.ResponseWriter, r *http.Request) {
 		if h := hexToUint64(arg); !lagging() && h <= s.tip {
 			out := []any{}
 			for i := 0; i < s.txs(h); i++ {
-				out = append(out, receipt(h, i))
+				out = append(out, s.receipt(h, i))
 			}
 			reply["result"] = out
 		}
@@ -98,9 +104,10 @@ func (s *seats) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		n, err := strconv.ParseUint(strings.TrimPrefix(arg, "0x"), 16, 64)
 		if err == nil && n >= txBase && !lagging() {
-			h, i := (n-txBase)/16, int((n-txBase)%16)
-			if h <= s.tip && i < s.txs(h) {
-				reply["result"] = receipt(h, i)
+			n -= txBase
+			e, h, i := n>>40, (n&(1<<40-1))/16, int(n%16)
+			if h <= s.tip && i < s.txs(h) && e == s.epoch(h) {
+				reply["result"] = s.receipt(h, i)
 			}
 		}
 	case "eth_getCode":
@@ -117,14 +124,24 @@ const (
 	txBase    = 0xabc000
 )
 
-func blockHash(h uint64) string     { return fmt.Sprintf("0x%064x", h+1) }
-func txHash(h uint64, i int) string { return fmt.Sprintf("0x%064x", txBase+h*16+uint64(i)) }
+// blockHash is block h of the chain as it stands. Block 0 belongs to no epoch:
+// every chain here shares one genesis.
+func (s *seats) blockHash(h uint64) string {
+	if h == 0 {
+		return fmt.Sprintf("0x%064x", 1)
+	}
+	return fmt.Sprintf("0x%064x", h+1+s.epoch(h)<<40)
+}
+
+func (s *seats) txHash(h uint64, i int) string {
+	return fmt.Sprintf("0x%064x", txBase+s.epoch(h)<<40+h*16+uint64(i))
+}
 
 func (s *seats) block(h uint64) map[string]any {
 	txs := []any{}
 	for i := 0; i < s.txs(h); i++ {
 		tx := map[string]any{
-			"hash": txHash(h, i), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
+			"hash": s.txHash(h, i), "blockHash": s.blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
 			"from": sender, "to": recipient,
 			"value": "0x1", "gas": "0x5208", "gasPrice": "0x1", "nonce": fmt.Sprintf("0x%x", i), "input": "0x",
 			"transactionIndex": fmt.Sprintf("0x%x", i),
@@ -136,18 +153,18 @@ func (s *seats) block(h uint64) map[string]any {
 	}
 	parent := "0x" + fmt.Sprintf("%064x", 0)
 	if h > 0 {
-		parent = blockHash(h - 1)
+		parent = s.blockHash(h - 1)
 	}
 	return map[string]any{
-		"number": fmt.Sprintf("0x%x", h), "hash": blockHash(h), "parentHash": parent,
+		"number": fmt.Sprintf("0x%x", h), "hash": s.blockHash(h), "parentHash": parent,
 		"timestamp": fmt.Sprintf("0x%x", 1_700_000_000+h), "gasLimit": "0xb71b00", "gasUsed": "0x0",
 		"miner": "0x0000000000000000000000000000000000000000", "transactions": txs,
 	}
 }
 
-func receipt(h uint64, i int) map[string]any {
+func (s *seats) receipt(h uint64, i int) map[string]any {
 	return map[string]any{
-		"transactionHash": txHash(h, i), "blockHash": blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
+		"transactionHash": s.txHash(h, i), "blockHash": s.blockHash(h), "blockNumber": fmt.Sprintf("0x%x", h),
 		"from": sender, "to": recipient, "transactionIndex": fmt.Sprintf("0x%x", i),
 		"status": "0x1", "gasUsed": "0x5208", "logs": []any{},
 	}
@@ -164,6 +181,7 @@ func newSeats(t *testing.T, tip uint64, every int) (*seats, *Indexer) {
 			return 0
 		},
 		blockReceipts: true, txReceipts: true, hashless: map[uint64]bool{},
+		epoch: func(uint64) uint64 { return 0 }, gone: map[uint64]bool{},
 	}
 	srv := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(srv.Close)

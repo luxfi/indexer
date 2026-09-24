@@ -22,8 +22,11 @@ func (p *probe) at(context.Context) (string, error) {
 	return p.hash, p.err
 }
 
+// idxWith answers genesis from p and, above genesis, that the chain still holds
+// what the index holds.
 func idxWith(p *probe, baseline string) *Indexer {
-	return &Indexer{genesis: baseline, genesisAt: p.at}
+	return &Indexer{genesis: baseline, genesisAt: p.at,
+		replacedAt: func(context.Context, uint64) (bool, error) { return false, nil }}
 }
 
 // The zoo case: a chain rebuilt from genesis leaves the cursor stranded above
